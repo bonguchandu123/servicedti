@@ -35,4 +35,4 @@ python-jose==3.3.0
 
 # Email validation
 email-validator==2.1.0
-stripe==8.0.0
+stripe
