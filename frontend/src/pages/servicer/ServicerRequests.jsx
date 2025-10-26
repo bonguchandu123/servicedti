@@ -11,6 +11,7 @@ const ServicerRequests = () => {
   const [rejectionReason, setRejectionReason] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   useEffect(() => {
     fetchRequests();
@@ -21,7 +22,7 @@ const ServicerRequests = () => {
       setLoading(true);
       const token = localStorage.getItem('token');
       const response = await fetch(
-        `http://localhost:8000/api/servicer/requests?status=${filter}&page=${page}&limit=10`,
+        `${API_BASE_URL}/servicer/requests?status=${filter}&page=${page}&limit=10`,
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -43,7 +44,7 @@ const ServicerRequests = () => {
       setActionLoading(requestId);
       const token = localStorage.getItem('token');
       const response = await fetch(
-        `http://localhost:8000/api/servicer/requests/${requestId}/accept`,
+        `${API_BASE_URL}/servicer/requests/${requestId}/accept`,
         {
           method: 'PUT',
           headers: {
@@ -84,7 +85,7 @@ const ServicerRequests = () => {
       formData.append('rejection_reason', rejectionReason);
 
       const response = await fetch(
-        `http://localhost:8000/api/servicer/requests/${selectedRequest._id}/reject`,
+        `${API_BASE_URL}/servicer/requests/${selectedRequest._id}/reject`,
         {
           method: 'PUT',
           headers: {

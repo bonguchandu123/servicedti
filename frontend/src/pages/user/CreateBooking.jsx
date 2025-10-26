@@ -9,6 +9,7 @@ const CreateBooking = ({ onNavigate}) => {
   
   const [servicer, setServicer] = useState(null);
   const [category, setCategory] = useState(null);
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
   
   const [formData, setFormData] = useState({
     booking_date: '',
@@ -91,7 +92,7 @@ const CreateBooking = ({ onNavigate}) => {
   const fetchServicerDetails = async (id) => {
     try {
       console.log('🔄 Fetching servicer:', id);
-      const response = await fetch(`http://localhost:8000/api/user/servicers/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/user/servicers/${id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -112,7 +113,7 @@ const CreateBooking = ({ onNavigate}) => {
   const fetchCategoryDetails = async (id) => {
     try {
       console.log('🔄 Fetching categories, looking for:', id);
-      const response = await fetch(`http://localhost:8000/api/user/categories`, {
+      const response = await fetch(`${API_BASE_URL}/user/categories`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -210,7 +211,7 @@ const CreateBooking = ({ onNavigate}) => {
 
       console.log('📤 Sending booking request:', bookingPayload);
 
-      const response = await fetch('http://localhost:8000/api/user/bookings', {
+      const response = await fetch(`${API_BASE_URL}/user/bookings`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

@@ -22,6 +22,7 @@ const SearchServices = ({ onNavigate }) => {
   const [showServiceSelectModal, setShowServiceSelectModal] = useState(false);
   const [selectedServicer, setSelectedServicer] = useState(null);
   const [selectedServicerForBooking, setSelectedServicerForBooking] = useState(null);
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   // Enhanced default service categories with icons
   const defaultServiceCategories = [
@@ -164,7 +165,7 @@ const SearchServices = ({ onNavigate }) => {
   const fetchCategories = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8000/api/user/categories', {
+      const response = await fetch(`${API_BASE_URL}/user/categories`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -211,7 +212,7 @@ const SearchServices = ({ onNavigate }) => {
       if (minRating) params.append('min_rating', minRating);
 
       const response = await fetch(
-        `http://localhost:8000/api/user/servicers/search?${params}`,
+        `${API_BASE_URL}/user/servicers/search?${params}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -239,7 +240,7 @@ const SearchServices = ({ onNavigate }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(
-        `http://localhost:8000/api/user/favorites/${servicerId}`,
+        `${API_BASE_URL}/user/favorites/${servicerId}`,
         {
           method: 'POST',
           headers: {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { CheckCircle, MapPin, User, Phone, Clock, Navigation, AlertCircle, X } from 'lucide-react';
+import { CheckCircle, MapPin, User, Phone, Clock, Navigation, AlertCircle, X, Aperture } from 'lucide-react';
 
 // ============= LIVE TRACKING PAGE COMPONENT =============
 export const LiveTrackingPage = ({ serviceId, onClose }) => {
@@ -19,6 +19,7 @@ export const LiveTrackingPage = ({ serviceId, onClose }) => {
   const userMarkerRef = useRef(null);
   const customerMarkerRef = useRef(null);
   const routeLineRef = useRef(null);
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   // Initialize on mount
   useEffect(() => {
@@ -63,7 +64,7 @@ export const LiveTrackingPage = ({ serviceId, onClose }) => {
       setLoading(true);
       const token = localStorage.getItem('token');
       const response = await fetch(
-        `http://localhost:8000/api/servicer/services/${serviceId}`,
+        `${API_BASE_URL}/servicer/services/${serviceId}`,
         {
           headers: { 'Authorization': `Bearer ${token}` }
         }
@@ -301,7 +302,7 @@ export const LiveTrackingPage = ({ serviceId, onClose }) => {
       console.log('Sending location update:', { lat, lng, speed, heading });
 
       const response = await fetch(
-        `http://localhost:8000/api/servicer/services/${serviceId}/update-location`,
+        `${API_BASE_URL}/servicer/services/${serviceId}/update-location`,
         {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` },
@@ -341,7 +342,7 @@ export const LiveTrackingPage = ({ serviceId, onClose }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(
-        `http://localhost:8000/api/servicer/services/${serviceId}/arrived`,
+        `${API_BASE_URL}/servicer/services/${serviceId}/arrived`,
         {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` }

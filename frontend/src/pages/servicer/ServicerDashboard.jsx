@@ -5,6 +5,7 @@ const ServicerDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [availabilityStatus, setAvailabilityStatus] = useState('available');
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   useEffect(() => {
     fetchDashboardData();
@@ -13,7 +14,7 @@ const ServicerDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8000/api/servicer/dashboard', {
+      const response = await fetch(`${API_BASE_URL}/servicer/dashboard`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -33,7 +34,7 @@ const ServicerDashboard = () => {
       const formData = new FormData();
       formData.append('status', status);
 
-      const response = await fetch('http://localhost:8000/api/servicer/status', {
+      const response = await fetch(`${API_BASE_URL}/servicer/status`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`

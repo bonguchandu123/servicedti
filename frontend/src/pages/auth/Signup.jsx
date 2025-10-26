@@ -26,6 +26,7 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
   const [error, setError] = useState('');
   const [step, setStep] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   // Enhanced default service categories with icons (fallback)
   const defaultServiceCategories = [
@@ -146,11 +147,11 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
     setCategoriesLoading(true);
     try {
       // Try public endpoint first (no auth needed)
-      let response = await fetch('http://localhost:8000/api/public/categories');
+      let response = await fetch(`${API_BASE_URL}/public/categories`);
       
       if (!response.ok) {
         // Fallback to user categories endpoint
-        response = await fetch('http://localhost:8000/api/user/categories');
+        response = await fetch(`${API_BASE_URL}/user/categories`);
       }
 
       if (response.ok) {

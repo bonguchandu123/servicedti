@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, DollarSign, Star, TrendingUp, Award, Filter, Search, Download, Eye, MapPin, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, DollarSign, Star, TrendingUp, Award, Filter, Search, Download, Eye, MapPin, CheckCircle, XCircle, AlertCircle, Aperture } from 'lucide-react';
 
 const BookingHistory = () => {
   const [bookings, setBookings] = useState([]);
@@ -10,6 +10,7 @@ const BookingHistory = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   useEffect(() => {
     fetchBookingHistory();
@@ -26,7 +27,7 @@ const BookingHistory = () => {
       });
 
       const response = await fetch(
-        `http://localhost:8000/api/user/bookings/history?${params}`,
+        `${API_BASE_URL}/user/bookings/history?${params}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -50,7 +51,7 @@ const BookingHistory = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(
-        'http://localhost:8000/api/user/bookings/stats',
+        `${API_BASE_URL}/user/bookings/stats` ,
         {
           headers: {
             'Authorization': `Bearer ${token}`

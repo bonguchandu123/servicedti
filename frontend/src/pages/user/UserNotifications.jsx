@@ -8,6 +8,7 @@ const UserNotifications = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [unreadCount, setUnreadCount] = useState(0);
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   useEffect(() => {
     fetchNotifications();
@@ -17,7 +18,7 @@ const UserNotifications = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8000/api/user/notifications?page=${page}&limit=20`, {
+      const response = await fetch(`${API_BASE_URL}/user/notifications?page=${page}&limit=20`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -41,7 +42,7 @@ const UserNotifications = () => {
   const markAsRead = async (notificationId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8000/api/user/notifications/${notificationId}/read`, {
+      const response = await fetch(`${API_BASE_URL}/user/notifications/${notificationId}/read`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -70,7 +71,7 @@ const UserNotifications = () => {
       // Mark all unread notifications
       await Promise.all(
         unreadNotifs.map(notif => 
-          fetch(`http://localhost:8000/api/user/notifications/${notif._id}/read`, {
+          fetch(`${API_BASE_URL}/user/notifications/${notif._id}/read`, {
             method: 'PUT',
             headers: {
               'Authorization': `Bearer ${token}`
@@ -92,7 +93,7 @@ const UserNotifications = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8000/api/user/notifications/${notificationId}`, {
+      const response = await fetch(`${API_BASE_URL}/user/notifications/${notificationId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`

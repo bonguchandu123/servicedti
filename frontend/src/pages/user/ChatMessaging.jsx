@@ -11,6 +11,7 @@ const ChatMessaging = ({ bookingId: propBookingId }) => {
   const [otherPersonInfo, setOtherPersonInfo] = useState(null);
   const [booking, setBooking] = useState(null);
   const {user} = useAuth();
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
   
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
@@ -52,8 +53,8 @@ const ChatMessaging = ({ bookingId: propBookingId }) => {
       
       // Use different endpoint based on role
       const endpoint = isServicer 
-        ? `http://localhost:8000/api/servicer/services/${bookingId}`
-        : `http://localhost:8000/api/user/bookings/${bookingId}`;
+        ? `${API_BASE_URL}/servicer/services/${bookingId}`
+        : `${API_BASE_URL}/user/bookings/${bookingId}`;
       
       console.log(`Fetching booking from: ${endpoint}`);
       
@@ -103,8 +104,8 @@ const ChatMessaging = ({ bookingId: propBookingId }) => {
       
       // Use different endpoint based on role
       const endpoint = isServicer
-        ? `http://localhost:8000/api/servicer/services/${bookingId}/chat`
-        : `http://localhost:8000/api/user/bookings/${bookingId}/chat`;
+        ? `${API_BASE_URL}/servicer/services/${bookingId}/chat`
+        : `${API_BASE_URL}/user/bookings/${bookingId}/chat`;
 
       const response = await fetch(endpoint, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -148,8 +149,8 @@ const ChatMessaging = ({ bookingId: propBookingId }) => {
       formData.append('message_type', 'text');
 
       const endpoint = isServicer
-        ? `http://localhost:8000/api/servicer/services/${bookingId}/chat`
-        : `http://localhost:8000/api/user/bookings/${bookingId}/chat`;
+        ? `${API_BASE_URL}/servicer/services/${bookingId}/chat`
+        : `${API_BASE_URL}/user/bookings/${bookingId}/chat`;
 
       console.log(`Sending message to: ${endpoint}`);
 

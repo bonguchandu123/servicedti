@@ -13,6 +13,7 @@ const LiveTracking = () => {
   const servicerMarkerRef = useRef(null);
   const userMarkerRef = useRef(null);
   const routeLineRef = useRef(null);
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   // Get booking ID from URL
   const getBookingId = () => {
@@ -96,7 +97,7 @@ const LiveTracking = () => {
       }
 
       const response = await fetch(
-        `http://localhost:8000/api/user/bookings/${bookingId}/live-tracking`,
+        `${API_BASE_URL}/user/bookings/${bookingId}/live-tracking`,
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -126,7 +127,7 @@ const LiveTracking = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(
-        `http://localhost:8000/api/user/bookings/${bookingId}/tracking-history?limit=100`,
+        `${API_BASE_URL}/user/bookings/${bookingId}/tracking-history?limit=100`,
         {
           headers: {
             'Authorization': `Bearer ${token}`

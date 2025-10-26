@@ -6,6 +6,8 @@ const UserDashboard = ({ onNavigate }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
+
   useEffect(() => {
     fetchDashboardData();
   }, []);
@@ -13,7 +15,7 @@ const UserDashboard = ({ onNavigate }) => {
   const fetchDashboardData = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8000/api/user/dashboard', {
+      const response = await fetch(`${API_BASE_URL}/user/dashboard`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

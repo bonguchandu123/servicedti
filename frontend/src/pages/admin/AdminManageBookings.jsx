@@ -7,6 +7,7 @@ const AdminManageBookings = () => {
   const [error, setError] = useState(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
   
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -23,7 +24,7 @@ const AdminManageBookings = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      let url = `http://localhost:8000/api/admin/bookings?page=${currentPage}&limit=20`;
+      let url = `${API_BASE_URL}/admin/bookings?page=${currentPage}&limit=20`;
       
       if (statusFilter) url += `&status=${statusFilter}`;
 

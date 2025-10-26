@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Star, TrendingUp, Filter, MessageSquare, ThumbsUp, User, Calendar, Search } from 'lucide-react';
+import { Star, TrendingUp, Filter, MessageSquare, ThumbsUp, User, Calendar, Search, Aperture } from 'lucide-react';
 
 const ServicerReviews = () => {
   const [reviews, setReviews] = useState([]);
@@ -17,6 +17,7 @@ const ServicerReviews = () => {
     totalReviews: 0,
     ratingDistribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
   });
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   useEffect(() => {
     fetchReviews();
@@ -27,8 +28,8 @@ const ServicerReviews = () => {
       setLoading(true);
       const token = localStorage.getItem('token');
       const url = filterRating 
-        ? `http://localhost:8000/api/servicer/reviews?rating=${filterRating}&page=${page}&limit=10`
-        : `http://localhost:8000/api/servicer/reviews?page=${page}&limit=10`;
+        ? `${API_BASE_URL}/servicer/reviews?rating=${filterRating}&page=${page}&limit=10`
+        : `${API_BASE_URL}/servicer/reviews?page=${page}&limit=10`;
       
       const response = await fetch(url, {
         headers: {
@@ -82,7 +83,7 @@ const ServicerReviews = () => {
       formData.append('response', responseText);
 
       const response = await fetch(
-        `http://localhost:8000/api/servicer/reviews/${selectedReview._id}/respond`,
+        `${API_BASE_URL}/servicer/reviews/${selectedReview._id}/respond`,
         {
           method: 'POST',
           headers: {

@@ -7,10 +7,10 @@ import {
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
-const API_URL = 'http://localhost:8000';
+const API_URL =`${import.meta.env.VITE_API_BASE_URL}`;
 
 // Initialize Stripe (replace with your publishable key)
-const stripePromise = loadStripe('pk_test_51SJdOADyfn2AGB54dkWGJq3a2CxR1h4bapOeD9jbEsi80JfXHxR76sK3ugsbC2b8vihPA3vcSoXATdOmEQEVijnc00zTMZE8pR');
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
 // Payment Form Component
 const PaymentForm = ({ amount, onSuccess, onCancel }) => {

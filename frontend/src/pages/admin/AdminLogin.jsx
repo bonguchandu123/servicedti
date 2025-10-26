@@ -9,6 +9,7 @@ const AdminLogin = ({ onNavigate }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+    const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   const handleChange = (e) => {
     setFormData({
@@ -24,7 +25,7 @@ const AdminLogin = ({ onNavigate }) => {
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:8000/api/auth/login', {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

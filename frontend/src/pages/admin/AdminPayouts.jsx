@@ -8,7 +8,7 @@ const AdminPayouts = () => {
   const [selectedPayout, setSelectedPayout] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('pending');
@@ -28,7 +28,7 @@ const AdminPayouts = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      let url = `http://localhost:8000/api/admin/payouts`;
+      let url = `${API_BASE_URL}/admin/payouts`;
       
       if (statusFilter) url += `?status=${statusFilter}`;
 
@@ -74,7 +74,7 @@ const AdminPayouts = () => {
     setActionLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8000/api/admin/payouts/${payoutId}/approve`, {
+      const response = await fetch(`${API_BASE_URL}/admin/payouts/${payoutId}/approve`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${token}` }
       });

@@ -12,7 +12,7 @@ const MyBookings = () => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancellationReason, setCancellationReason] = useState('');
   const [cancelLoading, setCancelLoading] = useState(false);
-
+const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
   useEffect(() => {
     fetchBookings();
   }, [statusFilter, currentPage]);
@@ -29,7 +29,7 @@ const MyBookings = () => {
       if (statusFilter) params.append('status', statusFilter);
 
       const response = await fetch(
-        `http://localhost:8000/api/user/bookings?${params}`,
+        `${API_BASE_URL}/user/bookings?${params}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -62,7 +62,7 @@ const MyBookings = () => {
       formData.append('cancellation_reason', cancellationReason);
 
       const response = await fetch(
-        `http://localhost:8000/api/user/bookings/${selectedBooking._id}/cancel`,
+        `${API_BASE_URL}/user/bookings/${selectedBooking._id}/cancel`,
         {
           method: 'PUT',
           headers: {

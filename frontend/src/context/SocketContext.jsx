@@ -19,7 +19,7 @@ export const SocketProvider = ({ children }) => {
   const [messages, setMessages] = useState([]);
   const [locationUpdate, setLocationUpdate] = useState(null);
 
-  const SOCKET_URL = 'http://localhost:8000';
+  const SOCKET_URL = import.meta.env.VITE_API_BASE_URL.replace('http', 'ws');
 
   // Initialize Socket Connection
   useEffect(() => {
