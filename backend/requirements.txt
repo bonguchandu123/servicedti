@@ -1,3 +1,4 @@
+
 fastapi
 uvicorn[standard]
 python-multipart
@@ -6,8 +7,8 @@ motor
 pymongo
 
 python-jose[cryptography]
-passlib[bcrypt]
-bcrypt
+passlib[bcrypt]==1.7.4
+bcrypt==4.1.1
 pydantic
 pydantic-settings
 python-dotenv
