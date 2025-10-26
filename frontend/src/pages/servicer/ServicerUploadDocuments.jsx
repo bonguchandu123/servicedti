@@ -5,6 +5,7 @@ const ServicerUploadDocuments = () => {
   const [documentStatus, setDocumentStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   const [files, setFiles] = useState({
     aadhaar_front: null,
@@ -27,7 +28,7 @@ const ServicerUploadDocuments = () => {
   const fetchDocumentStatus = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8000/api/servicer/documents/status', {
+      const response = await fetch(`${API_BASE_URL}/servicer/documents/status`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -115,7 +116,7 @@ const ServicerUploadDocuments = () => {
         formData.append('vehicle_documents', file);
       });
 
-      const response = await fetch('http://localhost:8000/api/servicer/documents', {
+      const response = await fetch(`${API_BASE_URL}/servicer/documents`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

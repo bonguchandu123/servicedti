@@ -14,6 +14,7 @@ const ServicerEarningsPayouts = () => {
   });
   const [upiId, setUpiId] = useState('');
   const [requesting, setRequesting] = useState(false);
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   useEffect(() => {
     fetchEarnings();
@@ -23,7 +24,7 @@ const ServicerEarningsPayouts = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8000/api/servicer/earnings', {
+      const response = await fetch(`${API_BASE_URL}/servicer/earnings`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -77,7 +78,7 @@ const ServicerEarningsPayouts = () => {
         formData.append('upi_id', upiId);
       }
 
-      const response = await fetch('http://localhost:8000/api/servicer/payout', {
+      const response = await fetch(`${API_BASE_URL}/servicer/payout`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

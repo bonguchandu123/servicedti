@@ -10,6 +10,7 @@ const AdminVerifyServicers = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   useEffect(() => {
     fetchPendingVerifications();
@@ -18,7 +19,7 @@ const AdminVerifyServicers = () => {
   const fetchPendingVerifications = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8000/api/admin/verifications', {
+      const response = await fetch(`${API_BASE_URL}/admin/verifications`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -38,7 +39,7 @@ const AdminVerifyServicers = () => {
   const viewDetails = async (servicerId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8000/api/admin/verifications/${servicerId}`, {
+      const response = await fetch(`${API_BASE_URL}/admin/verifications/${servicerId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -61,7 +62,7 @@ const AdminVerifyServicers = () => {
     setActionLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8000/api/admin/verifications/${servicerId}/approve`, {
+      const response = await fetch(`${API_BASE_URL}/admin/verifications/${servicerId}/approve`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -93,7 +94,7 @@ const AdminVerifyServicers = () => {
       const formData = new FormData();
       formData.append('rejection_reason', rejectionReason);
 
-      const response = await fetch(`http://localhost:8000/api/admin/verifications/${servicerId}/reject`, {
+      const response = await fetch(`${API_BASE_URL}/admin/verifications/${servicerId}/reject`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`

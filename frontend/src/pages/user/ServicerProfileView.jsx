@@ -3,7 +3,8 @@ import {
   ArrowLeft, Star, MapPin, Briefcase, Award, Clock, 
   CheckCircle, Phone, Mail, Heart, Calendar, 
   Shield, DollarSign, User, FileText, Car, Camera,
-  TrendingUp, Package, Target, MessageCircle
+  TrendingUp, Package, Target, MessageCircle,
+  Aperture
 } from 'lucide-react';
 
 const ServicerProfileView = ({ servicerId, onNavigate }) => {
@@ -12,6 +13,7 @@ const ServicerProfileView = ({ servicerId, onNavigate }) => {
   const [error, setError] = useState(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [addingFavorite, setAddingFavorite] = useState(false);
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   useEffect(() => {
     fetchServicerDetails();
@@ -22,7 +24,7 @@ const ServicerProfileView = ({ servicerId, onNavigate }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(
-        `http://localhost:8000/api/user/servicers/${servicerId}`,
+        `${API_BASE_URL}/user/servicers/${servicerId}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -46,7 +48,7 @@ const ServicerProfileView = ({ servicerId, onNavigate }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(
-        'http://localhost:8000/api/user/favorites',
+        `${API_BASE_URL}/user/favorites`,
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -68,7 +70,7 @@ const ServicerProfileView = ({ servicerId, onNavigate }) => {
     setAddingFavorite(true);
     try {
       const token = localStorage.getItem('token');
-      const url = `http://localhost:8000/api/user/favorites/${servicerId}`;
+      const url = `${API_BASE_URL}/user/favorites/${servicerId}`;
       const method = isFavorite ? 'DELETE' : 'POST';
 
       const response = await fetch(url, {

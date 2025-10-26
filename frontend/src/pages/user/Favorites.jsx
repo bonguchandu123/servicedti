@@ -6,6 +6,7 @@ const Favorites = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [removingId, setRemovingId] = useState(null);
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   useEffect(() => {
     fetchFavorites();
@@ -14,7 +15,7 @@ const Favorites = () => {
   const fetchFavorites = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8000/api/user/favorites', {
+      const response = await fetch(`${API_BASE_URL}/user/favorites`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -40,7 +41,7 @@ const Favorites = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(
-        `http://localhost:8000/api/user/favorites/${servicerId}`,
+        `${API_BASE_URL}/user/favorites/${servicerId}`,
         {
           method: 'DELETE',
           headers: {

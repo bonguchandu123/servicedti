@@ -11,6 +11,7 @@ const ResetPassword = ({ onNavigate }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   useEffect(() => {
     // Get email from localStorage
@@ -69,7 +70,7 @@ const ResetPassword = ({ onNavigate }) => {
       formData.append('otp_code', otpCode);
       formData.append('new_password', newPassword);
 
-      const response = await fetch('http://localhost:8000/api/auth/reset-password', {
+      const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
         method: 'POST',
         body: formData
       });
@@ -101,7 +102,7 @@ const ResetPassword = ({ onNavigate }) => {
       const formData = new FormData();
       formData.append('email', email);
 
-      const response = await fetch('http://localhost:8000/api/auth/forgot-password', {
+      const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
         method: 'POST',
         body: formData
       });

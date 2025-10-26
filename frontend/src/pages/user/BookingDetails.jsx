@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Calendar, Clock, MapPin, Phone, Mail, User, DollarSign, CreditCard, Star, MessageSquare, Navigation, XCircle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, MapPin, Phone, Mail, User, DollarSign, CreditCard, Star, MessageSquare, Navigation, XCircle, CheckCircle, Aperture } from 'lucide-react';
 
 const BookingDetails = () => {
   const [booking, setBooking] = useState(null);
@@ -9,6 +9,7 @@ const BookingDetails = () => {
   const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState('');
   const [ratingLoading, setRatingLoading] = useState(false);
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   // Get booking ID from URL (you can use react-router params)
   const bookingId = window.location.pathname.split('/').pop();
@@ -21,7 +22,7 @@ const BookingDetails = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(
-        `http://localhost:8000/api/user/bookings/${bookingId}`,
+        `${API_BASE_URL}/user/bookings/${bookingId}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -57,7 +58,7 @@ const BookingDetails = () => {
       formData.append('timeliness_rating', rating);
 
       const response = await fetch(
-        `http://localhost:8000/api/user/bookings/${bookingId}/rate`,
+        `${API_BASE_URL}/user/bookings/${bookingId}/rate`,
         {
           method: 'POST',
           headers: {
@@ -87,7 +88,7 @@ const BookingDetails = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(
-        `http://localhost:8000/api/user/bookings/${bookingId}/confirm-payment`,
+        `${API_BASE_URL}/user/bookings/${bookingId}/confirm-payment`,
         {
           method: 'POST',
           headers: {

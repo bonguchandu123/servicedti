@@ -16,6 +16,7 @@ const AdminManageUsers = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   useEffect(() => {
     fetchUsers();
@@ -25,7 +26,7 @@ const AdminManageUsers = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      let url = `http://localhost:8000/api/admin/users?page=${currentPage}&limit=20`;
+      let url = `${API_BASE_URL}/admin/users?page=${currentPage}&limit=20`;
       
       if (roleFilter) url += `&role=${roleFilter}`;
       if (statusFilter) url += `&status=${statusFilter}`;
@@ -49,7 +50,7 @@ const AdminManageUsers = () => {
   const viewUserDetails = async (userId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8000/api/admin/users/${userId}`, {
+      const response = await fetch(`${API_BASE_URL}/admin/users/${userId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -81,7 +82,7 @@ const AdminManageUsers = () => {
       formData.append('block', shouldBlock);
       if (blockReason.trim()) formData.append('reason', blockReason);
 
-      const response = await fetch(`http://localhost:8000/api/admin/users/${userId}/block`, {
+      const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/block`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData

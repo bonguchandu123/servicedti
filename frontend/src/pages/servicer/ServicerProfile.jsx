@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { User, Mail, Phone, MapPin, Edit2, Save, X, Camera, Briefcase, Award, DollarSign, CreditCard, Building } from 'lucide-react';
 
+
 const ServicerProfile = () => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('personal');
-  
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}`;
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -39,7 +40,7 @@ const ServicerProfile = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8000/api/servicer/profile', {
+      const response = await fetch(`${API_BASE_URL}/api/servicer/profile`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -71,7 +72,7 @@ const ServicerProfile = () => {
         // Set image preview from servicer profile_photo_url first, fallback to user profile_image_url
         const photoUrl = data.profile_photo_url || data.user_details.profile_image_url || null;
         if (photoUrl && !photoUrl.startsWith('http')) {
-          setImagePreview(`http://localhost:8000${photoUrl}`);
+          setImagePreview(`${API_BASE_URL}${photoUrl}`);
         } else {
           setImagePreview(photoUrl);
         }
@@ -130,7 +131,7 @@ const ServicerProfile = () => {
       if (formData.state) formDataToSend.append('state', formData.state);
       if (formData.pincode) formDataToSend.append('pincode', formData.pincode);
 
-      const userResponse = await fetch('http://localhost:8000/api/user/profile', {
+      const userResponse = await fetch(`${API_BASE_URL}/api/user/profile`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -149,7 +150,7 @@ const ServicerProfile = () => {
       if (formData.service_radius_km) servicerFormData.append('service_radius_km', formData.service_radius_km);
       if (profileImage) servicerFormData.append('profile_photo', profileImage);
 
-      const servicerResponse = await fetch('http://localhost:8000/api/servicer/profile', {
+      const servicerResponse = await fetch( `${API_BASE_URL}/api/servicer/profile`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -186,7 +187,7 @@ const ServicerProfile = () => {
       if (bankDetails.ifsc_code) formDataToSend.append('ifsc_code', bankDetails.ifsc_code);
       if (bankDetails.upi_id) formDataToSend.append('upi_id', bankDetails.upi_id);
 
-      const response = await fetch('http://localhost:8000/api/servicer/bank-details', {
+      const response = await fetch(`${API_BASE_URL}/api/servicer/bank-details`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`

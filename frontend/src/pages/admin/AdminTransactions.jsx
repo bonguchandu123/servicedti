@@ -15,6 +15,7 @@ const AdminTransactions = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   // Stats
   const [stats, setStats] = useState({
@@ -31,7 +32,7 @@ const AdminTransactions = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      let url = `http://localhost:8000/api/admin/transactions?page=${currentPage}&limit=20`;
+      let url = `${API_BASE_URL}/admin/transactions?page=${currentPage}&limit=20`;
       
       if (typeFilter) url += `&type=${typeFilter}`;
       if (statusFilter) url += `&status=${statusFilter}`;
