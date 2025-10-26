@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { Menu } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -15,7 +16,7 @@ import ResetPassword from './pages/auth/ResetPassword';
 // User Pages
 import UserDashboard from './pages/user/Dashboard';
 import SearchServices from './pages/user/SearchServices';
-import MyBookings from './pages/user/MyBookings'
+import MyBookings from './pages/user/MyBookings';
 import BookingHistory from './pages/user/BookingHistory';
 import BookingDetails from './pages/user/BookingDetails';
 import Favorites from './pages/user/Favorites';
@@ -54,7 +55,7 @@ const BootAnimation = ({ onComplete }) => {
   useEffect(() => {
     const interval = setInterval(() => {
       setPercentage(prev => {
-        const increment = Math.floor(Math.random() * 15) + 1;
+        const increment = Math.floor(Math.random() * 8) + 1;
         const newValue = Math.min(prev + increment, 100);
         
         if (newValue >= 100) {
@@ -67,7 +68,7 @@ const BootAnimation = ({ onComplete }) => {
         
         return newValue;
       });
-    }, 80);
+    }, 120);
 
     return () => clearInterval(interval);
   }, [onComplete]);
@@ -78,17 +79,22 @@ const BootAnimation = ({ onComplete }) => {
         fadeOut ? 'opacity-0' : 'opacity-100'
       }`}
     >
-      <div className="text-center text-white">
+      <div className="text-center text-white px-4">
         {/* Rotating Circle */}
         <div className="w-16 h-16 border-4 border-gray-800 border-t-white rounded-full animate-spin mx-auto mb-6"></div>
         
         {/* Logo with scale animation */}
-        <div className=" text-2xl lg:text-7xl font-bold mb-8 animate-[scaleIn_0.8s_ease-out] text-white" style={{ textShadow: '0 0 30px rgba(255,255,255,0.3)' }}>
-         SERVICE PLATFORM
+        <div className="mb-8">
+          <div className="text-4xl sm:text-5xl lg:text-7xl font-bold animate-[scaleIn_0.8s_ease-out] text-white mb-2" style={{ textShadow: '0 0 30px rgba(255,255,255,0.3)' }}>
+            SERVICE PLATFORM
+          </div>
+          <div className="text-sm sm:text-lg lg:text-xl font-light tracking-[0.3em] text-gray-400 animate-[fadeIn_1s_ease-out_0.5s_both]">
+            SERVICE PLATFORM
+          </div>
         </div>
         
         {/* Loading Bar */}
-        <div className="w-80 h-1 bg-gray-800 rounded-full overflow-hidden mx-auto mb-6">
+        <div className="w-64 sm:w-80 h-1 bg-gray-800 rounded-full overflow-hidden mx-auto mb-6">
           <div 
             className="h-full bg-white rounded-full transition-all duration-300 ease-out shadow-[0_0_10px_rgba(255,255,255,0.5)]"
             style={{ width: `${percentage}%` }}
@@ -96,12 +102,12 @@ const BootAnimation = ({ onComplete }) => {
         </div>
         
         {/* Percentage */}
-        <div className="text-3xl font-semibold mb-4 text-white">
+        <div className="text-2xl sm:text-3xl font-semibold mb-4 text-white">
           {percentage}%
         </div>
         
         {/* Loading Text */}
-        <div className="text-lg font-light tracking-[0.2em] animate-pulse text-gray-400">
+        <div className="text-base sm:text-lg font-light tracking-[0.2em] animate-pulse text-gray-400">
           LOADING...
         </div>
       </div>
@@ -120,7 +126,34 @@ const BootAnimation = ({ onComplete }) => {
             opacity: 1;
           }
         }
+        @keyframes fadeIn {
+          0% {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
       `}</style>
+    </div>
+  );
+};
+
+// Page Loader Component for navigation transitions
+const PageLoader = () => {
+  return (
+    <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+      <div className="text-center text-white">
+        <div className="w-12 h-12 border-4 border-gray-800 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
+        <div className="text-3xl font-bold text-white mb-2" style={{ textShadow: '0 0 20px rgba(255,255,255,0.3)' }}>
+          SA
+        </div>
+        <div className="text-sm font-light tracking-[0.2em] animate-pulse text-gray-400">
+          LOADING...
+        </div>
+      </div>
     </div>
   );
 };
@@ -131,20 +164,31 @@ const AppContent = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showBootAnimation, setShowBootAnimation] = useState(true);
   const [bootCompleted, setBootCompleted] = useState(false);
+  const [pageLoading, setPageLoading] = useState(false);
 
   // Check if boot animation has been shown before
   useEffect(() => {
-    const hasBooted = sessionStorage.getItem('hasBooted');
-    if (hasBooted) {
-      setShowBootAnimation(false);
-      setBootCompleted(true);
+    try {
+      const hasBooted = sessionStorage.getItem('hasBooted');
+      if (hasBooted === 'true') {
+        setShowBootAnimation(false);
+        setBootCompleted(true);
+      }
+    } catch (error) {
+      console.error('SessionStorage error:', error);
+      // If sessionStorage fails, just show the animation
+      setShowBootAnimation(true);
     }
   }, []);
 
   const handleBootComplete = () => {
     setShowBootAnimation(false);
     setBootCompleted(true);
-    sessionStorage.setItem('hasBooted', 'true');
+    try {
+      sessionStorage.setItem('hasBooted', 'true');
+    } catch (error) {
+      console.error('SessionStorage error:', error);
+    }
   };
 
   // Sync currentPath with browser URL on mount and when URL changes
@@ -181,12 +225,28 @@ const AppContent = () => {
   }, [user, currentPath]);
 
   const navigateTo = (path) => {
-    setCurrentPath(path);
-    window.history.pushState({}, '', path);
+    // Show page loader
+    setPageLoading(true);
+    
+    // Small delay to show loader
+    setTimeout(() => {
+      setCurrentPath(path);
+      window.history.pushState({}, '', path);
+      
+      // Hide loader after navigation
+      setTimeout(() => {
+        setPageLoading(false);
+      }, 400);
+    }, 100);
   };
 
   const handleLogout = () => {
     logout();
+    try {
+      sessionStorage.removeItem('hasBooted');
+    } catch (error) {
+      console.error('SessionStorage error:', error);
+    }
     navigateTo('/login');
   };
 
@@ -350,6 +410,7 @@ const AppContent = () => {
   if (!user || currentPath === '/login' || currentPath === '/signup' || currentPath === '/verify-email' || currentPath === '/forgot-password' || currentPath === '/reset-password' || currentPath === '/admin/login') {
     return (
       <div className="min-h-screen bg-gray-50">
+        {pageLoading && <PageLoader />}
         {renderPage()}
       </div>
     );
@@ -358,6 +419,8 @@ const AppContent = () => {
   // Show dashboard layout with sidebar for logged-in users
   return (
     <div className="min-h-screen bg-gray-50 flex">
+      {pageLoading && <PageLoader />}
+      
       <Sidebar
         role={user.role}
         currentPath={currentPath}
@@ -404,10 +467,6 @@ const App = () => {
 };
 
 export default App;
-
-
-
-
 
 
 
