@@ -15,7 +15,7 @@ import ResetPassword from './pages/auth/ResetPassword';
 // User Pages
 import UserDashboard from './pages/user/Dashboard';
 import SearchServices from './pages/user/SearchServices';
-import MyBookings from './pages/user/MyBookings';
+import MyBookings from './pages/user/MyBookings'
 import BookingHistory from './pages/user/BookingHistory';
 import BookingDetails from './pages/user/BookingDetails';
 import Favorites from './pages/user/Favorites';
