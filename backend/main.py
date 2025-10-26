@@ -33,14 +33,18 @@ app = FastAPI(
 )
 
 # CORS Middleware
+origins = [
+    "https://servicedti.vercel.app",  # Production frontend
+    "http://localhost:5173",          # Local dev
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*'],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # Security
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
