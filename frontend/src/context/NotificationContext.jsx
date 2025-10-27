@@ -211,7 +211,7 @@ export const NotificationProvider = ({ children }) => {
     const pollInterval = setInterval(() => {
       console.log('🔄 Polling for new notifications...');
       checkForNewNotifications();
-    }, 30000); // 30 seconds
+    }, 1000); // 30 seconds
 
     return () => {
       console.log('🛑 Stopping notification polling');
