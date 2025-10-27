@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Star, Filter, MessageSquare, User, Calendar, Search, TrendingUp } from 'lucide-react';
+import { useToast } from '../../context/ToastContext';
 
 const ServicerReviews = () => {
   const [reviews, setReviews] = useState([]);
@@ -17,6 +18,7 @@ const ServicerReviews = () => {
     totalReviews: 0,
     ratingDistribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
   });
+  const toast = useToast();
   const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   useEffect(() => {
@@ -72,7 +74,9 @@ const ServicerReviews = () => {
 
   const submitResponse = async () => {
     if (!responseText.trim()) {
+
       alert('Please write a response');
+     
       return;
     }
 
@@ -94,6 +98,7 @@ const ServicerReviews = () => {
       );
 
       if (response.ok) {
+        toast.success("Response submitted successfully!")
         alert('Response submitted successfully!');
         setShowResponseModal(false);
         setResponseText('');
@@ -101,6 +106,7 @@ const ServicerReviews = () => {
         fetchReviews();
       } else {
         alert('Failed to submit response');
+       
       }
     } catch (error) {
       console.error('Error submitting response:', error);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Check, CheckCheck, Trash2, Calendar, DollarSign, MessageCircle, Star, Package } from 'lucide-react';
+import { Bell, Check, CheckCheck, Trash2, Calendar, DollarSign, MessageCircle, Star, Package, Wrench, AlertTriangle } from 'lucide-react';
 
-const UserNotifications = () => {
+const ServicerNotifications = () => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -24,7 +24,7 @@ const UserNotifications = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/user/notifications?page=${page}&limit=20`, {
+      const response = await fetch(`${API_BASE_URL}/servicer/notifications?page=${page}&limit=20`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -49,7 +49,7 @@ const UserNotifications = () => {
   const markAsRead = async (notificationId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/user/notifications/${notificationId}/read`, {
+      const response = await fetch(`${API_BASE_URL}/servicer/notifications/${notificationId}/read`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -77,7 +77,7 @@ const UserNotifications = () => {
       
       await Promise.all(
         unreadNotifs.map(notif => 
-          fetch(`${API_BASE_URL}/user/notifications/${notif._id}/read`, {
+          fetch(`${API_BASE_URL}/servicer/notifications/${notif._id}/read`, {
             method: 'PUT',
             headers: {
               'Authorization': `Bearer ${token}`
@@ -100,7 +100,7 @@ const UserNotifications = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/user/notifications/${notificationId}`, {
+      const response = await fetch(`${API_BASE_URL}/servicer/notifications/${notificationId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -132,27 +132,38 @@ const UserNotifications = () => {
       
       const bookingId = metadata.booking_id;
       if (bookingId) {
-        // Navigate to chat page
-        window.location.href = `/user/bookings/${bookingId}/chat`;
+        // Navigate to servicer chat page
+        window.location.href = `/servicer/chat/${bookingId}`;
         return;
       }
     }
     
-    // Handle booking notifications
+    // Handle booking notifications (new requests, updates)
     if (metadata.booking_id) {
-      window.location.href = `/user/bookings/${metadata.booking_id}`;
+      // For servicers, direct to requests page or booking details
+      if (notification.title.includes('New Booking') || notification.title.includes('Booking Request')) {
+        window.location.href = `/servicer/requests/${metadata.booking_id}`;
+      } else {
+        window.location.href = `/servicer/requests/${metadata.booking_id}`;
+      }
       return;
     }
     
-    // Handle payment notifications
-    if (notification.notification_type === 'payment') {
-      window.location.href = '/user/wallet';
+    // Handle payment/payout notifications
+    if (notification.notification_type === 'payment' || notification.notification_type === 'payout') {
+      window.location.href = '/servicer/earnings';
       return;
     }
     
     // Handle rating notifications
     if (notification.notification_type === 'rating' && metadata.booking_id) {
-      window.location.href = `/user/bookings/${metadata.booking_id}`;
+      window.location.href = '/servicer/reviews';
+      return;
+    }
+
+    // Handle document verification notifications
+    if (notification.notification_type === 'document_verification') {
+      window.location.href = '/servicer/upload-documents';
       return;
     }
   };
@@ -162,6 +173,7 @@ const UserNotifications = () => {
       case 'booking_update':
         return <Calendar className="w-5 h-5" />;
       case 'payment':
+      case 'payout':
         return <DollarSign className="w-5 h-5" />;
       case 'message':
       case 'system':
@@ -171,7 +183,7 @@ const UserNotifications = () => {
       case 'document_verification':
         return <Package className="w-5 h-5" />;
       default:
-        return <Bell className="w-5 h-5" />;
+        return <Wrench className="w-5 h-5" />;
     }
   };
 
@@ -180,6 +192,7 @@ const UserNotifications = () => {
       case 'booking_update':
         return 'blue';
       case 'payment':
+      case 'payout':
         return 'emerald';
       case 'message':
       case 'system':
@@ -257,7 +270,10 @@ const UserNotifications = () => {
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Notifications</h1>
+              <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+                <Wrench className="w-8 h-8 text-blue-600" />
+                Notifications
+              </h1>
               <p className="text-gray-600 mt-1">
                 {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}` : 'All caught up!'}
               </p>
@@ -432,4 +448,4 @@ const UserNotifications = () => {
   );
 };
 
-export default UserNotifications;
+export default ServicerNotifications;

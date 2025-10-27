@@ -30,6 +30,8 @@ const Sidebar = ({ role, currentPath, onNavigate, sidebarOpen, setSidebarOpen, o
           { title: 'Active Services', icon: Briefcase, path: '/servicer/active-services' },
           { title: 'Earnings & Payouts', icon: DollarSign, path: '/servicer/earnings' },
           { title: 'Reviews', icon: Star, path: '/servicer/reviews' },
+          { title: 'Notifications', icon: Bell, path: '/servicer/notifications' },
+  
           { title: 'Profile', icon: User, path: '/servicer/profile' }
         ];
       

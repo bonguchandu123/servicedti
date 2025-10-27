@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, use } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 
 const VerifyEmail = ({ onNavigate }) => {
   const { verifyOTP, sendOTP, tempUserData } = useAuth();
@@ -9,6 +10,7 @@ const VerifyEmail = ({ onNavigate }) => {
   const [success, setSuccess] = useState('');
   const [resendTimer, setResendTimer] = useState(60);
   const [canResend, setCanResend] = useState(false);
+  const toast  = useToast();
 
   // Get email and role from tempUserData stored during signup
   const email = tempUserData?.email || '';
@@ -66,6 +68,7 @@ const VerifyEmail = ({ onNavigate }) => {
     
     if (!/^\d+$/.test(pastedData)) {
       setError('Please paste only numbers');
+      toast.error('Please paste only numbers');
       return;
     }
 
@@ -84,6 +87,7 @@ const VerifyEmail = ({ onNavigate }) => {
     
     if (otpCode.length !== 6) {
       setError('Please enter complete 6-digit OTP');
+      toast.info('Please enter complete 6-digit OTP');
       return;
     }
 
@@ -94,6 +98,7 @@ const VerifyEmail = ({ onNavigate }) => {
 
     if (result.success) {
       setSuccess('Email verified successfully! Redirecting...');
+      toast.success('Email verified successfully! Redirecting...');
       setTimeout(() => {
         // Navigate based on role
         if (role === 'servicer') {
@@ -104,6 +109,7 @@ const VerifyEmail = ({ onNavigate }) => {
       }, 1500);
     } else {
       setError(result.message || 'Invalid OTP. Please try again.');
+      toast.error(result.message || 'Invalid OTP. Please try again.');
       setOtp(['', '', '', '', '', '']);
       const firstInput = document.getElementById('otp-0');
       if (firstInput) firstInput.focus();
@@ -123,6 +129,7 @@ const VerifyEmail = ({ onNavigate }) => {
 
     if (result.success) {
       setSuccess('OTP resent successfully! Check your email.');
+      toast.success('OTP resent successfully! Check your email.');
       setCanResend(false);
       setResendTimer(60);
       
@@ -139,6 +146,7 @@ const VerifyEmail = ({ onNavigate }) => {
       }, 1000);
     } else {
       setError(result.message || 'Failed to resend OTP');
+      toast.error(result.message || 'Failed to resend OTP');
     }
 
     setLoading(false);

@@ -43,6 +43,7 @@ const PaymentForm = ({ amount, onSuccess, onCancel }) => {
 
       if (!response.ok) {
         throw new Error(data.detail || 'Failed to create payment');
+        
       }
 
       setClientSecret(data.client_secret);

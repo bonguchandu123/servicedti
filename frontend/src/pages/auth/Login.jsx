@@ -1,10 +1,13 @@
 
-import React, { useState } from 'react';
+import React, {  use, useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Shield } from 'lucide-react';
+import { useToast } from '../../context/ToastContext';
+
 
 const Login = ({ onNavigate }) => {
   const { login } = useAuth();
+  const toast= useToast()
   
   const [formData, setFormData] = useState({
     email: '',
@@ -19,7 +22,9 @@ const Login = ({ onNavigate }) => {
       [e.target.name]: e.target.value
     });
     setError('');
+    toast.clear();
   };
+ 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -27,12 +32,14 @@ const Login = ({ onNavigate }) => {
     // Validation
     if (!formData.email || !formData.password) {
       setError('Please fill all fields');
+      toast.error('Please fill all fields');
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
       setError('Please enter a valid email address');
+      toast.error('Please enter a valid email address');
       return;
     }
 
@@ -52,12 +59,15 @@ const Login = ({ onNavigate }) => {
       } else if (role === 'admin') {
         onNavigate('/admin/dashboard');
       }
+      toast.success('Login successful!');
     } else {
       setError(result.message || 'Login failed. Please try again.');
+      toast.error(result.message || 'Login failed. Please try again.');
     }
 
     setLoading(false);
   };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
