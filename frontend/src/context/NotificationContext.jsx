@@ -86,6 +86,67 @@ export const NotificationProvider = ({ children }) => {
     }
   };
 
+  const getNavigationPath = (notification) => {
+    const metadata = notification.metadata || {};
+    
+    // Handle chat/message notifications
+    if (notification.notification_type === 'message' || 
+        (notification.notification_type === 'system' && metadata.booking_id && metadata.message_preview)) {
+      
+      const bookingId = metadata.booking_id;
+      if (bookingId) {
+        if (user.role === 'user') {
+          return `/user/bookings/${bookingId}/chat`;
+        } else if (user.role === 'servicer') {
+          return `/servicer/chat/${bookingId}`;
+        }
+      }
+    }
+    
+    // Handle booking notifications
+    if (metadata.booking_id) {
+      if (user.role === 'user') {
+        return `/user/bookings/${metadata.booking_id}`;
+      } else if (user.role === 'servicer') {
+        return `/servicer/requests/${metadata.booking_id}`;
+      }
+    }
+    
+    // Handle payment notifications
+    if (notification.notification_type === 'payment') {
+      if (user.role === 'user') {
+        return '/user/wallet';
+      } else if (user.role === 'servicer') {
+        return '/servicer/earnings';
+      }
+    }
+    
+    // Handle rating notifications
+    if (notification.notification_type === 'rating' && metadata.booking_id) {
+      if (user.role === 'user') {
+        return `/user/bookings/${metadata.booking_id}`;
+      } else if (user.role === 'servicer') {
+        return '/servicer/reviews';
+      }
+    }
+
+    // Handle document verification notifications
+    if (notification.notification_type === 'document_verification') {
+      if (user.role === 'servicer') {
+        return '/servicer/upload-documents';
+      }
+    }
+
+    // Default: Navigate to notifications page
+    if (user.role === 'user') {
+      return '/user/notifications';
+    } else if (user.role === 'servicer') {
+      return '/servicer/notifications';
+    }
+
+    return null;
+  };
+
   const showNotificationToast = (notification) => {
     const notificationType = notification.notification_type;
     
@@ -112,10 +173,26 @@ export const NotificationProvider = ({ children }) => {
         toastType = 'info';
     }
     
-    // Show toast with title and message
+    // Get navigation path
+    const navigationPath = getNavigationPath(notification);
+    
+    // Create click handler
+    const handleClick = () => {
+      if (navigationPath) {
+        console.log(`📍 Navigating to: ${navigationPath}`);
+        window.history.pushState({}, '', navigationPath);
+        // Trigger a custom event to notify App.js of the navigation
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }
+    };
+    
+    // Show toast with title and message (and click handler)
     const message = `${notification.title}: ${notification.message}`;
-    console.log(`🎉 Showing toast: ${message}`);
-    toast[toastType](message, 5000); // Show for 5 seconds
+    console.log(`🎉 Showing clickable toast: ${message}`);
+    
+    // Pass the click handler to the toast
+    // Note: This requires the ToastContext to support an onClick parameter
+    toast[toastType](message, 5000, handleClick); // Show for 5 seconds with click handler
   };
 
   // Poll for new notifications every 30 seconds
@@ -134,7 +211,7 @@ export const NotificationProvider = ({ children }) => {
     const pollInterval = setInterval(() => {
       console.log('🔄 Polling for new notifications...');
       checkForNewNotifications();
-    }, 1000); // 30 seconds
+    }, 30000); // 30 seconds
 
     return () => {
       console.log('🛑 Stopping notification polling');

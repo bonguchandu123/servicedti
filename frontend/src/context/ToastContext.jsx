@@ -99,7 +99,7 @@ const Confetti = ({ type }) => {
 };
 
 // Toast Component
-const Toast = ({ id, message, type, onClose }) => {
+const Toast = ({ id, message, type, onClose, onClick }) => {
   const icons = {
     success: <CheckCircle className="w-6 h-6 text-green-500" />,
     error: <AlertCircle className="w-6 h-6 text-red-500" />,
@@ -114,11 +114,23 @@ const Toast = ({ id, message, type, onClose }) => {
     info: 'bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-300'
   };
 
+  const handleToastClick = () => {
+    if (onClick && typeof onClick === 'function') {
+      onClick();
+      onClose(id); // Close the toast after navigation
+    }
+  };
+
   return (
     <div className="toast-wrapper">
       <Confetti type={type} />
       <div
-        className={`flex items-center gap-3 min-w-[340px] max-w-md p-4 rounded-xl border-2 shadow-2xl backdrop-blur-sm ${bgColors[type]} toast-content`}
+        className={`flex items-center gap-3 min-w-[340px] max-w-md p-4 rounded-xl border-2 shadow-2xl backdrop-blur-sm ${bgColors[type]} toast-content ${
+          onClick ? 'cursor-pointer hover:scale-[1.02] active:scale-[0.98]' : ''
+        }`}
+        onClick={handleToastClick}
+        role={onClick ? 'button' : 'alert'}
+        tabIndex={onClick ? 0 : undefined}
       >
         <div className="flex-shrink-0 icon-bounce">
           {icons[type]}
@@ -127,7 +139,10 @@ const Toast = ({ id, message, type, onClose }) => {
           {message}
         </p>
         <button
-          onClick={() => onClose(id)}
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent triggering onClick when closing
+            onClose(id);
+          }}
           className="flex-shrink-0 p-1.5 rounded-full hover:bg-white/50 transition-all duration-200 hover:scale-110"
         >
           <X className="w-4 h-4 text-gray-600" />
@@ -148,6 +163,7 @@ const ToastContainer = ({ toasts, onClose }) => {
             id={toast.id}
             message={toast.message}
             type={toast.type}
+            onClick={toast.onClick}
             onClose={onClose}
           />
         ))}
@@ -291,6 +307,7 @@ const ToastContainer = ({ toasts, onClose }) => {
           transform: scale(0.3) translateY(calc(50vh - 50%));
           position: relative;
           z-index: 1;
+          transition: transform 0.2s ease;
         }
 
         @keyframes toast-rise-from-center {
@@ -341,10 +358,10 @@ export const ToastProvider = ({ children }) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   }, []);
 
-  const showToast = useCallback((message, type = 'info', duration = 4000) => {
+  const showToast = useCallback((message, type = 'info', duration = 4000, onClick = null) => {
     const id = Date.now() + Math.random();
     
-    setToasts((prev) => [...prev, { id, message, type }]);
+    setToasts((prev) => [...prev, { id, message, type, onClick }]);
 
     if (duration > 0) {
       setTimeout(() => {
@@ -356,10 +373,10 @@ export const ToastProvider = ({ children }) => {
   }, [removeToast]);
 
   const toast = {
-    success: (message, duration) => showToast(message, 'success', duration),
-    error: (message, duration) => showToast(message, 'error', duration),
-    warning: (message, duration) => showToast(message, 'warning', duration),
-    info: (message, duration) => showToast(message, 'info', duration),
+    success: (message, duration, onClick) => showToast(message, 'success', duration, onClick),
+    error: (message, duration, onClick) => showToast(message, 'error', duration, onClick),
+    warning: (message, duration, onClick) => showToast(message, 'warning', duration, onClick),
+    info: (message, duration, onClick) => showToast(message, 'info', duration, onClick),
     dismiss: removeToast,
   };
 
@@ -370,4 +387,3 @@ export const ToastProvider = ({ children }) => {
     </ToastContext.Provider>
   );
 };
-
