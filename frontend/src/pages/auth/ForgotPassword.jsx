@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, ArrowLeft, Send, CheckCircle, AlertCircle } from 'lucide-react';
+import { useToast } from '../../context/ToastContext';
 
 const ForgotPassword = ({ onNavigate }) => {
   const [email, setEmail] = useState('');
@@ -7,6 +8,7 @@ const ForgotPassword = ({ onNavigate }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
+  const toast = useToast();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -26,6 +28,7 @@ const ForgotPassword = ({ onNavigate }) => {
       const data = await response.json();
 
       if (response.ok) {
+        toast.success('Reset code sent to your email');
         setSuccess(true);
         // Store email in localStorage for reset password page
         localStorage.setItem('resetEmail', email);
@@ -36,10 +39,12 @@ const ForgotPassword = ({ onNavigate }) => {
         }, 2000);
       } else {
         setError(data.detail || 'Failed to send reset code');
+        toast.error(data.detail || 'Failed to send reset code');
       }
     } catch (err) {
       console.error('Forgot password error:', err);
       setError('Network error. Please try again.');
+      toast.error('Network error. Please try again.');
     } finally {
       setLoading(false);
     }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Lock, ArrowLeft, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
+import { useToast } from '../../context/ToastContext';
 
 const ResetPassword = ({ onNavigate }) => {
   const [email, setEmail] = useState('');
@@ -12,6 +13,7 @@ const ResetPassword = ({ onNavigate }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
+  const toast = useToast();
 
   useEffect(() => {
     // Get email from localStorage
@@ -26,15 +28,20 @@ const ResetPassword = ({ onNavigate }) => {
 
   const validatePassword = (password) => {
     if (password.length < 8) {
+      toast.error('Password must be at least 8 characters long');
+      
       return 'Password must be at least 8 characters long';
     }
     if (!/[A-Z]/.test(password)) {
+      toast.error('Password must contain at least one uppercase letter');
       return 'Password must contain at least one uppercase letter';
     }
     if (!/[a-z]/.test(password)) {
+      toast.error('Password must contain at least one lowercase letter');
       return 'Password must contain at least one lowercase letter';
     }
     if (!/[0-9]/.test(password)) {
+      toast.error('Password must contain at least one number');
       return 'Password must contain at least one number';
     }
     return null;
@@ -46,17 +53,20 @@ const ResetPassword = ({ onNavigate }) => {
 
     // Validation
     if (!otpCode || otpCode.length !== 6) {
+      toast.error('Please enter a valid 6-digit OTP');
       setError('Please enter a valid 6-digit OTP');
       return;
     }
 
     const passwordError = validatePassword(newPassword);
     if (passwordError) {
+      toast.error(passwordError);
       setError(passwordError);
       return;
     }
 
     if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match');
       setError('Passwords do not match');
       return;
     }
@@ -78,6 +88,7 @@ const ResetPassword = ({ onNavigate }) => {
       const data = await response.json();
 
       if (response.ok) {
+          toast.success('Password reset successful!');
         setSuccess(true);
         // Clear stored email
         localStorage.removeItem('resetEmail');
@@ -88,8 +99,10 @@ const ResetPassword = ({ onNavigate }) => {
         }, 2000);
       } else {
         setError(data.detail || 'Failed to reset password');
+        toast.error(data.detail || 'Failed to reset password');
       }
     } catch (err) {
+      toast.error('Network error. Please try again.');
       console.error('Reset password error:', err);
       setError('Network error. Please try again.');
     } finally {
@@ -108,9 +121,11 @@ const ResetPassword = ({ onNavigate }) => {
       });
 
       if (response.ok) {
-        alert('OTP resent to your email');
+        toast.success('OTP resent to your email');
+        
       }
     } catch (err) {
+      toast.error('Failed to resend OTP. Please try again.');
       console.error('Resend OTP error:', err);
     }
   };

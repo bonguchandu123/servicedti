@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, use } from 'react';
 import { CheckCircle, MapPin, User, Phone, Clock, Navigation, AlertCircle, X, Aperture } from 'lucide-react';
+import { useToast } from '../../context/ToastContext';
 
 // ============= LIVE TRACKING PAGE COMPONENT =============
 export const LiveTrackingPage = ({ serviceId, onClose }) => {
@@ -20,6 +21,7 @@ export const LiveTrackingPage = ({ serviceId, onClose }) => {
   const customerMarkerRef = useRef(null);
   const routeLineRef = useRef(null);
   const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
+  const toast  = useToast();
 
   // Initialize on mount
   useEffect(() => {
@@ -70,7 +72,10 @@ export const LiveTrackingPage = ({ serviceId, onClose }) => {
         }
       );
       
-      if (!response.ok) throw new Error('Failed to fetch service details');
+      if (!response.ok) {
+        throw new Error('Failed to fetch service details')
+
+      };
       
       const data = await response.json();
       setService(data);
@@ -85,6 +90,8 @@ export const LiveTrackingPage = ({ serviceId, onClose }) => {
     } catch (err) {
       console.error('Error fetching service:', err);
       setError('Failed to load service details');
+      toast.error('Failed to load service details');
+
       setLoading(false);
     }
   };
@@ -262,10 +269,12 @@ export const LiveTrackingPage = ({ serviceId, onClose }) => {
   const startTracking = () => {
     if (!navigator.geolocation) {
       setError('Geolocation is not supported by your browser');
+      toast.error('Geolocation is not supported by your browser');
       return;
     }
 
     console.log('Starting location tracking...');
+    toast.info('Starting location tracking...');
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       async (position) => {
@@ -279,6 +288,7 @@ export const LiveTrackingPage = ({ serviceId, onClose }) => {
       },
       (err) => {
         console.error('Geolocation error:', err);
+        toast.error(`Geolocation error: ${err.message}`);
         setError(`Location error: ${err.message}`);
       },
       {
@@ -315,13 +325,18 @@ export const LiveTrackingPage = ({ serviceId, onClose }) => {
         console.log('Server response:', data);
         setDistance(data.distance_km);
         setEta(data.eta_minutes);
+        toast.success('Location updated successfully');
       } else {
+
+
         console.error('Server response not OK:', response.status);
+        toast.error('Failed to update location on server');
         const errorText = await response.text();
         console.error('Error details:', errorText);
       }
     } catch (err) {
       console.error('Error updating location:', err);
+      toast.error('Failed to update location on server'); 
       setError('Failed to update location on server');
     }
   };
@@ -350,14 +365,17 @@ export const LiveTrackingPage = ({ serviceId, onClose }) => {
       );
 
       if (response.ok) {
+        toast.success('Marked as arrived! Tracking stopped.');
         alert('✓ Marked as arrived! Tracking stopped.');
         stopTracking();
         if (onClose) onClose();
       } else {
+        toast.error('Failed to mark as arrived'); 
         alert('Failed to mark as arrived');
       }
     } catch (err) {
       console.error('Error:', err);
+      toast.error('Failed to mark as arrived');
       alert('Failed to mark as arrived');
     }
   };

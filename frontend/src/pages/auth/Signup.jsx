@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Briefcase, Wrench, Zap, Paintbrush, Droplet, Wind, Home, Bug, Leaf, Scissors, AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 
 
 const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) => {
@@ -27,6 +28,7 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
   const [step, setStep] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
+  const toast = useToast()
 
   // Enhanced default service categories with icons (fallback)
   const defaultServiceCategories = [
@@ -150,6 +152,8 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
       let response = await fetch(`${API_BASE_URL}/public/categories`);
       
       if (!response.ok) {
+        toast.warning('Failed to fetch categories from public endpoint, trying fallback.');
+        
         // Fallback to user categories endpoint
         response = await fetch(`${API_BASE_URL}/user/categories`);
       }
@@ -157,6 +161,7 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
       if (response.ok) {
         const data = await response.json();
         console.log('📦 Fetched categories:', data.categories?.length || 0);
+        
         
         if (data.categories && data.categories.length > 0) {
           // Merge with default icons
@@ -172,8 +177,10 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
           });
           setServiceCategories(categoriesWithIcons);
           console.log('✅ Categories loaded successfully');
+
         } else {
           console.warn('⚠️ No categories returned, using defaults');
+          toast.warning('No categories found from API, using default categories.');
           setServiceCategories(defaultServiceCategories);
         }
       } else {
@@ -182,6 +189,7 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
       }
     } catch (error) {
       console.error('❌ Error fetching categories:', error);
+      toast.error('Error fetching categories, using default categories.');
       setServiceCategories(defaultServiceCategories);
     } finally {
       setCategoriesLoading(false);
@@ -212,26 +220,31 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
   const validateStep1 = () => {
     if (!formData.name || !formData.email || !formData.phone || !formData.password) {
       setError('Please fill all required fields');
+      toast.warning('Please fill all required fields');
       return false;
     }
     
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
+      toast.warning('Please enter a valid email address');
       setError('Please enter a valid email address');
       return false;
     }
     
     if (formData.phone.length < 10) {
+      toast.warning('Please enter a valid phone number (min 10 digits)');
       setError('Please enter a valid phone number (min 10 digits)');
       return false;
     }
     
     if (formData.password.length < 6) {
+      toast.warning('Password must be at least 6 characters');
       setError('Password must be at least 6 characters');
       return false;
     }
     
     if (formData.password !== formData.confirmPassword) {
+      toast.warning('Passwords do not match');
       setError('Passwords do not match');
       return false;
     }
@@ -242,10 +255,12 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
   const validateStep2 = () => {
     if (!formData.address_line1 || !formData.city || !formData.state || !formData.pincode) {
       setError('Please fill all address fields');
+      toast.warning('Please fill all address fields');
       return false;
     }
 
     if (formData.pincode.length !== 6 || !/^\d+$/.test(formData.pincode)) {
+      toast.warning('Please enter a valid 6-digit pincode');
       setError('Please enter a valid 6-digit pincode');
       return false;
     }
@@ -255,6 +270,7 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
 
   const validateStep3 = () => {
     if (formData.role === 'servicer' && formData.selectedServices.length === 0) {
+      toast.warning('Please select at least one service you can provide');
       setError('Please select at least one service you can provide');
       return false;
     }
@@ -308,6 +324,7 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
       const result = await signup(signupData);
 
       if (result.success) {
+        toast.success('Signup successful! Please verify your email.');
         console.log('✅ Signup successful:', result.data);
         
         // Send OTP for email verification
@@ -319,14 +336,17 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
             ? `${result.data.data?.services_added || formData.selectedServices.length} services added.` 
             : ''
         } Please verify your email.`);
+         toast.success('OTP sent to your email for verification.');
         
         onNavigate('/verify-email');
       } else {
         setError(result.message || 'Signup failed. Please try again.');
+          toast.error(result.message || 'Signup failed. Please try again.');
         console.error('❌ Signup failed:', result.message);
       }
     } catch (err) {
       setError('Network error. Please check your connection and try again.');
+      toast.error('Network error. Please check your connection and try again.');
       console.error('❌ Signup error:', err);
     } finally {
       setLoading(false);

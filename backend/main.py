@@ -33,18 +33,14 @@ app = FastAPI(
 )
 
 # CORS Middleware
-origins = [
-    "https://servicedti.vercel.app",  # Production frontend
-    "http://localhost:5173",          # Local dev
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],   # <-- allows all domains
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 # Security
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
@@ -467,9 +463,9 @@ async def leave_chat(sid, data):
 
 @sio.event
 async def send_chat_message(sid, data):
-    """Handle real-time chat message sending"""
+    """Handle real-time chat message sending - WITH NOTIFICATION"""
     try:
-        chat_type = data.get('chat_type', 'pre_booking')  # 'pre_booking' or 'booking'
+        chat_type = data.get('chat_type', 'pre_booking')
         chat_id = data.get('chat_id')
         booking_id = data.get('booking_id')
         sender_id = data.get('sender_id')
@@ -480,6 +476,10 @@ async def send_chat_message(sid, data):
         if not message_text or not sender_id or not receiver_id:
             await sio.emit('message_error', {'message': 'Missing required fields'}, room=sid)
             return
+        
+        # Get sender info for notification
+        sender = await db[Collections.USERS].find_one({"_id": ObjectId(sender_id)})
+        sender_name = sender.get('name', 'Someone') if sender else 'Someone'
         
         # Create message based on chat type
         if chat_type == 'pre_booking' and chat_id:
@@ -513,6 +513,19 @@ async def send_chat_message(sid, data):
             # Emit to receiver's personal room
             await sio.emit('receive_message', message, room=f"user-{receiver_id}")
             
+            # ✅ SEND NOTIFICATION
+            await create_notification(
+                receiver_id,
+                NotificationTypes.SYSTEM,
+                "New Message",
+                f"{sender_name}: {message_text[:100]}{'...' if len(message_text) > 100 else ''}",
+                metadata={
+                    "chat_id": chat_id,
+                    "sender_name": sender_name,
+                    "message_preview": message_text[:100]
+                }
+            )
+            
         elif chat_type == 'booking' and booking_id:
             # Booking chat
             message = {
@@ -532,25 +545,34 @@ async def send_chat_message(sid, data):
             message['sender_id'] = str(message['sender_id'])
             message['receiver_id'] = str(message['receiver_id'])
             
+            # Get booking details for notification
+            booking = await db[Collections.BOOKINGS].find_one({"_id": ObjectId(booking_id)})
+            booking_number = booking.get('booking_number', 'N/A') if booking else 'N/A'
+            
             # Emit to booking chat room
             await sio.emit('new_message', message, room=f"booking-chat-{booking_id}")
             
             # Emit to receiver's personal room
             await sio.emit('receive_message', message, room=f"user-{receiver_id}")
+            
+            # ✅ SEND NOTIFICATION
+            await create_notification(
+                receiver_id,
+                NotificationTypes.SYSTEM,
+                f"New Message - Booking #{booking_number}",
+                f"{sender_name}: {message_text[:100]}{'...' if len(message_text) > 100 else ''}",
+                metadata={
+                    "booking_id": booking_id,
+                    "booking_number": booking_number,
+                    "sender_name": sender_name,
+                    "message_preview": message_text[:100]
+                }
+            )
         
-        # Send notification
-        sender = await db[Collections.USERS].find_one({"_id": ObjectId(sender_id)})
-        await create_notification(
-            receiver_id,
-            NotificationTypes.SYSTEM,
-            "New Message",
-            f"{sender.get('name', 'Someone')}: {message_text[:50]}..."
-        )
-        
-        print(f"Message sent from {sender_id} to {receiver_id}")
+        print(f"✅ Message and notification sent from {sender_id} to {receiver_id}")
         
     except Exception as e:
-        print(f"Error sending message: {e}")
+        print(f"❌ Error sending message: {e}")
         await sio.emit('message_error', {'message': str(e)}, room=sid)
 
 @sio.event
@@ -2224,7 +2246,6 @@ async def get_chat_messages(
         message['receiver_id'] = str(message['receiver_id'])
     
     return {"messages": messages}
-
 @app.post("/api/user/bookings/{booking_id}/chat")
 async def send_chat_message(
     booking_id: str,
@@ -2233,7 +2254,7 @@ async def send_chat_message(
     message_type: str = Form("text"),
     current_user: dict = Depends(get_current_user)
 ):
-    """Send chat message"""
+    """Send chat message - WITH NOTIFICATION"""
     booking = await db[Collections.BOOKINGS].find_one({
         "_id": ObjectId(booking_id),
         "user_id": ObjectId(current_user['_id'])
@@ -2261,6 +2282,24 @@ async def send_chat_message(
     message_dict['booking_id'] = str(message_dict['booking_id'])
     message_dict['sender_id'] = str(message_dict['sender_id'])
     message_dict['receiver_id'] = str(message_dict['receiver_id'])
+    
+    # ✅ CREATE NOTIFICATION FOR SERVICER
+    try:
+        await create_notification(
+            receiver_id,
+            NotificationTypes.MESSAGE,  # or NotificationTypes.SYSTEM
+            f"New Message - Booking #{booking['booking_number']}",
+            f"{current_user['name']}: {message_text[:100]}{'...' if len(message_text) > 100 else ''}",
+            metadata={
+                "booking_id": booking_id,
+                "booking_number": booking.get('booking_number'),
+                "sender_name": current_user['name'],
+                "message_preview": message_text[:100]
+            }
+        )
+        print(f"📢 Notification sent to servicer {receiver_id}")
+    except Exception as e:
+        print(f"⚠️ Failed to send notification: {e}")
     
     # Emit socket event to receiver
     await sio.emit(
@@ -5585,7 +5624,6 @@ async def get_servicer_chat_messages(
     
     return {"messages": messages}
 
-
 @app.post("/api/servicer/services/{service_id}/chat")
 async def send_servicer_chat_message(
     service_id: str,
@@ -5595,7 +5633,7 @@ async def send_servicer_chat_message(
     current_user: dict = Depends(get_current_user),
     servicer: dict = Depends(get_current_servicer)
 ):
-    """Send chat message as servicer"""
+    """Send chat message as servicer - WITH NOTIFICATION"""
     print(f"💬 Servicer sending message to booking {service_id}")
     
     booking = await db[Collections.BOOKINGS].find_one({
@@ -5628,6 +5666,25 @@ async def send_servicer_chat_message(
     
     print(f"✅ Message sent: {result.inserted_id}")
     
+    # ✅ CREATE NOTIFICATION FOR USER
+    try:
+        await create_notification(
+            receiver_id,
+            NotificationTypes.MESSAGE,  # or create NotificationTypes.MESSAGE
+            "New Message from Servicer",
+            f"{current_user['name']}: {message_text[:100]}{'...' if len(message_text) > 100 else ''}",
+            metadata={
+                "booking_id": service_id,
+                "booking_number": booking.get('booking_number'),
+                "sender_name": current_user['name'],
+                "message_preview": message_text[:100]
+            }
+        )
+        print(f"📢 Notification sent to user {receiver_id}")
+    except Exception as e:
+        print(f"⚠️ Failed to send notification: {e}")
+        # Don't fail the message send if notification fails
+    
     # Emit socket event to receiver
     await sio.emit(
         SocketEvents.RECEIVE_MESSAGE,
@@ -5643,6 +5700,7 @@ async def send_servicer_chat_message(
     )
     
     return message_dict
+
 @app.put("/api/servicer/services/{service_id}/start")
 async def start_service(
     service_id: str,
@@ -6187,6 +6245,110 @@ async def update_bank_details(
     return SuccessResponse(message="Bank details updated successfully")
 
 
+# ============= ADD THESE SERVICER NOTIFICATION ENDPOINTS =============
+# Add after your other servicer endpoints (around line 4000-5000)
+
+@app.get("/api/servicer/notifications")
+async def get_servicer_notifications(
+    page: int = 1,
+    limit: int = 20,
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Get all notifications for servicer"""
+    skip = (page - 1) * limit
+    
+    notifications = await db[Collections.NOTIFICATIONS].find(
+        {"user_id": ObjectId(current_user['_id'])}
+    ).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    
+    for notif in notifications:
+        notif['_id'] = str(notif['_id'])
+        notif['user_id'] = str(notif['user_id'])
+    
+    total = await db[Collections.NOTIFICATIONS].count_documents(
+        {"user_id": ObjectId(current_user['_id'])}
+    )
+    unread = await db[Collections.NOTIFICATIONS].count_documents({
+        "user_id": ObjectId(current_user['_id']),
+        "is_read": False
+    })
+    
+    return {
+        "notifications": notifications,
+        "total": total,
+        "unread": unread,
+        "page": page,
+        "pages": math.ceil(total / limit)
+    }
+
+
+@app.put("/api/servicer/notifications/{notification_id}/read")
+async def mark_servicer_notification_read(
+    notification_id: str,
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Mark notification as read for servicer"""
+    result = await db[Collections.NOTIFICATIONS].update_one(
+        {
+            "_id": ObjectId(notification_id),
+            "user_id": ObjectId(current_user['_id'])
+        },
+        {
+            "$set": {
+                "is_read": True,
+                "read_at": datetime.utcnow()
+            }
+        }
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    
+    return SuccessResponse(message="Notification marked as read")
+
+
+@app.delete("/api/servicer/notifications/{notification_id}")
+async def delete_servicer_notification(
+    notification_id: str,
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Delete a notification for servicer"""
+    try:
+        if not ObjectId.is_valid(notification_id):
+            raise HTTPException(status_code=400, detail="Invalid notification ID format")
+        
+        result = await db[Collections.NOTIFICATIONS].delete_one({
+            "_id": ObjectId(notification_id),
+            "user_id": ObjectId(current_user['_id'])
+        })
+        
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Notification not found")
+        
+        return SuccessResponse(message="Notification deleted successfully")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error deleting notification: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete notification: {str(e)}")
+
+
+@app.get("/api/servicer/notifications/unread-count")
+async def get_servicer_unread_count(
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Get unread notification count for servicer"""
+    unread = await db[Collections.NOTIFICATIONS].count_documents({
+        "user_id": ObjectId(current_user['_id']),
+        "is_read": False
+    })
+    
+    return {"unread_count": unread}
 # ============= ADD THESE ENDPOINTS TO YOUR MAIN.PY =============
 
 # Add after other servicer endpoints
