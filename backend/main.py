@@ -19,18 +19,27 @@ from email.mime.multipart import MIMEMultipart
 import socketio
 from geopy.distance import geodesic
 import math
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+import time
 
 import stripe
 # Import models and config
 from models import *
 from config import settings, Collections, CloudinaryFolders, EmailTemplates, NotificationTypes, SocketEvents, Messages
 
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+
+# Thread pool for blocking operations
+executor = ThreadPoolExecutor(max_workers=4)
 # Initialize FastAPI
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     debug=settings.DEBUG
 )
+
 
 # CORS Middleware
 app.add_middleware(
@@ -40,6 +49,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class TimeoutMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        start_time = time.time()
+        try:
+            response = await asyncio.wait_for(call_next(request), timeout=30.0)
+            process_time = time.time() - start_time
+            response.headers["X-Process-Time"] = str(process_time)
+            return response
+        except asyncio.TimeoutError:
+            return JSONResponse(
+                status_code=504,
+                content={"detail": "Request timeout"}
+            )
+
+# ✅ ADD THIS LINE after CORSMiddleware
+app.add_middleware(TimeoutMiddleware)
 
 # Security
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -80,16 +106,43 @@ sio = socketio.AsyncServer(
 socket_app = socketio.ASGIApp(sio, app)
 
 # ============= DATABASE CONNECTION =============
+# @app.on_event("startup")
+# async def startup_db_client():
+#     global mongodb_client, db
+#     mongodb_client = AsyncIOMotorClient(settings.MONGODB_URL)
+#     db = mongodb_client[settings.DATABASE_NAME]
+#     print("Connected to MongoDB!")
+    
+#     # Create indexes
+#     await create_indexes()
 @app.on_event("startup")
 async def startup_db_client():
     global mongodb_client, db
-    mongodb_client = AsyncIOMotorClient(settings.MONGODB_URL)
+    # ✅ ADD CONNECTION POOLING
+    mongodb_client = AsyncIOMotorClient(
+        settings.MONGODB_URL,
+        maxPoolSize=50,  # Limit concurrent connections
+        minPoolSize=10,
+        maxIdleTimeMS=30000,
+        serverSelectionTimeoutMS=5000
+    )
     db = mongodb_client[settings.DATABASE_NAME]
     print("Connected to MongoDB!")
     
-    # Create indexes
-    await create_indexes()
+    # ✅ CREATE INDEXES ONLY IF NEEDED
+    await create_indexes_if_needed()
 
+async def create_indexes_if_needed():
+    """Create indexes only if they don't exist"""
+    try:
+        indexes = await db[Collections.USERS].index_information()
+        if 'email_1' not in indexes:
+            print("Creating indexes...")
+            await create_indexes()
+        else:
+            print("Indexes already exist, skipping")
+    except Exception as e:
+        print(f"Error checking indexes: {e}")
 @app.on_event("shutdown")
 async def shutdown_db_client():
     if mongodb_client:
@@ -146,6 +199,66 @@ def generate_ticket_number() -> str:
 def calculate_platform_fee(amount: float) -> float:
     return round(amount * (settings.PLATFORM_FEE_PERCENTAGE / 100), 2)
 
+async def create_servicer_profile_background(user_id: str, category_ids: List[str]):
+    """Create servicer profile in background"""
+    try:
+        service_category_ids = [ObjectId(cat_id) for cat_id in category_ids if ObjectId.is_valid(cat_id)]
+        
+        if not service_category_ids:
+            print(f"⚠️ No valid categories for servicer {user_id}")
+            return
+        
+        servicer = {
+            "user_id": ObjectId(user_id),
+            "service_categories": service_category_ids,
+            "experience_years": 0,
+            "verification_status": VerificationStatus.PENDING,
+            "average_rating": 0.0,
+            "total_ratings": 0,
+            "total_jobs_completed": 0,
+            "service_radius_km": 10.0,
+            "availability_status": AvailabilityStatus.OFFLINE,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        
+        await db[Collections.SERVICERS].insert_one(servicer)
+        print(f"✅ Servicer profile created for {user_id}")
+        
+    except Exception as e:
+        print(f"❌ Background servicer creation failed: {e}")
+
+
+async def send_welcome_email_background(email: str, name: str, role: str):
+    """Send welcome email in background"""
+    try:
+        await send_email(
+            email,
+            "Welcome to Service Provider Platform",
+            f"""
+            <html>
+                <body style="font-family: Arial, sans-serif; padding: 20px;">
+                    <h2 style="color: #4F46E5;">Welcome {name}!</h2>
+                    <p>Your account has been created successfully.</p>
+                    <p><strong>Account Type:</strong> {role.capitalize()}</p>
+                    <hr style="margin: 20px 0;">
+                </body>
+            </html>
+            """
+        )
+        print(f"✅ Welcome email sent to {email}")
+    except Exception as e:
+        print(f"⚠️ Welcome email failed: {e}")
+
+async def update_last_login_background(user_id: ObjectId):
+    """Update last login in background"""
+    try:
+        await db[Collections.USERS].update_one(
+            {"_id": user_id},
+            {"$set": {"last_login": datetime.utcnow()}}
+        )
+    except Exception as e:
+        print(f"Last login update failed: {e}")
 def calculate_servicer_amount(total_amount: float, platform_fee: float) -> float:
     return round(total_amount - platform_fee, 2)
 
@@ -157,8 +270,39 @@ def calculate_eta(distance_km: float, avg_speed_kmh: float = 30) -> int:
     """Calculate ETA in minutes"""
     return int((distance_km / avg_speed_kmh) * 60)
 
+# async def send_email(to_email: str, subject: str, body: str):
+#     """Send email using SMTP"""
+#     try:
+#         msg = MIMEMultipart('alternative')
+#         msg['From'] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>"
+#         msg['To'] = to_email
+#         msg['Subject'] = subject
+        
+#         html_part = MIMEText(body, 'html')
+#         msg.attach(html_part)
+        
+#         with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+#             server.starttls()
+#             server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+#             server.send_message(msg)
+        
+#         return True
+#     except Exception as e:
+#         print(f"Email sending failed: {e}")
+#         return False
+
 async def send_email(to_email: str, subject: str, body: str):
-    """Send email using SMTP"""
+    """Send email in background - non-blocking"""
+    try:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(executor, _send_email_sync, to_email, subject, body)
+        return True
+    except Exception as e:
+        print(f"⚠️ Email failed (non-blocking): {e}")
+        return False
+
+def _send_email_sync(to_email: str, subject: str, body: str):
+    """Synchronous email sending"""
     try:
         msg = MIMEMultipart('alternative')
         msg['From'] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>"
@@ -168,16 +312,14 @@ async def send_email(to_email: str, subject: str, body: str):
         html_part = MIMEText(body, 'html')
         msg.attach(html_part)
         
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as server:
             server.starttls()
             server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
             server.send_message(msg)
-        
         return True
     except Exception as e:
-        print(f"Email sending failed: {e}")
+        print(f"Email error: {e}")
         return False
-
 async def send_otp_email(email: str, otp: str, purpose: str):
     """Send OTP email"""
     subject = "Your OTP for Service Provider Platform"
@@ -274,25 +416,40 @@ async def upload_to_cloudinary(file: UploadFile, folder: str, allowed_types: lis
     except Exception as e:
         print(f"❌ Upload failed: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Upload failed: {str(e)}")
-async def create_notification(user_id: str, notification_type: str, title: str, message: str, metadata: dict = None):
-    """Create notification for user"""
-    notification = {
-        "user_id": ObjectId(user_id),
-        "notification_type": notification_type,
-        "title": title,
-        "message": message,
-        "is_read": False,
-        "metadata": metadata or {},
-        "created_at": datetime.utcnow()
-    }
-    result = await db[Collections.NOTIFICATIONS].insert_one(notification)
-    notification['_id'] = result.inserted_id
-    
-    # Emit socket event
-    await sio.emit(SocketEvents.NEW_NOTIFICATION, notification, room=f"user-{user_id}")
-    
-    return notification
 
+async def create_notification(user_id: str, notification_type: str, title: str, message: str, metadata: dict = None):
+    """Create notification - non-blocking"""
+    try:
+        notification = {
+            "user_id": ObjectId(user_id),
+            "notification_type": notification_type,
+            "title": title,
+            "message": message,
+            "is_read": False,
+            "metadata": metadata or {},
+            "created_at": datetime.utcnow()
+        }
+        result = await db[Collections.NOTIFICATIONS].insert_one(notification)
+        notification['_id'] = str(result.inserted_id)
+        notification['user_id'] = str(notification['user_id'])
+        
+        # ✅ Emit socket in background
+        asyncio.create_task(
+            emit_notification_socket(user_id, notification)
+        )
+        
+        return notification
+    except Exception as e:
+        print(f"⚠️ Notification failed: {e}")
+        return None
+
+# ✅ ADD THIS NEW FUNCTION
+async def emit_notification_socket(user_id: str, notification: dict):
+    """Emit socket notification in background"""
+    try:
+        await sio.emit(SocketEvents.NEW_NOTIFICATION, notification, room=f"user-{user_id}")
+    except Exception as e:
+        print(f"Socket emit failed: {e}")
 # ============= AUTHENTICATION =============
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
     """Get current authenticated user"""
@@ -654,38 +811,28 @@ async def get_online_status(sid, data):
 # ============= AUTHENTICATION ENDPOINTS =============
 @app.post("/api/auth/signup", response_model=SuccessResponse)
 async def signup(user_data: UserCreate):
-    """User/Servicer registration with enhanced validation"""
+    """OPTIMIZED signup - returns immediately"""
     
-    # Check if email exists
-    existing_user = await db[Collections.USERS].find_one({"email": user_data.email})
-    if existing_user:
-        raise HTTPException(status_code=400, detail=Messages.EMAIL_EXISTS)
-    
-    # Check if phone exists
-    existing_phone = await db[Collections.USERS].find_one({"phone": user_data.phone})
-    if existing_phone:
-        raise HTTPException(status_code=400, detail="Phone number already registered")
-    
-    # Validate service categories if servicer
+    # 1. Quick validation
     if user_data.role == UserRole.SERVICER:
         if not user_data.service_categories or len(user_data.service_categories) == 0:
-            raise HTTPException(
-                status_code=400, 
-                detail="Servicers must select at least one service category"
-            )
-        
-        # Validate that all category IDs exist in database
-        valid_category_count = await db[Collections.SERVICE_CATEGORIES].count_documents({
-            "_id": {"$in": [ObjectId(cat_id) for cat_id in user_data.service_categories if ObjectId.is_valid(cat_id)]}
-        })
-        
-        if valid_category_count != len(user_data.service_categories):
-            raise HTTPException(
-                status_code=400,
-                detail="One or more selected service categories are invalid"
-            )
+            raise HTTPException(status_code=400, detail="Servicers must select at least one service category")
     
-    # Create user - exclude service_categories as it's not part of user schema
+    # 2. Check duplicates (single query)
+    existing = await db[Collections.USERS].find_one({
+        "$or": [
+            {"email": user_data.email},
+            {"phone": user_data.phone}
+        ]
+    })
+    
+    if existing:
+        if existing['email'] == user_data.email:
+            raise HTTPException(status_code=400, detail=Messages.EMAIL_EXISTS)
+        else:
+            raise HTTPException(status_code=400, detail="Phone number already registered")
+    
+    # 3. Create user
     user_dict = user_data.dict(exclude={'service_categories'})
     user_dict['password_hash'] = hash_password(user_dict.pop('password'))
     user_dict['created_at'] = datetime.utcnow()
@@ -695,134 +842,47 @@ async def signup(user_data: UserCreate):
     user_dict['is_blocked'] = False
     
     try:
-        result = await db[Collections.USERS].insert_one(user_dict)
-        user_id = str(result.inserted_id)
-    except Exception as e:
-        print(f"Error creating user: {e}")
-        raise HTTPException(status_code=500, detail="Failed to create user account")
-    
-    # Create wallet for user
-    wallet = {
-        "user_id": ObjectId(user_id),
-        "balance": 0.0,
-        "total_earned": 0.0,
-        "total_spent": 0.0,
-        "currency": "INR",
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
-    }
-    
-    try:
-        await db[Collections.WALLETS].insert_one(wallet)
-    except Exception as e:
-        print(f"Error creating wallet: {e}")
-        # Rollback: Delete the user if wallet creation fails
-        await db[Collections.USERS].delete_one({"_id": ObjectId(user_id)})
-        raise HTTPException(status_code=500, detail="Failed to initialize wallet")
-    
-    # If servicer, create servicer profile
-    if user_data.role == UserRole.SERVICER:
-        # Process service categories
-        service_category_ids = []
-        invalid_categories = []
+        # Insert user
+        user_result = await db[Collections.USERS].insert_one(user_dict)
+        user_id = str(user_result.inserted_id)
         
-        for cat_id in user_data.service_categories:
-            try:
-                if not ObjectId.is_valid(cat_id):
-                    invalid_categories.append(cat_id)
-                    continue
-                service_category_ids.append(ObjectId(cat_id))
-            except Exception as e:
-                print(f"Error converting category ID {cat_id}: {e}")
-                invalid_categories.append(cat_id)
-        
-        if invalid_categories:
-            print(f"⚠️ Invalid category IDs: {invalid_categories}")
-        
-        if not service_category_ids:
-            # Rollback: Delete user and wallet
-            await db[Collections.USERS].delete_one({"_id": ObjectId(user_id)})
-            await db[Collections.WALLETS].delete_one({"user_id": ObjectId(user_id)})
-            raise HTTPException(
-                status_code=400,
-                detail="No valid service categories provided. Please select from available categories."
-            )
-        
-        servicer = {
+        # Create wallet immediately
+        wallet = {
             "user_id": ObjectId(user_id),
-            "service_categories": service_category_ids,
-            "experience_years": 0,
-            "verification_status": VerificationStatus.PENDING,
-            "average_rating": 0.0,
-            "total_ratings": 0,
-            "total_jobs_completed": 0,
-            "service_radius_km": 10.0,
-            "availability_status": AvailabilityStatus.OFFLINE,
+            "balance": 0.0,
+            "total_earned": 0.0,
+            "total_spent": 0.0,
+            "currency": "INR",
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow()
         }
+        await db[Collections.WALLETS].insert_one(wallet)
         
-        try:
-            await db[Collections.SERVICERS].insert_one(servicer)
-            print(f"✅ Servicer created with {len(service_category_ids)} service categories")
-        except Exception as e:
-            print(f"Error creating servicer profile: {e}")
-            # Rollback: Delete user and wallet
-            await db[Collections.USERS].delete_one({"_id": ObjectId(user_id)})
-            await db[Collections.WALLETS].delete_one({"user_id": ObjectId(user_id)})
-            raise HTTPException(status_code=500, detail="Failed to create servicer profile")
-        
-        # Get category names for response
-        category_names = []
-        for cat_id in service_category_ids:
-            cat = await db[Collections.SERVICE_CATEGORIES].find_one({"_id": cat_id})
-            if cat:
-                category_names.append(cat['name'])
-    
-    # Send welcome email (non-blocking - don't fail signup if email fails)
-    try:
-        await send_email(
-            user_data.email,
-            "Welcome to Service Provider Platform",
-            f"""
-            <html>
-                <body style="font-family: Arial, sans-serif; padding: 20px;">
-                    <h2 style="color: #4F46E5;">Welcome {user_data.name}!</h2>
-                    <p>Your account has been created successfully.</p>
-                    <p><strong>Account Type:</strong> {user_data.role.capitalize()}</p>
-                    {f'<p><strong>Services:</strong> {", ".join(category_names)}</p>' if user_data.role == UserRole.SERVICER and 'category_names' in locals() else ''}
-                    <p>Please verify your email to complete your registration.</p>
-                    <hr style="margin: 20px 0;">
-                    <p style="color: #666; font-size: 12px;">
-                        If you didn't create this account, please ignore this email.
-                    </p>
-                </body>
-            </html>
-            """
-        )
-        print(f"✅ Welcome email sent to {user_data.email}")
     except Exception as e:
-        print(f"⚠️ Failed to send welcome email: {e}")
-        # Don't fail signup, just log the error
+        print(f"Signup error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create account")
     
-    # Prepare response data
-    response_data = {
-        "user_id": user_id, 
-        "email": user_data.email,
-        "role": user_data.role,
-        "name": user_data.name
-    }
-    
+    # 4. ✅ Handle servicer profile in BACKGROUND
     if user_data.role == UserRole.SERVICER:
-        response_data["services_added"] = len(service_category_ids)
-        if 'category_names' in locals():
-            response_data["service_names"] = category_names
+        asyncio.create_task(
+            create_servicer_profile_background(user_id, user_data.service_categories)
+        )
     
-    return SuccessResponse(
-        message=Messages.SIGNUP_SUCCESS,
-        data=response_data
+    # 5. ✅ Send email in BACKGROUND
+    asyncio.create_task(
+        send_welcome_email_background(user_data.email, user_data.name, user_data.role)
     )
-
+    
+    # 6. ✅ Return immediately (don't wait for email/servicer profile)
+    return SuccessResponse(
+        message="Account created successfully! Welcome email sent.",
+        data={
+            "user_id": user_id,
+            "email": user_data.email,
+            "role": user_data.role,
+            "name": user_data.name
+        }
+    )
 @app.post("/api/auth/send-otp", response_model=SuccessResponse)
 async def send_otp(otp_request: OTPCreate):
     """Send OTP for email verification or password reset"""
@@ -892,35 +952,33 @@ async def verify_otp(email: EmailStr = Form(...), otp_code: str = Form(...)):
     )
     
     return SuccessResponse(message=Messages.OTP_VERIFIED)
-
 @app.post("/api/auth/login", response_model=Token)
 async def login(credentials: UserLogin):
-    """User login"""
+    """OPTIMIZED login"""
     # Find user
     user = await db[Collections.USERS].find_one({"email": credentials.email})
-    if not user or not verify_password(credentials.password, user['password_hash']):
+    
+    if not user:
+        raise HTTPException(status_code=401, detail=Messages.INVALID_CREDENTIALS)
+    
+    if not verify_password(credentials.password, user['password_hash']):
         raise HTTPException(status_code=401, detail=Messages.INVALID_CREDENTIALS)
     
     if user.get('is_blocked'):
         raise HTTPException(status_code=403, detail=Messages.ACCOUNT_BLOCKED)
     
-    # Update last login
-    await db[Collections.USERS].update_one(
-        {"_id": user['_id']},
-        {"$set": {"last_login": datetime.utcnow()}}
-    )
+    # ✅ Update last login in BACKGROUND
+    asyncio.create_task(update_last_login_background(user['_id']))
     
-    # Create access token
-    access_token = create_access_token(data={"sub": str(user['_id']), "role": user['role']})
+    # Create token immediately
+    access_token = create_access_token(
+        data={"sub": str(user['_id']), "role": user['role']}
+    )
     
     user['_id'] = str(user['_id'])
     user.pop('password_hash', None)
     
-    return Token(
-        access_token=access_token,
-        user=user
-    )
-
+    return Token(access_token=access_token, user=user)
 @app.post("/api/auth/forgot-password", response_model=SuccessResponse)
 async def forgot_password(email: EmailStr = Form(...)):
     """Send password reset OTP"""
