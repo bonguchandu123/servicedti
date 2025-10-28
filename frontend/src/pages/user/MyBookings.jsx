@@ -1,6 +1,79 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, MapPin, Phone, User, DollarSign, XCircle, MessageSquare, Navigation, Eye } from 'lucide-react';
 
+const BookingsSkeletonLoader = () => {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header Skeleton */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-6 animate-pulse">
+          <div className="h-9 w-48 bg-gray-200 rounded-lg mb-6"></div>
+
+          {/* Status Filters Skeleton */}
+          <div className="flex flex-wrap gap-2">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="h-10 w-24 bg-gray-200 rounded-lg"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Content Skeleton */}
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="space-y-6 animate-pulse">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="p-6">
+                {/* Header Skeleton */}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <div className="h-6 w-48 bg-gray-200 rounded mb-2"></div>
+                    <div className="h-4 w-32 bg-gray-200 rounded"></div>
+                  </div>
+                  <div className="text-right">
+                    <div className="h-6 w-24 bg-gray-200 rounded-full mb-2"></div>
+                    <div className="h-6 w-20 bg-gray-200 rounded"></div>
+                  </div>
+                </div>
+
+                {/* Servicer Info Skeleton */}
+                <div className="flex items-center space-x-3 mb-4 p-3 bg-gray-50 rounded-lg">
+                  <div className="w-10 h-10 rounded-full bg-gray-200"></div>
+                  <div className="flex-1">
+                    <div className="h-5 w-32 bg-gray-200 rounded mb-2"></div>
+                    <div className="h-4 w-28 bg-gray-200 rounded"></div>
+                  </div>
+                </div>
+
+                {/* Booking Details Skeleton */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div className="h-5 bg-gray-200 rounded"></div>
+                  <div className="h-5 bg-gray-200 rounded"></div>
+                  <div className="h-5 bg-gray-200 rounded md:col-span-2"></div>
+                </div>
+
+                {/* Amount Skeleton */}
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg mb-4">
+                  <div className="h-5 w-24 bg-gray-200 rounded"></div>
+                  <div className="h-8 w-20 bg-gray-200 rounded"></div>
+                </div>
+
+                {/* Action Buttons Skeleton */}
+                <div className="flex flex-wrap gap-2">
+                  <div className="h-10 w-32 bg-gray-200 rounded-lg"></div>
+                  <div className="h-10 w-36 bg-gray-200 rounded-lg"></div>
+                  <div className="h-10 w-24 bg-gray-200 rounded-lg"></div>
+                  <div className="h-10 w-24 bg-gray-200 rounded-lg"></div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const MyBookings = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -12,7 +85,8 @@ const MyBookings = () => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancellationReason, setCancellationReason] = useState('');
   const [cancelLoading, setCancelLoading] = useState(false);
-const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
+
   useEffect(() => {
     fetchBookings();
   }, [statusFilter, currentPage]);
@@ -127,14 +201,7 @@ const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
   };
 
   if (loading && bookings.length === 0) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading bookings...</p>
-        </div>
-      </div>
-    );
+    return <BookingsSkeletonLoader />;
   }
 
   return (

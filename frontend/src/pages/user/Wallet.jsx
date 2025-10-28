@@ -12,6 +12,108 @@ const API_URL =`${import.meta.env.VITE_API_BASE_URL}`;
 // Initialize Stripe (replace with your publishable key)
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
+const WalletSkeletonLoader = () => {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header Skeleton */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 animate-pulse">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-12 h-12 bg-gray-200 rounded-xl"></div>
+              <div>
+                <div className="h-7 w-24 bg-gray-200 rounded mb-2"></div>
+                <div className="h-4 w-40 bg-gray-200 rounded"></div>
+              </div>
+            </div>
+            <div className="w-9 h-9 bg-gray-200 rounded-lg"></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Balance Cards Skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 animate-pulse">
+          {/* Main Balance Card */}
+          <div className="lg:col-span-2 bg-white rounded-xl border-2 border-gray-200 p-8">
+            <div className="flex items-start justify-between mb-8">
+              <div className="flex-1">
+                <div className="h-4 w-32 bg-gray-200 rounded mb-3"></div>
+                <div className="h-12 w-48 bg-gray-200 rounded mb-2"></div>
+                <div className="h-4 w-16 bg-gray-200 rounded"></div>
+              </div>
+              <div className="h-12 w-32 bg-gray-200 rounded-lg"></div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 pt-6 border-t-2 border-gray-100">
+              {[1, 2].map((i) => (
+                <div key={i} className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-gray-200 rounded-xl flex-shrink-0"></div>
+                  <div className="flex-1">
+                    <div className="h-3 w-20 bg-gray-200 rounded mb-2"></div>
+                    <div className="h-6 w-24 bg-gray-200 rounded"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Quick Info Card */}
+          <div className="bg-gray-100 rounded-xl border-2 border-gray-200 p-6">
+            <div className="flex items-center space-x-2 mb-4">
+              <div className="w-8 h-8 bg-gray-200 rounded-lg"></div>
+              <div className="h-5 w-24 bg-gray-200 rounded"></div>
+            </div>
+            <ul className="space-y-3">
+              {[1, 2, 3, 4].map((i) => (
+                <li key={i} className="flex items-start">
+                  <div className="w-4 h-4 bg-gray-200 rounded mr-2 mt-0.5 flex-shrink-0"></div>
+                  <div className="h-4 flex-1 bg-gray-200 rounded"></div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        {/* Transactions Skeleton */}
+        <div className="bg-white rounded-xl border-2 border-gray-200 overflow-hidden animate-pulse">
+          <div className="p-6 border-b-2 border-gray-100">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="h-6 w-48 bg-gray-200 rounded mb-2"></div>
+                <div className="h-4 w-32 bg-gray-200 rounded"></div>
+              </div>
+              <div className="h-10 w-24 bg-gray-200 rounded-lg"></div>
+            </div>
+          </div>
+
+          <div className="divide-y divide-gray-100">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4 flex-1">
+                    <div className="w-12 h-12 bg-gray-200 rounded-xl flex-shrink-0"></div>
+                    <div className="flex-1">
+                      <div className="h-5 w-32 bg-gray-200 rounded mb-2"></div>
+                      <div className="h-4 w-40 bg-gray-200 rounded mb-2"></div>
+                      <div className="h-3 w-28 bg-gray-200 rounded"></div>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div className="h-8 w-24 bg-gray-200 rounded mb-2"></div>
+                    <div className="h-6 w-20 bg-gray-200 rounded-full mb-1"></div>
+                    <div className="h-3 w-16 bg-gray-200 rounded"></div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 // Payment Form Component
 const PaymentForm = ({ amount, onSuccess, onCancel }) => {
   const stripe = useStripe();
@@ -140,11 +242,11 @@ const PaymentForm = ({ amount, onSuccess, onCancel }) => {
 
   if (!clientSecret) {
     return (
-      <div className="text-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
-        <p className="text-gray-600">Setting up payment...</p>
+      <div className="flex items-center justify-center p-6">
+        <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-600 border-t-transparent"></div>
+        <span className="ml-4 text-gray-600 font-medium">Preparing payment...</span>
       </div>
-    );
+    )
   }
 
   return (
@@ -358,12 +460,7 @@ const WalletPage = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-white">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mx-auto"></div>
-          <p className="mt-4 text-gray-600 font-medium">Loading wallet...</p>
-        </div>
-      </div>
+      <WalletSkeletonLoader/>
     );
   }
 

@@ -1,7 +1,46 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Power, Search, X, Package, DollarSign } from 'lucide-react';
 
+const AdminCategoriesSkeleton = () => {
+  return (
+    <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
+
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-4">
+
+          {/* title + icon skeleton */}
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-gray-200 rounded-lg" />
+            <div className="space-y-2">
+              <div className="h-4 w-32 bg-gray-200 rounded" />
+              <div className="h-3 w-20 bg-gray-200 rounded" />
+            </div>
+          </div>
+
+          {/* description skeleton */}
+          <div className="space-y-2">
+            <div className="h-3 w-full bg-gray-200 rounded" />
+            <div className="h-3 w-3/4 bg-gray-200 rounded" />
+          </div>
+
+          {/* price skeleton */}
+          <div className="h-4 w-24 bg-gray-200 rounded" />
+
+          {/* buttons skeleton */}
+          <div className="flex gap-2 pt-4">
+            <div className="h-9 flex-1 bg-gray-200 rounded" />
+            <div className="h-9 w-10 bg-gray-200 rounded" />
+            <div className="h-9 w-10 bg-gray-200 rounded" />
+          </div>
+
+        </div>
+      ))}
+
+    </div>
+  );
+}
 const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`
+
 
 const AdminCategoriesPage = () => {
   const [categories, setCategories] = useState([]);
@@ -161,9 +200,7 @@ const AdminCategoriesPage = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
+      <AdminCategoriesSkeleton/>
     );
   }
 

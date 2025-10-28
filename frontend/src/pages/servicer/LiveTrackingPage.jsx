@@ -2,6 +2,113 @@ import React, { useState, useEffect, useRef, use } from 'react';
 import { CheckCircle, MapPin, User, Phone, Clock, Navigation, AlertCircle, X, Aperture } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 
+// ============= SKELETON COMPONENTS =============
+const SkeletonPulse = ({ className = "" }) => (
+  <div className={`animate-pulse bg-gray-300 rounded ${className}`}></div>
+);
+
+const HeaderSkeleton = () => (
+  <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 shadow-lg">
+    <div className="max-w-7xl mx-auto flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <SkeletonPulse className="w-14 h-14 rounded-lg bg-white/20" />
+        <div>
+          <SkeletonPulse className="h-8 w-48 mb-2 bg-white/30" />
+          <SkeletonPulse className="h-4 w-32 bg-white/20" />
+        </div>
+      </div>
+      <SkeletonPulse className="w-10 h-10 rounded-lg bg-white/20" />
+    </div>
+  </div>
+);
+
+const StatsBarSkeleton = () => (
+  <div className="bg-white border-b border-gray-200 p-4">
+    <div className="max-w-7xl mx-auto grid grid-cols-3 gap-4">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="text-center">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <SkeletonPulse className="w-5 h-5 rounded" />
+            <SkeletonPulse className="h-3 w-16" />
+          </div>
+          <SkeletonPulse className="h-9 w-24 mx-auto" />
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const MapSkeleton = () => (
+  <div className="flex-1 relative bg-gray-200">
+    <div className="absolute inset-0 flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-gray-600 font-semibold">Loading map...</p>
+      </div>
+    </div>
+    
+    {/* Legend Skeleton */}
+    <div className="absolute top-6 left-6 bg-white rounded-xl shadow-lg p-4 space-y-3 z-[1000]">
+      <SkeletonPulse className="h-5 w-20 mb-2" />
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="flex items-center gap-3">
+          <SkeletonPulse className="w-6 h-6 rounded-full" />
+          <SkeletonPulse className="h-4 w-32" />
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const BottomPanelSkeleton = () => (
+  <div className="bg-white border-t border-gray-200 p-6">
+    <div className="max-w-7xl mx-auto">
+      {/* Customer Details Skeleton */}
+      <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-5 mb-5 border border-gray-200">
+        <SkeletonPulse className="h-6 w-40 mb-4" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex items-center gap-3">
+              <SkeletonPulse className="w-12 h-12 rounded-lg" />
+              <div className="flex-1">
+                <SkeletonPulse className="h-3 w-16 mb-2" />
+                <SkeletonPulse className="h-5 w-32" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Action Buttons Skeleton */}
+      <div className="flex gap-4">
+        <SkeletonPulse className="flex-1 h-16 rounded-xl" />
+        <SkeletonPulse className="w-20 h-16 rounded-xl" />
+      </div>
+
+      {/* Warning Notice Skeleton */}
+      <div className="mt-5 bg-gray-50 border border-gray-200 rounded-lg p-4">
+        <div className="flex items-start gap-3">
+          <SkeletonPulse className="w-5 h-5 rounded mt-0.5" />
+          <div className="flex-1">
+            <SkeletonPulse className="h-5 w-40 mb-2" />
+            <SkeletonPulse className="h-4 w-full mb-1" />
+            <SkeletonPulse className="h-4 w-3/4" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const FullPageSkeleton = () => (
+  <div className="fixed inset-0 bg-gray-900 z-50 flex flex-col">
+    <HeaderSkeleton />
+    <StatsBarSkeleton />
+    <MapSkeleton />
+    <BottomPanelSkeleton />
+  </div>
+);
+
 // ============= LIVE TRACKING PAGE COMPONENT =============
 export const LiveTrackingPage = ({ serviceId, onClose }) => {
   // State management
@@ -390,14 +497,7 @@ export const LiveTrackingPage = ({ serviceId, onClose }) => {
 
   // Loading screen
   if (loading) {
-    return (
-      <div className="fixed inset-0 bg-gray-900 flex items-center justify-center z-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-white mx-auto mb-4"></div>
-          <p className="text-white text-xl font-semibold">Loading tracking...</p>
-        </div>
-      </div>
-    );
+    return <FullPageSkeleton />;
   }
 
   return (

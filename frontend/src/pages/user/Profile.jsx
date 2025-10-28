@@ -2,6 +2,120 @@ import React, { useState, useEffect } from 'react';
 import { User, MapPin, Phone, Mail, Camera, Save, Edit2, Lock, Home, Star, Wallet, Package } from 'lucide-react';
 const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
+const ProfileSkeletonLoader = () => {
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-6xl mx-auto">
+        {/* Header Skeleton */}
+        <div className="mb-8 animate-pulse">
+          <div className="h-8 w-48 bg-gray-200 rounded mb-2"></div>
+          <div className="h-5 w-96 bg-gray-200 rounded"></div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column Skeleton */}
+          <div className="lg:col-span-1">
+            {/* Profile Card Skeleton */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 animate-pulse">
+              <div className="flex flex-col items-center">
+                {/* Avatar Skeleton */}
+                <div className="w-32 h-32 rounded-full bg-gray-200"></div>
+
+                {/* Name Skeleton */}
+                <div className="h-6 w-40 bg-gray-200 rounded mt-4"></div>
+                
+                {/* Email Skeleton */}
+                <div className="h-4 w-48 bg-gray-200 rounded mt-2"></div>
+                
+                {/* Badge Skeleton */}
+                <div className="h-6 w-24 bg-gray-200 rounded-full mt-2"></div>
+
+                {/* Button Skeleton */}
+                <div className="w-full mt-6">
+                  <div className="h-10 w-full bg-gray-200 rounded-lg"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Stats Card Skeleton */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6 animate-pulse">
+              <div className="h-5 w-32 bg-gray-200 rounded mb-4"></div>
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 flex-1">
+                      <div className="w-5 h-5 bg-gray-200 rounded"></div>
+                      <div className="h-4 w-28 bg-gray-200 rounded"></div>
+                    </div>
+                    <div className="h-5 w-12 bg-gray-200 rounded"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column Skeleton */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 animate-pulse">
+              {/* Header Skeleton */}
+              <div className="flex items-center justify-between mb-6">
+                <div className="h-6 w-48 bg-gray-200 rounded"></div>
+                <div className="h-10 w-32 bg-gray-200 rounded-lg"></div>
+              </div>
+
+              {/* Form Fields Skeleton */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i}>
+                    <div className="h-4 w-24 bg-gray-200 rounded mb-2"></div>
+                    <div className="h-10 w-full bg-gray-200 rounded-lg"></div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Address Section Skeleton */}
+              <div className="mt-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-5 h-5 bg-gray-200 rounded"></div>
+                  <div className="h-5 w-48 bg-gray-200 rounded"></div>
+                </div>
+                
+                <div className="space-y-6">
+                  {/* Address Line 1 & 2 */}
+                  {[1, 2].map((i) => (
+                    <div key={i}>
+                      <div className="h-4 w-28 bg-gray-200 rounded mb-2"></div>
+                      <div className="h-10 w-full bg-gray-200 rounded-lg"></div>
+                    </div>
+                  ))}
+
+                  {/* City, State, Pincode */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i}>
+                        <div className="h-4 w-16 bg-gray-200 rounded mb-2"></div>
+                        <div className="h-10 w-full bg-gray-200 rounded-lg"></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Account Info Skeleton */}
+              <div className="mt-8 pt-6 border-t border-gray-200">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="h-4 w-48 bg-gray-200 rounded"></div>
+                  <div className="h-4 w-48 bg-gray-200 rounded"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const UserProfilePage = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -160,11 +274,7 @@ const UserProfilePage = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
+    return <ProfileSkeletonLoader />;
   }
 
   return (

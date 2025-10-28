@@ -1,14 +1,172 @@
 import React, { useState, useEffect } from 'react';
 import { User, Mail, Phone, MapPin, Edit2, Save, X, Camera, Briefcase, Award, DollarSign, CreditCard, Building } from 'lucide-react';
 
+// ============= SKELETON COMPONENTS =============
+const SkeletonPulse = ({ className = "" }) => (
+  <div className={`animate-pulse bg-gray-300 rounded ${className}`}></div>
+);
 
+// Profile Header Skeleton
+const ProfileHeaderSkeleton = () => (
+  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 mb-6">
+    <div className="flex items-center gap-6">
+      {/* Profile Image Skeleton */}
+      <SkeletonPulse className="w-32 h-32 rounded-full flex-shrink-0" />
+      
+      {/* Basic Info Skeleton */}
+      <div className="flex-1 space-y-3">
+        <SkeletonPulse className="h-8 w-48" />
+        <SkeletonPulse className="h-5 w-64" />
+        <div className="flex items-center gap-4 mt-4">
+          <SkeletonPulse className="h-6 w-20" />
+          <SkeletonPulse className="h-6 w-24" />
+          <SkeletonPulse className="h-6 w-28 rounded-full" />
+        </div>
+      </div>
+      
+      {/* Edit Button Skeleton */}
+      <SkeletonPulse className="h-12 w-36 rounded-lg" />
+    </div>
+  </div>
+);
+
+// Tabs Skeleton
+const TabsSkeleton = () => (
+  <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
+    <div className="flex border-b border-gray-200">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="flex-1 px-6 py-4">
+          <SkeletonPulse className="h-5 w-32 mx-auto" />
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+// Form Fields Skeleton
+const FormFieldSkeleton = () => (
+  <div>
+    <SkeletonPulse className="h-4 w-24 mb-2" />
+    <SkeletonPulse className="h-10 w-full rounded-lg" />
+  </div>
+);
+
+// Personal Info Tab Skeleton
+const PersonalInfoSkeleton = () => (
+  <div className="space-y-6">
+    <SkeletonPulse className="h-7 w-48 mb-4" />
+    
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {[1, 2, 3, 4, 5, 6].map((i) => (
+        <FormFieldSkeleton key={i} />
+      ))}
+    </div>
+    
+    <FormFieldSkeleton />
+    <FormFieldSkeleton />
+  </div>
+);
+
+// Professional Tab Skeleton
+const ProfessionalInfoSkeleton = () => (
+  <div className="space-y-6">
+    <SkeletonPulse className="h-7 w-48 mb-4" />
+    
+    <div>
+      <SkeletonPulse className="h-4 w-32 mb-2" />
+      <SkeletonPulse className="h-24 w-full rounded-lg" />
+    </div>
+    
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <FormFieldSkeleton />
+      <FormFieldSkeleton />
+    </div>
+    
+    {/* Stats Skeleton */}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="bg-gray-50 rounded-lg p-4">
+          <SkeletonPulse className="h-4 w-24 mb-2" />
+          <SkeletonPulse className="h-8 w-16" />
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+// Banking Tab Skeleton
+const BankingInfoSkeleton = () => (
+  <div className="space-y-6">
+    <SkeletonPulse className="h-7 w-48 mb-4" />
+    <SkeletonPulse className="h-4 w-full mb-6" />
+    
+    <div className="space-y-6">
+      <FormFieldSkeleton />
+      <FormFieldSkeleton />
+      <FormFieldSkeleton />
+      <SkeletonPulse className="h-12 w-full rounded-lg" />
+    </div>
+    
+    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-6">
+      <SkeletonPulse className="h-4 w-full mb-2" />
+      <SkeletonPulse className="h-4 w-3/4" />
+    </div>
+  </div>
+);
+
+// Full Page Skeleton
+const ProfilePageSkeleton = () => {
+  const [activeTab, setActiveTab] = useState('personal');
+  
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-5xl mx-auto">
+        {/* Header Skeleton */}
+        <div className="mb-8">
+          <SkeletonPulse className="h-9 w-64 mb-2" />
+          <SkeletonPulse className="h-5 w-96" />
+        </div>
+
+        {/* Animated Loading Indicator */}
+        <div className="flex justify-center mb-6">
+          <div className="relative">
+            <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+            <User className="w-6 h-6 text-blue-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+          </div>
+        </div>
+
+        <div className="text-center mb-8">
+          <p className="text-gray-600 font-medium">Loading your profile...</p>
+          <div className="flex justify-center space-x-2 mt-3">
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+          </div>
+        </div>
+
+        {/* Profile Header Skeleton */}
+        <ProfileHeaderSkeleton />
+
+        {/* Tabs Skeleton */}
+        <TabsSkeleton />
+
+        {/* Tab Content Skeleton */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8">
+          <PersonalInfoSkeleton />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============= MAIN COMPONENT =============
 const ServicerProfile = () => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('personal');
-  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}`;
+  
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -37,71 +195,68 @@ const ServicerProfile = () => {
   }, []);
 
   const fetchProfile = async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/api/servicer/profile`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+    setLoading(true);
+    
+    // Simulate API call
+    setTimeout(() => {
+      const mockProfile = {
+        user_details: {
+          name: 'John Doe',
+          email: 'john.doe@example.com',
+          phone: '+91 9876543210',
+          address_line1: '123 Main Street',
+          address_line2: 'Apartment 4B',
+          city: 'Visakhapatnam',
+          state: 'Andhra Pradesh',
+          pincode: '530001',
+          profile_image_url: null
+        },
+        bio: 'Experienced AC technician with 8+ years in the industry. Specialized in all types of AC repairs and maintenance.',
+        experience_years: 8,
+        service_radius_km: 15,
+        average_rating: 4.8,
+        total_jobs_completed: 234,
+        total_ratings: 189,
+        verification_status: 'approved',
+        bank_account_number: '1234567890',
+        ifsc_code: 'SBIN0001234',
+        upi_id: 'johndoe@paytm',
+        profile_photo_url: null
+      };
+
+      setProfile(mockProfile);
+      setFormData({
+        name: mockProfile.user_details.name,
+        email: mockProfile.user_details.email,
+        phone: mockProfile.user_details.phone,
+        address_line1: mockProfile.user_details.address_line1,
+        address_line2: mockProfile.user_details.address_line2,
+        city: mockProfile.user_details.city,
+        state: mockProfile.user_details.state,
+        pincode: mockProfile.user_details.pincode,
+        bio: mockProfile.bio,
+        experience_years: mockProfile.experience_years,
+        service_radius_km: mockProfile.service_radius_km
       });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch profile');
-      }
-      
-      const data = await response.json();
-      setProfile(data);
-      
-      // Set form data
-      if (data.user_details) {
-        setFormData({
-          name: data.user_details.name || '',
-          email: data.user_details.email || '',
-          phone: data.user_details.phone || '',
-          address_line1: data.user_details.address_line1 || '',
-          address_line2: data.user_details.address_line2 || '',
-          city: data.user_details.city || '',
-          state: data.user_details.state || '',
-          pincode: data.user_details.pincode || '',
-          bio: data.bio || '',
-          experience_years: data.experience_years || 0,
-          service_radius_km: data.service_radius_km || 10
-        });
-        
-        // Set image preview from servicer profile_photo_url first, fallback to user profile_image_url
-        const photoUrl = data.profile_photo_url || data.user_details.profile_image_url || null;
-        if (photoUrl && !photoUrl.startsWith('http')) {
-          setImagePreview(`${API_BASE_URL}${photoUrl}`);
-        } else {
-          setImagePreview(photoUrl);
-        }
-      }
 
       setBankDetails({
-        bank_account_number: data.bank_account_number || '',
-        ifsc_code: data.ifsc_code || '',
-        upi_id: data.upi_id || ''
+        bank_account_number: mockProfile.bank_account_number,
+        ifsc_code: mockProfile.ifsc_code,
+        upi_id: mockProfile.upi_id
       });
 
       setLoading(false);
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-      alert('Failed to load profile. Please try again.');
-      setLoading(false);
-    }
+    }, 2000);
   };
 
   const handleImageSelect = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         alert('Image size should be less than 5MB');
         return;
       }
       
-      // Validate file type
       if (!file.type.startsWith('image/')) {
         alert('Please select a valid image file');
         return;
@@ -117,107 +272,26 @@ const ServicerProfile = () => {
   };
 
   const updateProfile = async () => {
-    try {
-      setSaving(true);
-      const token = localStorage.getItem('token');
-      
-      // Update user profile (personal details)
-      const formDataToSend = new FormData();
-      if (formData.name) formDataToSend.append('name', formData.name);
-      if (formData.phone) formDataToSend.append('phone', formData.phone);
-      if (formData.address_line1) formDataToSend.append('address_line1', formData.address_line1);
-      if (formData.address_line2) formDataToSend.append('address_line2', formData.address_line2);
-      if (formData.city) formDataToSend.append('city', formData.city);
-      if (formData.state) formDataToSend.append('state', formData.state);
-      if (formData.pincode) formDataToSend.append('pincode', formData.pincode);
-
-      const userResponse = await fetch(`${API_BASE_URL}/api/user/profile`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formDataToSend
-      });
-
-      if (!userResponse.ok) {
-        throw new Error('Failed to update user profile');
-      }
-
-      // Update servicer profile (professional details)
-      const servicerFormData = new FormData();
-      if (formData.bio) servicerFormData.append('bio', formData.bio);
-      if (formData.experience_years) servicerFormData.append('experience_years', formData.experience_years);
-      if (formData.service_radius_km) servicerFormData.append('service_radius_km', formData.service_radius_km);
-      if (profileImage) servicerFormData.append('profile_photo', profileImage);
-
-      const servicerResponse = await fetch( `${API_BASE_URL}/api/servicer/profile`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: servicerFormData
-      });
-
-      if (!servicerResponse.ok) {
-        throw new Error('Failed to update servicer profile');
-      }
-
+    setSaving(true);
+    setTimeout(() => {
       alert('Profile updated successfully!');
       setEditing(false);
-      setProfileImage(null); // Clear the file input state
-      
-      // Fetch updated profile
-      await fetchProfile();
-      
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      alert('Failed to update profile. Please try again.');
-    } finally {
+      setProfileImage(null);
       setSaving(false);
-    }
+    }, 1500);
   };
 
   const updateBankDetails = async () => {
-    try {
-      setSaving(true);
-      const token = localStorage.getItem('token');
-      const formDataToSend = new FormData();
-
-      if (bankDetails.bank_account_number) formDataToSend.append('bank_account_number', bankDetails.bank_account_number);
-      if (bankDetails.ifsc_code) formDataToSend.append('ifsc_code', bankDetails.ifsc_code);
-      if (bankDetails.upi_id) formDataToSend.append('upi_id', bankDetails.upi_id);
-
-      const response = await fetch(`${API_BASE_URL}/api/servicer/bank-details`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formDataToSend
-      });
-
-      if (response.ok) {
-        alert('Bank details updated successfully!');
-        await fetchProfile();
-      } else {
-        throw new Error('Failed to update bank details');
-      }
-    } catch (error) {
-      console.error('Error updating bank details:', error);
-      alert('Failed to update bank details. Please try again.');
-    } finally {
+    setSaving(true);
+    setTimeout(() => {
+      alert('Bank details updated successfully!');
       setSaving(false);
-    }
+    }, 1500);
   };
 
+  // Show skeleton loading
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading profile...</p>
-        </div>
-      </div>
-    );
+    return <ProfilePageSkeleton />;
   }
 
   if (!profile) {

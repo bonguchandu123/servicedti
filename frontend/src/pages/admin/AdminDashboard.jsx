@@ -1,6 +1,60 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Briefcase, DollarSign, Shield, TrendingUp, Calendar, AlertCircle, CheckCircle } from 'lucide-react';
 
+const AdminSkeletonLoader = () => (
+    <div className="min-h-screen bg-gray-50 p-6 animate-pulse">
+      <div className="max-w-7xl mx-auto space-y-10">
+
+        {/* Header skeleton */}
+        <div className="space-y-3">
+          <div className="h-8 w-48 bg-gray-200 rounded"></div>
+          <div className="h-4 w-64 bg-gray-200 rounded"></div>
+        </div>
+
+        {/* Stats cards skeleton */}
+        <div>
+          <div className="h-6 w-40 bg-gray-200 rounded mb-4"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1,2,3,4].map((i) => (
+              <div key={i} className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 space-y-4">
+                <div className="flex justify-between">
+                  <div className="h-10 w-10 bg-gray-200 rounded-lg"></div>
+                  <div className="h-4 w-16 bg-gray-200 rounded"></div>
+                </div>
+                <div className="h-4 w-24 bg-gray-200 rounded"></div>
+                <div className="h-8 w-20 bg-gray-200 rounded"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Revenue cards skeleton */}
+        <div>
+          <div className="h-6 w-48 bg-gray-200 rounded mb-4"></div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[1,2,3].map((i) => (
+              <div key={i} className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 space-y-4">
+                <div className="h-10 w-10 bg-gray-200 rounded-lg"></div>
+                <div className="h-4 w-32 bg-gray-200 rounded"></div>
+                <div className="h-8 w-28 bg-gray-200 rounded"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Quick actions skeleton */}
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 space-y-4">
+          <div className="h-6 w-40 bg-gray-200 rounded"></div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[1,2,3].map((i) => (
+              <div key={i} className="h-20 bg-gray-200 rounded-lg"></div>
+            ))}
+          </div>
+        </div>
+
+      </div>
+    </div>)
+
 const AdminDashboard = () => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -33,9 +87,7 @@ const AdminDashboard = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
+      <AdminSkeletonLoader/>
     );
   }
 

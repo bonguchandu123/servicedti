@@ -1,6 +1,56 @@
 import React, { useState, useEffect } from 'react';
 import { DollarSign, Search, Eye, CheckCircle, Clock, AlertCircle, User, CreditCard, Calendar, Building, X, TrendingUp } from 'lucide-react';
 
+const AdminLayoutsSkeleton = () => {
+  return (
+    <div className="min-h-screen bg-gray-50 p-6 animate-pulse">
+      <div className="max-w-7xl mx-auto space-y-6">
+
+        {/* Header Skeleton */}
+        <div className="h-10 w-64 bg-gray-200 rounded"></div>
+        <div className="h-4 w-40 bg-gray-200 rounded"></div>
+
+        {/* Stats Cards Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[1,2,3].map(i => (
+            <div key={i} className="bg-white border rounded-lg p-6 space-y-3">
+              <div className="h-8 w-8 bg-gray-200 rounded"></div>
+              <div className="h-4 w-32 bg-gray-200 rounded"></div>
+              <div className="h-8 w-20 bg-gray-200 rounded"></div>
+              <div className="h-4 w-24 bg-gray-200 rounded"></div>
+            </div>
+          ))}
+        </div>
+
+        {/* Filters Skeleton */}
+        <div className="bg-white border rounded-lg p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="h-10 bg-gray-200 rounded md:col-span-2"></div>
+          <div className="h-10 bg-gray-200 rounded"></div>
+        </div>
+
+        {/* List Item Skeletons */}
+        <div className="space-y-4">
+          {[1,2,3,4].map(i => (
+            <div key={i} className="bg-white border rounded-lg p-6 flex gap-4">
+              <div className="w-16 h-16 bg-gray-200 rounded-full"></div>
+              <div className="flex-1 space-y-3">
+                <div className="h-5 w-40 bg-gray-200 rounded"></div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[1,2,3,4].map(j => (
+                    <div key={j} className="h-4 bg-gray-200 rounded"></div>
+                  ))}
+                </div>
+                <div className="h-5 w-24 bg-gray-200 rounded"></div>
+              </div>
+              <div className="w-24 h-8 bg-gray-200 rounded"></div>
+            </div>
+          ))}
+        </div>
+
+      </div>
+    </div>
+  )
+}
 const AdminPayouts = () => {
   const [payouts, setPayouts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -126,9 +176,7 @@ const AdminPayouts = () => {
 
   if (loading && payouts.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
+      <AdminLayoutsSkeleton/>
     );
   }
 

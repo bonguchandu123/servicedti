@@ -1,6 +1,89 @@
-import React, { useState, useEffect, useRef, use } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Send, User, Phone, Video, MoreVertical, Paperclip, ImagePlus, Smile } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+
+const ChatSkeletonLoader = () => {
+  return (
+    <div className="h-screen flex flex-col bg-gray-50">
+      {/* Header Skeleton */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4 animate-pulse">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <div className="w-6 h-6 bg-gray-200 rounded"></div>
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-full bg-gray-200"></div>
+              <div>
+                <div className="h-5 w-32 bg-gray-200 rounded mb-2"></div>
+                <div className="h-4 w-16 bg-gray-200 rounded"></div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <div className="w-9 h-9 bg-gray-200 rounded-lg"></div>
+            <div className="w-9 h-9 bg-gray-200 rounded-lg"></div>
+            <div className="w-9 h-9 bg-gray-200 rounded-lg"></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Booking Info Banner Skeleton */}
+      <div className="bg-gray-100 border-b border-gray-200 px-6 py-3 animate-pulse">
+        <div className="flex items-center justify-between">
+          <div className="h-4 w-64 bg-gray-200 rounded"></div>
+          <div className="h-6 w-24 bg-gray-200 rounded-full"></div>
+        </div>
+      </div>
+
+      {/* Messages Container Skeleton */}
+      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 animate-pulse">
+        {/* Date Separator */}
+        <div className="flex items-center justify-center my-4">
+          <div className="h-6 w-20 bg-gray-200 rounded-full"></div>
+        </div>
+
+        {/* Message Bubbles */}
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i}>
+            {i % 2 === 0 ? (
+              // Received message (left)
+              <div className="flex justify-start mb-3">
+                <div className="max-w-xs lg:max-w-md">
+                  <div className="bg-gray-200 rounded-2xl rounded-bl-none px-4 py-3">
+                    <div className="h-4 bg-gray-300 rounded mb-2" style={{ width: `${Math.random() * 100 + 100}px` }}></div>
+                    {Math.random() > 0.5 && <div className="h-4 bg-gray-300 rounded" style={{ width: `${Math.random() * 80 + 80}px` }}></div>}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              // Sent message (right)
+              <div className="flex justify-end mb-3">
+                <div className="max-w-xs lg:max-w-md">
+                  <div className="bg-blue-200 rounded-2xl rounded-br-none px-4 py-3">
+                    <div className="h-4 bg-blue-300 rounded mb-2" style={{ width: `${Math.random() * 100 + 100}px` }}></div>
+                    {Math.random() > 0.5 && <div className="h-4 bg-blue-300 rounded" style={{ width: `${Math.random() * 80 + 80}px` }}></div>}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Input Area Skeleton */}
+      <div className="bg-white border-t border-gray-200 px-6 py-4 animate-pulse">
+        <div className="flex items-end space-x-3">
+          <div className="flex space-x-2">
+            <div className="w-9 h-9 bg-gray-200 rounded-lg"></div>
+            <div className="w-9 h-9 bg-gray-200 rounded-lg"></div>
+          </div>
+          <div className="flex-1 h-12 bg-gray-200 rounded-xl"></div>
+          <div className="w-12 h-12 bg-gray-200 rounded-xl"></div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const ChatMessaging = ({ bookingId: propBookingId }) => {
   const [messages, setMessages] = useState([]);
@@ -16,13 +99,11 @@ const ChatMessaging = ({ bookingId: propBookingId }) => {
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
 
-  // Get booking ID from URL or props
   const pathParts = window.location.pathname.split('/');
   const bookingId = propBookingId || pathParts[pathParts.length - 1];
   
- 
   console.log('Current user from localStorage:', user);
-  const userRole = user ?user.role : null;
+  const userRole = user ? user.role : null;
   const currentUserId = user ? user._id : null;
   const isServicer = userRole === 'servicer';
 
@@ -51,7 +132,6 @@ const ChatMessaging = ({ bookingId: propBookingId }) => {
     try {
       const token = localStorage.getItem('token');
       
-      // Use different endpoint based on role
       const endpoint = isServicer 
         ? `${API_BASE_URL}/servicer/services/${bookingId}`
         : `${API_BASE_URL}/user/bookings/${bookingId}`;
@@ -70,9 +150,7 @@ const ChatMessaging = ({ bookingId: propBookingId }) => {
       const data = await response.json();
       setBooking(data);
       
-      // Set other person info based on role
       if (isServicer) {
-        // Servicer viewing - show user info
         setOtherPersonInfo({
           name: data.user_name || 'Customer',
           phone: data.user_phone || '',
@@ -80,7 +158,6 @@ const ChatMessaging = ({ bookingId: propBookingId }) => {
           email: data.user_email || ''
         });
       } else {
-        // User viewing - show servicer info
         setOtherPersonInfo(data.servicer_details || {
           name: data.servicer_name || 'Service Provider',
           phone: data.servicer_phone || '',
@@ -102,7 +179,6 @@ const ChatMessaging = ({ bookingId: propBookingId }) => {
     try {
       const token = localStorage.getItem('token');
       
-      // Use different endpoint based on role
       const endpoint = isServicer
         ? `${API_BASE_URL}/servicer/services/${bookingId}/chat`
         : `${API_BASE_URL}/user/bookings/${bookingId}/chat`;
@@ -137,7 +213,6 @@ const ChatMessaging = ({ bookingId: propBookingId }) => {
       const token = localStorage.getItem('token');
       const formData = new FormData();
       
-      // Set receiver based on role
       const receiverId = isServicer ? booking.user_id : booking.servicer_id;
       
       if (!receiverId) {
@@ -219,14 +294,7 @@ const ChatMessaging = ({ bookingId: propBookingId }) => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading chat...</p>
-        </div>
-      </div>
-    );
+    return <ChatSkeletonLoader />;
   }
 
   if (error) {

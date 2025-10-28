@@ -48,14 +48,20 @@ import UserNotifications from './pages/user/UserNotifications';
 import { ToastProvider, useToast } from './context/ToastContext';
 import { NotificationProvider } from './context/NotificationContext';
 import ServicerNotifications from './pages/servicer/ServicerNotifications';
+import { DarkProgressBar} from './components/NavigationProgressBar';
+
 
 const AppContent = () => {
   const { user, loading, logout } = useAuth();
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+   const [isNavigating, setIsNavigating] = useState(false); 
   const toast = useToast();
 
 
+
+  
+  
 useEffect(() => {
   if (!user) return;
 
@@ -118,11 +124,15 @@ useEffect(() => {
     }
   }, [user, currentPath]);
 
-  const navigateTo = (path) => {
-    setCurrentPath(path);
-    window.history.pushState({}, '', path);
-  };
-
+const navigateTo = (path) => {
+  setIsNavigating(true);
+  setCurrentPath(path);
+  window.history.pushState({}, '', path);
+  
+  setTimeout(() => {
+    setIsNavigating(false);
+  }, 1400); // Increased from 600ms to match the loading time
+};
   const handleLogout = () => {
     logout();
     navigateTo('/login');
@@ -285,7 +295,7 @@ if (user.role === 'servicer') {
     return <Login onNavigate={navigateTo} />;
   };
 
-  if (loading) {
+    if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -308,6 +318,9 @@ if (user.role === 'servicer') {
   // Show dashboard layout with sidebar for logged-in users
   return (
     <div className="min-h-screen bg-gray-50 flex">
+      {/* ✅ ADD PROGRESS BAR HERE */}
+      {isNavigating && <DarkProgressBar/>}
+      
       <Sidebar
         role={user.role}
         currentPath={currentPath}

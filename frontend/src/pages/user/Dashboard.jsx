@@ -1,6 +1,86 @@
 import React, { useState, useEffect } from 'react';
 import { Home, Calendar, Star, Wallet, Bell, TrendingUp, Clock, CheckCircle, ArrowRight } from 'lucide-react';
 
+const SkeletonLoader = () => {
+  return (
+    <div className="min-h-screen bg-gray-50 p-6 animate-pulse">
+      <div className="max-w-7xl mx-auto">
+        {/* Header Skeleton */}
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <div className="h-9 w-48 bg-gray-200 rounded-lg mb-3"></div>
+            <div className="h-5 w-64 bg-gray-200 rounded"></div>
+          </div>
+          <div className="h-10 w-40 bg-gray-200 rounded-lg"></div>
+        </div>
+
+        {/* Stats Cards Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="h-4 w-24 bg-gray-200 rounded mb-3"></div>
+                  <div className="h-8 w-16 bg-gray-200 rounded"></div>
+                </div>
+                <div className="w-12 h-12 bg-gray-200 rounded-lg"></div>
+              </div>
+              <div className="mt-4 h-4 w-20 bg-gray-200 rounded"></div>
+            </div>
+          ))}
+        </div>
+
+        {/* Recent Bookings Skeleton */}
+        <div className="bg-white rounded-lg border border-gray-200">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="h-6 w-40 bg-gray-200 rounded"></div>
+              <div className="h-5 w-24 bg-gray-200 rounded"></div>
+            </div>
+          </div>
+
+          <div className="p-6 space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center space-x-4">
+                  <div className="w-11 h-11 bg-gray-200 rounded-lg"></div>
+                  <div>
+                    <div className="h-5 w-32 bg-gray-200 rounded mb-2"></div>
+                    <div className="h-4 w-28 bg-gray-200 rounded mb-2"></div>
+                    <div className="h-3 w-24 bg-gray-200 rounded"></div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="h-5 w-16 bg-gray-200 rounded mb-2"></div>
+                  <div className="h-6 w-24 bg-gray-200 rounded-full"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Quick Actions Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="w-12 h-12 bg-gray-200 rounded-lg"></div>
+                  <div>
+                    <div className="h-5 w-28 bg-gray-200 rounded mb-2"></div>
+                    <div className="h-4 w-32 bg-gray-200 rounded"></div>
+                  </div>
+                </div>
+                <div className="w-5 h-5 bg-gray-200 rounded"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const UserDashboard = ({ onNavigate }) => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -35,14 +115,7 @@ const UserDashboard = ({ onNavigate }) => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
-        </div>
-      </div>
-    );
+    return <SkeletonLoader />;
   }
 
   if (error) {
