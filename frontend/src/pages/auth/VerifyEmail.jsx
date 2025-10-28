@@ -1,29 +1,40 @@
 import React, { useState, useEffect, use } from 'react';
+import { Mail, Loader2, CheckCircle, AlertCircle, RefreshCw, ArrowLeft, Clock } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { useToast } from '../../context/ToastContext';
 
-const VerifyEmail = ({ onNavigate }) => {
-  const { verifyOTP, sendOTP, tempUserData } = useAuth();
+const VerifyEmail = ({ onNavigate = (path) => console.log('Navigate:', path) }) => {
+  // Mock context functions - replace with your actual useAuth hook
+
+
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
+  const [sendingOTP, setSendingOTP] = useState(true);
+  const [initialSendComplete, setInitialSendComplete] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [resendTimer, setResendTimer] = useState(60);
   const [canResend, setCanResend] = useState(false);
-  const toast  = useToast();
 
-  // Get email and role from tempUserData stored during signup
+  const { sendOTP,tempUserData,verifyOTP} = useAuth(); 
+
   const email = tempUserData?.email || '';
   const role = tempUserData?.role || 'user';
+  const name = tempUserData?.name || '';
 
+  // Send OTP immediately on mount
   useEffect(() => {
-    // Redirect to signup if no email found
     if (!email) {
       onNavigate('/signup');
       return;
     }
 
-    // Start countdown timer
+    sendInitialOTP();
+  }, [email]);
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (!initialSendComplete) return;
+
     const timer = setInterval(() => {
       setResendTimer((prev) => {
         if (prev <= 1) {
@@ -36,18 +47,40 @@ const VerifyEmail = ({ onNavigate }) => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [email, onNavigate]);
+  }, [initialSendComplete]);
+
+  const sendInitialOTP = async () => {
+    setSendingOTP(true);
+    setError('');
+
+    try {
+      const result = await sendOTP(email, 'email_verification');
+
+      if (result.success) {
+        setSuccess('Verification code sent to your email!');
+        setInitialSendComplete(true);
+        setTimeout(() => setSuccess(''), 3000);
+      } else {
+        setError(result.message || 'Failed to send verification code');
+        setCanResend(true); // Allow immediate retry
+      }
+    } catch (err) {
+      setError('Failed to send verification code. Please try again.');
+      setCanResend(true);
+    } finally {
+      setSendingOTP(false);
+    }
+  };
 
   const handleOtpChange = (index, value) => {
-    // Only allow numbers
     if (value && !/^\d$/.test(value)) return;
 
     const newOtp = [...otp];
     newOtp[index] = value;
     setOtp(newOtp);
     setError('');
+    setSuccess('');
 
-    // Auto-focus next input
     if (value && index < 5) {
       const nextInput = document.getElementById(`otp-${index + 1}`);
       if (nextInput) nextInput.focus();
@@ -55,7 +88,6 @@ const VerifyEmail = ({ onNavigate }) => {
   };
 
   const handleKeyDown = (index, e) => {
-    // Handle backspace
     if (e.key === 'Backspace' && !otp[index] && index > 0) {
       const prevInput = document.getElementById(`otp-${index - 1}`);
       if (prevInput) prevInput.focus();
@@ -68,7 +100,6 @@ const VerifyEmail = ({ onNavigate }) => {
     
     if (!/^\d+$/.test(pastedData)) {
       setError('Please paste only numbers');
-      toast.error('Please paste only numbers');
       return;
     }
 
@@ -76,84 +107,111 @@ const VerifyEmail = ({ onNavigate }) => {
     while (newOtp.length < 6) newOtp.push('');
     setOtp(newOtp);
 
-    // Focus last filled input
-    const lastIndex = Math.min(pastedData.length, 5);
-    const lastInput = document.getElementById(`otp-${lastIndex}`);
-    if (lastInput) lastInput.focus();
+    const lastIndex = Math.min(pastedData.length - 1, 5);
+    setTimeout(() => {
+      const lastInput = document.getElementById(`otp-${lastIndex}`);
+      if (lastInput) lastInput.focus();
+    }, 0);
   };
 
   const handleVerify = async () => {
     const otpCode = otp.join('');
     
     if (otpCode.length !== 6) {
-      setError('Please enter complete 6-digit OTP');
-      toast.info('Please enter complete 6-digit OTP');
+      setError('Please enter complete 6-digit code');
       return;
     }
 
     setLoading(true);
     setError('');
+    setSuccess('');
 
-    const result = await verifyOTP(email, otpCode);
+    try {
+      const result = await verifyOTP(email, otpCode);
 
-    if (result.success) {
-      setSuccess('Email verified successfully! Redirecting...');
-      toast.success('Email verified successfully! Redirecting...');
-      setTimeout(() => {
-        // Navigate based on role
-        if (role === 'servicer') {
-          onNavigate('/servicer/upload-documents');
-        } else {
-          onNavigate('/user/dashboard');
-        }
-      }, 1500);
-    } else {
-      setError(result.message || 'Invalid OTP. Please try again.');
-      toast.error(result.message || 'Invalid OTP. Please try again.');
+      if (result.success) {
+        setSuccess('Email verified successfully! Redirecting...');
+        setTimeout(() => {
+          if (role === 'servicer') {
+            onNavigate('/servicer/upload-documents');
+          } else {
+            onNavigate('/user/dashboard');
+          }
+        }, 1500);
+      } else {
+        setError(result.message || 'Invalid verification code');
+        setOtp(['', '', '', '', '', '']);
+        setTimeout(() => {
+          const firstInput = document.getElementById('otp-0');
+          if (firstInput) firstInput.focus();
+        }, 0);
+      }
+    } catch (err) {
+      setError('Verification failed. Please try again.');
       setOtp(['', '', '', '', '', '']);
-      const firstInput = document.getElementById('otp-0');
-      if (firstInput) firstInput.focus();
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   const handleResendOTP = async () => {
-    if (!canResend) return;
+    if (!canResend && resendTimer > 0) return;
 
     setLoading(true);
     setError('');
     setSuccess('');
 
-    const result = await sendOTP(email, 'email_verification');
+    try {
+      const result = await sendOTP(email, 'email_verification');
 
-    if (result.success) {
-      setSuccess('OTP resent successfully! Check your email.');
-      toast.success('OTP resent successfully! Check your email.');
-      setCanResend(false);
-      setResendTimer(60);
-      
-      // Restart timer
-      const timer = setInterval(() => {
-        setResendTimer((prev) => {
-          if (prev <= 1) {
-            setCanResend(true);
-            clearInterval(timer);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
-      setError(result.message || 'Failed to resend OTP');
-      toast.error(result.message || 'Failed to resend OTP');
+      if (result.success) {
+        setSuccess('New code sent! Check your email.');
+        setCanResend(false);
+        setResendTimer(60);
+        setOtp(['', '', '', '', '', '']);
+        
+        setTimeout(() => {
+          const firstInput = document.getElementById('otp-0');
+          if (firstInput) firstInput.focus();
+        }, 0);
+      } else {
+        setError(result.message || 'Failed to resend code');
+      }
+    } catch (err) {
+      setError('Failed to resend code. Please try again.');
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   if (!email) {
-    return null; // Will redirect to signup
+    return null;
+  }
+
+  // Initial loading screen
+  if (sendingOTP) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="max-w-md w-full">
+          <div className="bg-white rounded-2xl shadow-xl p-8">
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-100 rounded-full mb-4">
+                <Mail className="w-8 h-8 text-indigo-600 animate-pulse" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Sending Verification Code</h2>
+              <p className="text-gray-600 mb-6">
+                We're sending a 6-digit code to<br />
+                <span className="font-semibold text-indigo-600">{email}</span>
+              </p>
+              <div className="flex items-center justify-center space-x-2">
+                <Loader2 className="w-5 h-5 text-indigo-600 animate-spin" />
+                <span className="text-sm text-gray-500">Please wait...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -162,13 +220,11 @@ const VerifyEmail = ({ onNavigate }) => {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-full mb-4">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
+            <Mail className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900">Verify Your Email</h1>
           <p className="text-gray-600 mt-2">
-            We've sent a 6-digit code to
+            Enter the 6-digit code sent to
           </p>
           <p className="text-indigo-600 font-semibold mt-1">{email}</p>
         </div>
@@ -178,9 +234,7 @@ const VerifyEmail = ({ onNavigate }) => {
           {/* Success Message */}
           {success && (
             <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-6 flex items-start">
-              <svg className="w-5 h-5 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
+              <CheckCircle className="w-5 h-5 mr-2 mt-0.5 flex-shrink-0" />
               <span className="text-sm">{success}</span>
             </div>
           )}
@@ -188,9 +242,7 @@ const VerifyEmail = ({ onNavigate }) => {
           {/* Error Message */}
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 flex items-start">
-              <svg className="w-5 h-5 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
+              <AlertCircle className="w-5 h-5 mr-2 mt-0.5 flex-shrink-0" />
               <span className="text-sm">{error}</span>
             </div>
           )}
@@ -198,7 +250,7 @@ const VerifyEmail = ({ onNavigate }) => {
           {/* OTP Input */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-3 text-center">
-              Enter 6-Digit Code
+              Enter Verification Code
             </label>
             <div className="flex justify-center gap-2">
               {otp.map((digit, index) => (
@@ -206,13 +258,15 @@ const VerifyEmail = ({ onNavigate }) => {
                   key={index}
                   id={`otp-${index}`}
                   type="text"
+                  inputMode="numeric"
                   maxLength={1}
                   value={digit}
                   onChange={(e) => handleOtpChange(index, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(index, e)}
                   onPaste={index === 0 ? handlePaste : undefined}
-                  className="w-12 h-12 text-center text-xl font-bold border-2 border-gray-300 rounded-lg focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                  disabled={loading || success}
+                  className="w-12 h-12 text-center text-xl font-bold border-2 border-gray-300 rounded-lg focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500 outline-none transition disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  disabled={loading || !!success}
+                  autoFocus={index === 0}
                 />
               ))}
             </div>
@@ -221,16 +275,18 @@ const VerifyEmail = ({ onNavigate }) => {
           {/* Verify Button */}
           <button
             onClick={handleVerify}
-            disabled={loading || success || otp.join('').length !== 6}
+            disabled={loading || !!success || otp.join('').length !== 6}
             className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center mb-4"
           >
             {loading ? (
               <>
-                <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                 Verifying...
+              </>
+            ) : success ? (
+              <>
+                <CheckCircle className="w-5 h-5 mr-2" />
+                Verified!
               </>
             ) : (
               'Verify Email'
@@ -238,7 +294,7 @@ const VerifyEmail = ({ onNavigate }) => {
           </button>
 
           {/* Resend OTP */}
-          <div className="text-center">
+          <div className="text-center mb-6">
             <p className="text-sm text-gray-600 mb-2">
               Didn't receive the code?
             </p>
@@ -246,29 +302,30 @@ const VerifyEmail = ({ onNavigate }) => {
               <button
                 onClick={handleResendOTP}
                 disabled={loading}
-                className="text-indigo-600 hover:text-indigo-700 font-semibold text-sm disabled:opacity-50"
+                className="inline-flex items-center text-indigo-600 hover:text-indigo-700 font-semibold text-sm disabled:opacity-50 transition"
               >
-                Resend OTP
+                <RefreshCw className="w-4 h-4 mr-1" />
+                Resend Code
               </button>
             ) : (
-              <p className="text-sm text-gray-500">
-                Resend in <span className="font-semibold text-indigo-600">{resendTimer}s</span>
-              </p>
+              <div className="inline-flex items-center text-sm text-gray-500">
+                <Clock className="w-4 h-4 mr-1" />
+                Resend in <span className="font-semibold text-indigo-600 ml-1">{resendTimer}s</span>
+              </div>
             )}
           </div>
 
-          {/* Help Text */}
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+          {/* Help Box */}
+          <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg">
             <div className="flex items-start">
-              <svg className="w-5 h-5 text-gray-400 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-              <div className="text-xs text-gray-600">
-                <p className="font-semibold mb-1">Tips:</p>
-                <ul className="list-disc list-inside space-y-1">
-                  <li>Check your spam/junk folder</li>
-                  <li>OTP is valid for 10 minutes</li>
-                  <li>You can request a new OTP after 60 seconds</li>
+              <AlertCircle className="w-5 h-5 text-blue-600 mr-2 flex-shrink-0 mt-0.5" />
+              <div className="text-xs text-blue-900">
+                <p className="font-semibold mb-2">Not receiving emails?</p>
+                <ul className="space-y-1 text-blue-800">
+                  <li>• Check your spam/junk folder</li>
+                  <li>• Ensure {email} is correct</li>
+                  <li>• Code expires in 10 minutes</li>
+                  <li>• Wait 60 seconds before resending</li>
                 </ul>
               </div>
             </div>
@@ -278,9 +335,11 @@ const VerifyEmail = ({ onNavigate }) => {
           <div className="mt-6 text-center">
             <button
               onClick={() => onNavigate('/signup')}
-              className="text-sm text-gray-600 hover:text-gray-800"
+              disabled={loading}
+              className="inline-flex items-center text-sm text-gray-600 hover:text-gray-800 transition disabled:opacity-50"
             >
-              ← Back to Signup
+              <ArrowLeft className="w-4 h-4 mr-1" />
+              Back to Signup
             </button>
           </div>
         </div>
