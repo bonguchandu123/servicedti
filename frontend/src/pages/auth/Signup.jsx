@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Briefcase, Wrench, Zap, Paintbrush, Droplet, Wind, Home, Bug, Leaf, Scissors, AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 
 // ============= SKELETON COMPONENTS =============
 const SkeletonPulse = ({ className = "" }) => (
@@ -148,7 +149,7 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
     pincode: '',
     selectedServices: []
   });
-  
+  const toast= useToast()
   const [serviceCategories, setServiceCategories] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
@@ -385,38 +386,53 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
     setLoading(true);
     
     try {
-      await signup({
+      // Prepare payload - match backend schema exactly
+      const payload = {
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
         password: formData.password,
-        role: formData.role,
-        address: {
-          line1: formData.address_line1,
-          city: formData.city,
-          state: formData.state,
-          pincode: formData.pincode
-        },
-        services: formData.role === 'servicer' ? formData.selectedServices : []
-      });
-    } catch (err) {
-      setError(err.message || 'Signup failed. Please try again.');
-      setLoading(false);
-      return;
-    }
-    
-    // Simulate API call
-    setTimeout(() => {
+        role: formData.role
+      };
+
+      // Add optional address fields only if provided
+      if (formData.address_line1) payload.address_line1 = formData.address_line1;
+      if (formData.address_line2) payload.address_line2 = formData.address_line2;
+      if (formData.city) payload.city = formData.city;
+      if (formData.state) payload.state = formData.state;
+      if (formData.pincode) payload.pincode = formData.pincode;
+
+      // Only add service_categories for servicers with selections
+      if (formData.role === 'servicer' && formData.selectedServices.length > 0) {
+        payload.service_categories = formData.selectedServices;
+      }
+
+      console.log('Submitting signup with payload:', payload);
+
+      const result = await signup(payload);
+      
+      if (!result.success) {
+        setError(result.message || 'Signup failed. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      // Success - show message and navigate
       alert(`Account created successfully! ${
         formData.role === 'servicer' 
           ? `${formData.selectedServices.length} services added.` 
           : ''
-      } Please verify your email.`);
+      } Please check your email for verification.`);
+      toast.success('Signup successful! Please verify your email.');
       setLoading(false);
       onNavigate('/verify-email');
-    }, 2000);
+      
+    } catch (err) {
+      console.error('Signup error:', err);
+      setError(err.message || 'Signup failed. Please try again.');
+      setLoading(false);
+    }
   };
-
   const filteredCategories = serviceCategories.filter(cat =>
     cat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (cat.description && cat.description.toLowerCase().includes(searchQuery.toLowerCase()))
