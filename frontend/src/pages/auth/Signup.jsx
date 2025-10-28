@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Briefcase, Wrench, Zap, Paintbrush, Droplet, Wind, Home, Bug, Leaf, Scissors, AlertCircle, CheckCircle } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 // ============= SKELETON COMPONENTS =============
 const SkeletonPulse = ({ className = "" }) => (
@@ -155,6 +156,7 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
   const [error, setError] = useState('');
   const [step, setStep] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
+  const {signup} = useAuth();
 
   const defaultServiceCategories = [
     {
@@ -381,6 +383,27 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
     }
 
     setLoading(true);
+    
+    try {
+      await signup({
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        password: formData.password,
+        role: formData.role,
+        address: {
+          line1: formData.address_line1,
+          city: formData.city,
+          state: formData.state,
+          pincode: formData.pincode
+        },
+        services: formData.role === 'servicer' ? formData.selectedServices : []
+      });
+    } catch (err) {
+      setError(err.message || 'Signup failed. Please try again.');
+      setLoading(false);
+      return;
+    }
     
     // Simulate API call
     setTimeout(() => {
