@@ -2,6 +2,129 @@ import React, { useState, useEffect } from 'react';
 import { Star, Filter, MessageSquare, User, Calendar, Search, TrendingUp } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 
+// Skeleton Loading Component
+const ReviewsSkeleton = () => {
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header Skeleton */}
+        <div className="mb-6">
+          <div className="h-8 w-48 bg-gray-200 rounded animate-pulse mb-2"></div>
+          <div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
+        </div>
+
+        {/* Stats Grid Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                <div className="flex-1">
+                  <div className="h-3 w-20 bg-gray-200 rounded animate-pulse mb-2"></div>
+                  <div className="h-8 w-16 bg-gray-200 rounded animate-pulse"></div>
+                </div>
+              </div>
+              <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+            </div>
+          ))}
+        </div>
+
+        {/* Rating Distribution Skeleton */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+          <div className="h-5 w-40 bg-gray-200 rounded animate-pulse mb-4"></div>
+          <div className="space-y-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="flex items-center gap-4">
+                <div className="h-4 w-14 bg-gray-200 rounded animate-pulse"></div>
+                <div className="flex-1 h-2 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-4 w-16 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Filters & Search Skeleton */}
+        <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1 h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="h-10 w-16 bg-gray-200 rounded-lg animate-pulse"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Review Cards Skeleton */}
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-white rounded-lg border border-gray-200 p-6">
+              {/* Header */}
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse"></div>
+                  <div className="space-y-2">
+                    <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+                    <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
+                  </div>
+                </div>
+                <div className="h-4 w-20 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+
+              {/* Review Text */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <div className="space-y-2">
+                  <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse"></div>
+                </div>
+              </div>
+
+              {/* Rating Breakdown */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                {[1, 2, 3].map((j) => (
+                  <div key={j} className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                    <div className="h-3 w-16 bg-gray-200 rounded animate-pulse mb-2"></div>
+                    <div className="h-4 w-12 bg-gray-200 rounded animate-pulse"></div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Button */}
+              <div className="h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Shimmer Effect */}
+      <style>{`
+        @keyframes shimmer {
+          0% {
+            background-position: -1000px 0;
+          }
+          100% {
+            background-position: 1000px 0;
+          }
+        }
+        
+        .animate-pulse {
+          animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.5;
+          }
+        }
+      `}</style>
+    </div>
+  );
+};
+
 const ServicerReviews = () => {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -74,9 +197,7 @@ const ServicerReviews = () => {
 
   const submitResponse = async () => {
     if (!responseText.trim()) {
-
-      alert('Please write a response');
-     
+      toast.error('Please write a response');
       return;
     }
 
@@ -98,19 +219,17 @@ const ServicerReviews = () => {
       );
 
       if (response.ok) {
-        toast.success("Response submitted successfully!")
-        alert('Response submitted successfully!');
+        toast.success("Response submitted successfully!");
         setShowResponseModal(false);
         setResponseText('');
         setSelectedReview(null);
         fetchReviews();
       } else {
-        alert('Failed to submit response');
-       
+        toast.error('Failed to submit response');
       }
     } catch (error) {
       console.error('Error submitting response:', error);
-      alert('Failed to submit response');
+      toast.error('Failed to submit response');
     } finally {
       setResponding(false);
     }
@@ -124,7 +243,7 @@ const ServicerReviews = () => {
             key={star}
             className={`w-4 h-4 ${
               star <= rating 
-                ? 'fill-blue-500 text-blue-500' 
+                ? 'fill-green-500 text-green-500' 
                 : 'fill-gray-200 text-gray-200'
             }`}
           />
@@ -135,7 +254,7 @@ const ServicerReviews = () => {
 
   const getRatingColor = (rating) => {
     if (rating >= 4.5) return 'text-green-600';
-    if (rating >= 3.5) return 'text-blue-600';
+    if (rating >= 3.5) return 'text-green-600';
     return 'text-red-600';
   };
 
@@ -144,12 +263,9 @@ const ServicerReviews = () => {
     review.user_name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Show skeleton loading
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
+    return <ReviewsSkeleton />;
   }
 
   return (
@@ -167,8 +283,8 @@ const ServicerReviews = () => {
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="bg-blue-50 p-2 rounded-lg">
-                  <Star className="w-5 h-5 text-blue-600" />
+                <div className="bg-green-50 p-2 rounded-lg">
+                  <Star className="w-5 h-5 text-green-600" />
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 mb-0.5">Average Rating</p>
@@ -204,8 +320,8 @@ const ServicerReviews = () => {
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="bg-purple-50 p-2 rounded-lg">
-                  <TrendingUp className="w-5 h-5 text-purple-600" />
+                <div className="bg-green-50 p-2 rounded-lg">
+                  <TrendingUp className="w-5 h-5 text-green-600" />
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 mb-0.5">Response Rate</p>
@@ -235,11 +351,11 @@ const ServicerReviews = () => {
                 <div key={rating} className="flex items-center gap-4">
                   <div className="flex items-center gap-1.5 w-14">
                     <span className="font-medium text-gray-700 text-sm w-3">{rating}</span>
-                    <Star className="w-3.5 h-3.5 fill-blue-500 text-blue-500" />
+                    <Star className="w-3.5 h-3.5 fill-green-500 text-green-500" />
                   </div>
                   <div className="flex-1 bg-gray-100 rounded-full h-2">
                     <div
-                      className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                      className="bg-green-500 h-2 rounded-full transition-all duration-300"
                       style={{ width: `${percentage}%` }}
                     />
                   </div>
@@ -263,7 +379,7 @@ const ServicerReviews = () => {
                 placeholder="Search reviews..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
               />
             </div>
 
@@ -280,7 +396,7 @@ const ServicerReviews = () => {
                 }}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   filterRating === null
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-green-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -295,7 +411,7 @@ const ServicerReviews = () => {
                   }}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${
                     filterRating === rating
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-green-600 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
@@ -358,7 +474,7 @@ const ServicerReviews = () => {
                       <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
                         <p className="text-xs text-gray-500 mb-1">Quality</p>
                         <div className="flex items-center gap-1">
-                          <Star className="w-3 h-3 fill-blue-500 text-blue-500" />
+                          <Star className="w-3 h-3 fill-green-500 text-green-500" />
                           <p className="text-sm font-semibold text-gray-900">{review.quality_rating}/5</p>
                         </div>
                       </div>
@@ -367,7 +483,7 @@ const ServicerReviews = () => {
                       <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
                         <p className="text-xs text-gray-500 mb-1">Professional</p>
                         <div className="flex items-center gap-1">
-                          <Star className="w-3 h-3 fill-blue-500 text-blue-500" />
+                          <Star className="w-3 h-3 fill-green-500 text-green-500" />
                           <p className="text-sm font-semibold text-gray-900">{review.professionalism_rating}/5</p>
                         </div>
                       </div>
@@ -376,7 +492,7 @@ const ServicerReviews = () => {
                       <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
                         <p className="text-xs text-gray-500 mb-1">Punctuality</p>
                         <div className="flex items-center gap-1">
-                          <Star className="w-3 h-3 fill-blue-500 text-blue-500" />
+                          <Star className="w-3 h-3 fill-green-500 text-green-500" />
                           <p className="text-sm font-semibold text-gray-900">{review.punctuality_score}/5</p>
                         </div>
                       </div>
@@ -386,13 +502,13 @@ const ServicerReviews = () => {
 
                 {/* Servicer Response */}
                 {review.response_from_servicer ? (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                     <div className="flex items-start gap-2">
-                      <MessageSquare className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <MessageSquare className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
                       <div className="flex-1">
-                        <p className="text-xs font-medium text-blue-900 mb-1">Your Response</p>
-                        <p className="text-sm text-blue-800 leading-relaxed">{review.response_from_servicer}</p>
-                        <p className="text-xs text-blue-600 mt-2">
+                        <p className="text-xs font-medium text-green-900 mb-1">Your Response</p>
+                        <p className="text-sm text-green-800 leading-relaxed">{review.response_from_servicer}</p>
+                        <p className="text-xs text-green-600 mt-2">
                           {new Date(review.response_at).toLocaleDateString()}
                         </p>
                       </div>
@@ -401,7 +517,7 @@ const ServicerReviews = () => {
                 ) : (
                   <button
                     onClick={() => handleResponseClick(review)}
-                    className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                    className="w-full bg-green-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
                   >
                     <MessageSquare className="w-4 h-4" />
                     Respond to Review
@@ -443,7 +559,7 @@ const ServicerReviews = () => {
                   onClick={() => setPage(i + 1)}
                   className={`w-8 h-8 text-sm rounded-lg transition-colors ${
                     page === i + 1
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-green-600 text-white'
                       : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
                   }`}
                 >
@@ -492,7 +608,7 @@ const ServicerReviews = () => {
               value={responseText}
               onChange={(e) => setResponseText(e.target.value)}
               placeholder="Thank the customer and address their feedback professionally..."
-              className="w-full border border-gray-300 rounded-lg p-3 text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              className="w-full border border-gray-300 rounded-lg p-3 text-sm resize-none focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
               rows="6"
             />
             <p className="text-xs text-gray-500 mt-2 mb-4">
@@ -514,7 +630,7 @@ const ServicerReviews = () => {
               <button
                 onClick={submitResponse}
                 disabled={!responseText.trim() || responding}
-                className="flex-1 bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="flex-1 bg-green-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
                 {responding ? 'Submitting...' : 'Submit Response'}
               </button>

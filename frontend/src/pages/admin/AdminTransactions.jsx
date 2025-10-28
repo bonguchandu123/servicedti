@@ -1,6 +1,54 @@
 import React, { useState, useEffect } from 'react';
 import { DollarSign, Search, Eye, Filter, TrendingUp, TrendingDown, CreditCard, Wallet, ArrowUpRight, ArrowDownLeft, X, AlertCircle, Calendar } from 'lucide-react';
 
+const AdminTransactionsSkeleton = () => {
+  return ( <div className="min-h-screen bg-gray-50 p-6 animate-pulse">
+      <div className="max-w-7xl mx-auto space-y-6">
+
+        {/* Header skeleton */}
+        <div className="space-y-3">
+          <div className="h-8 w-64 bg-gray-200 rounded"></div>
+          <div className="h-4 w-80 bg-gray-200 rounded"></div>
+        </div>
+
+        {/* Stats cards skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          {[1,2,3].map(i => (
+            <div key={i} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-4">
+              <div className="h-10 w-10 bg-gray-200 rounded-lg"></div>
+              <div className="h-4 w-28 bg-gray-200 rounded"></div>
+              <div className="h-6 w-32 bg-gray-200 rounded"></div>
+            </div>
+          ))}
+        </div>
+
+        {/* Filters skeleton */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="h-10 bg-gray-200 rounded md:col-span-2"></div>
+            <div className="h-10 bg-gray-200 rounded"></div>
+            <div className="h-10 bg-gray-200 rounded"></div>
+          </div>
+        </div>
+
+        {/* Table rows skeleton */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          {[...Array(6)].map((_, idx) => (
+            <div
+              key={idx}
+              className="flex justify-between items-center px-6 py-4 border-b border-gray-200"
+            >
+              {[1,2,3,4,5,6,7,8,9].map((i) => (
+                <div key={i} className="h-4 bg-gray-200 rounded" style={{ width: `${40 + i*6}px` }} />
+              ))}
+            </div>
+          ))}
+        </div>
+
+      </div>
+    </div>
+  );
+}
 const AdminTransactions = () => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -119,9 +167,7 @@ const AdminTransactions = () => {
 
   if (loading && transactions.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
+    <AdminTransactionsSkeleton/>
     );
   }
 

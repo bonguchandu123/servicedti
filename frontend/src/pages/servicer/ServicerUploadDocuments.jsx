@@ -1,6 +1,87 @@
 import React, { useState, useEffect } from 'react';
 import { Upload, FileText, CheckCircle, XCircle, AlertCircle, Clock, Trash2, Image } from 'lucide-react';
 
+const UploadDocumentsSkeletonLoader = () => {
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-4xl mx-auto">
+        {/* Header Skeleton */}
+        <div className="mb-8 animate-pulse">
+          <div className="h-9 w-64 bg-gray-200 rounded mb-2"></div>
+          <div className="h-5 w-full max-w-xl bg-gray-200 rounded"></div>
+        </div>
+
+        {/* Status Card Skeleton */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6 animate-pulse">
+          <div className="flex items-center justify-between mb-4">
+            <div className="h-6 w-40 bg-gray-200 rounded"></div>
+            <div className="h-10 w-36 bg-gray-200 rounded-lg"></div>
+          </div>
+
+          <div className="border border-gray-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-5 h-5 bg-gray-200 rounded"></div>
+              <div className="flex-1">
+                <div className="h-5 w-32 bg-gray-200 rounded mb-2"></div>
+                <div className="h-4 w-full bg-gray-200 rounded mb-1"></div>
+                <div className="h-4 w-3/4 bg-gray-200 rounded"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Aadhaar Card Section Skeleton */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6 animate-pulse">
+          <div className="h-6 w-32 bg-gray-200 rounded mb-4"></div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {[1, 2].map((i) => (
+              <div key={i}>
+                <div className="h-4 w-36 bg-gray-200 rounded mb-2"></div>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 h-52 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-12 h-12 bg-gray-200 rounded-lg mx-auto mb-2"></div>
+                    <div className="h-4 w-24 bg-gray-200 rounded"></div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Professional Certificates Section Skeleton */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6 animate-pulse">
+          <div className="h-6 w-56 bg-gray-200 rounded mb-4"></div>
+          
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 h-40 flex items-center justify-center">
+            <div className="text-center">
+              <div className="w-12 h-12 bg-gray-200 rounded-lg mx-auto mb-2"></div>
+              <div className="h-4 w-48 bg-gray-200 rounded mx-auto mb-1"></div>
+              <div className="h-3 w-64 bg-gray-200 rounded mx-auto"></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Vehicle Documents Section Skeleton */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6 animate-pulse">
+          <div className="h-6 w-52 bg-gray-200 rounded mb-4"></div>
+          
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 h-40 flex items-center justify-center">
+            <div className="text-center">
+              <div className="w-12 h-12 bg-gray-200 rounded-lg mx-auto mb-2"></div>
+              <div className="h-4 w-56 bg-gray-200 rounded mx-auto mb-1"></div>
+              <div className="h-3 w-48 bg-gray-200 rounded mx-auto"></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Upload Button Skeleton */}
+        <div className="h-14 w-full bg-gray-200 rounded-xl animate-pulse"></div>
+      </div>
+    </div>
+  );
+};
+
 const ServicerUploadDocuments = () => {
   const [documentStatus, setDocumentStatus] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -175,11 +256,7 @@ const ServicerUploadDocuments = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
+    return <UploadDocumentsSkeletonLoader />;
   }
 
   const hasNewFiles = files.aadhaar_front || files.aadhaar_back || 

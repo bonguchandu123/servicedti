@@ -1,13 +1,22 @@
+// ============================================
+// src/pages/auth/Login.jsx - UPDATED VERSION
+// ============================================
 
-import React, {  use, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Shield } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
+import { LoadingScreen } from '../../components/LoadingScreen';
+import { PageReveal } from '../../components/PageReveal';
 
+// Import the dashboard components
+import UserDashboard from '../user/Dashboard';
+import ServicerDashboard from '../servicer/ServicerDashboard';
+import AdminDashboard from '../admin/AdminDashboard';
 
 const Login = ({ onNavigate }) => {
   const { login } = useAuth();
-  const toast= useToast()
+  const toast = useToast();
   
   const [formData, setFormData] = useState({
     email: '',
@@ -15,6 +24,11 @@ const Login = ({ onNavigate }) => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Animation states
+  const [showLoadingScreen, setShowLoadingScreen] = useState(false);
+  const [showPageReveal, setShowPageReveal] = useState(false);
+  const [loginSuccess, setLoginSuccess] = useState(null);
 
   const handleChange = (e) => {
     setFormData({
@@ -24,7 +38,28 @@ const Login = ({ onNavigate }) => {
     setError('');
     toast.clear();
   };
- 
+
+  // Handle animation completion callbacks
+  const handleLoadingComplete = () => {
+    setShowLoadingScreen(false);
+    setShowPageReveal(true);
+  };
+
+  const handlePageRevealComplete = () => {
+    setShowPageReveal(false);
+    
+    // Now navigate to appropriate dashboard
+    const role = loginSuccess.role;
+    if (role === 'user') {
+      onNavigate('/user/dashboard');
+    } else if (role === 'servicer') {
+      onNavigate('/servicer/dashboard');
+    } else if (role === 'admin') {
+      onNavigate('/admin/dashboard');
+    }
+    
+    toast.success('Login successful!');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -49,26 +84,47 @@ const Login = ({ onNavigate }) => {
     const result = await login(formData.email, formData.password);
 
     if (result.success) {
-      // Login successful - App.jsx will handle navigation based on role
-      const role = result.user.role;
-      
-      if (role === 'user') {
-        onNavigate('/user/dashboard');
-      } else if (role === 'servicer') {
-        onNavigate('/servicer/dashboard');
-      } else if (role === 'admin') {
-        onNavigate('/admin/dashboard');
-      }
-      toast.success('Login successful!');
+      // Store user info and start animations
+      setLoginSuccess(result.user);
+      setShowLoadingScreen(true);
+      // Don't set loading to false - keep button disabled during animations
     } else {
       setError(result.message || 'Login failed. Please try again.');
       toast.error(result.message || 'Login failed. Please try again.');
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
+  // Render the appropriate dashboard based on role
+  const renderDashboard = () => {
+    if (!loginSuccess) return null;
+    
+    const role = loginSuccess.role;
+    if (role === 'user') {
+      return <UserDashboard onNavigate={onNavigate} />;
+    } else if (role === 'servicer') {
+      return <ServicerDashboard />;
+    } else if (role === 'admin') {
+      return <AdminDashboard />;
+    }
+    return null;
+  };
 
+  // Show LoadingScreen animation after successful login
+  if (showLoadingScreen) {
+    return <LoadingScreen text="SERVICEAPP" onComplete={handleLoadingComplete} />;
+  }
+
+  // Show PageReveal animation with dashboard content behind it
+  if (showPageReveal) {
+    return (
+      <PageReveal onComplete={handlePageRevealComplete}>
+        {renderDashboard()}
+      </PageReveal>
+    );
+  }
+
+  // Regular login form
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
@@ -202,16 +258,15 @@ const Login = ({ onNavigate }) => {
           <p>© 2025 Service Provider Platform. All rights reserved.</p>
         </div>
 
-       
-<div className="mt-4 pt-4 border-t border-gray-200 text-center">
-  <button
-    onClick={() => onNavigate('/admin/login')}
-    className="text-sm text-gray-500 hover:text-gray-700 flex items-center justify-center mx-auto"
-  >
-    <Shield className="w-4 h-4 mr-1" />
-    Admin Login
-  </button>
-</div>
+        <div className="mt-4 pt-4 border-t border-gray-200 text-center">
+          <button
+            onClick={() => onNavigate('/admin/login')}
+            className="text-sm text-gray-500 hover:text-gray-700 flex items-center justify-center mx-auto"
+          >
+            <Shield className="w-4 h-4 mr-1" />
+            Admin Login
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,160 @@
 import React, { useState, useEffect } from 'react';
 import { DollarSign, TrendingUp, Clock, CreditCard, Calendar, Download, Wallet, ArrowUpRight, ArrowDownRight, X, CheckCircle, AlertCircle } from 'lucide-react';
 
+// ============= SKELETON COMPONENTS =============
+const SkeletonPulse = ({ className = "" }) => (
+  <div className={`animate-pulse bg-gray-300 rounded ${className}`}></div>
+);
+
+const StatCardSkeleton = () => (
+  <div className="bg-white rounded-lg border border-gray-200 p-6">
+    <div className="flex items-start justify-between mb-4">
+      <SkeletonPulse className="w-12 h-12 rounded-lg" />
+    </div>
+    <SkeletonPulse className="h-4 w-24 mb-2" />
+    <SkeletonPulse className="h-8 w-32 mb-2" />
+    <SkeletonPulse className="h-3 w-16" />
+  </div>
+);
+
+const PayoutCardSkeleton = () => (
+  <div className="bg-white rounded-lg border border-gray-200 p-8 mb-8">
+    <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+      <div className="w-full lg:w-auto">
+        <SkeletonPulse className="h-8 w-48 mb-3 rounded-full" />
+        <SkeletonPulse className="h-10 w-40 mb-2" />
+        <SkeletonPulse className="h-4 w-48" />
+      </div>
+      <SkeletonPulse className="h-12 w-48 rounded-lg" />
+    </div>
+  </div>
+);
+
+const EarningsCardSkeleton = () => (
+  <div className="bg-white rounded-lg border border-gray-200 p-6">
+    <SkeletonPulse className="h-6 w-40 mb-4" />
+    <div className="space-y-3">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="flex justify-between items-center py-3 border-b border-gray-100">
+          <SkeletonPulse className="h-4 w-32" />
+          <SkeletonPulse className="h-4 w-20" />
+        </div>
+      ))}
+      <div className="flex justify-between items-center py-3 bg-gray-50 -mx-6 px-6 mt-4">
+        <SkeletonPulse className="h-5 w-28" />
+        <SkeletonPulse className="h-7 w-32" />
+      </div>
+    </div>
+  </div>
+);
+
+const PaymentMethodsCardSkeleton = () => (
+  <div className="bg-white rounded-lg border border-gray-200 p-6">
+    <SkeletonPulse className="h-6 w-36 mb-4" />
+    <div className="space-y-3">
+      {[1, 2].map((i) => (
+        <div key={i} className="flex items-center gap-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+          <SkeletonPulse className="w-12 h-12 rounded-lg" />
+          <div className="flex-1">
+            <SkeletonPulse className="h-5 w-28 mb-2" />
+            <SkeletonPulse className="h-4 w-36" />
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const TransactionsTableSkeleton = () => (
+  <div className="bg-white rounded-lg border border-gray-200">
+    <div className="p-6 border-b border-gray-200">
+      <div className="flex items-center justify-between">
+        <SkeletonPulse className="h-6 w-48" />
+        <SkeletonPulse className="h-10 w-28 rounded-lg" />
+      </div>
+    </div>
+
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead className="bg-gray-50 border-b border-gray-200">
+          <tr>
+            <th className="text-left py-3 px-6">
+              <SkeletonPulse className="h-3 w-16" />
+            </th>
+            <th className="text-left py-3 px-6">
+              <SkeletonPulse className="h-3 w-16" />
+            </th>
+            <th className="text-left py-3 px-6">
+              <SkeletonPulse className="h-3 w-20" />
+            </th>
+            <th className="text-left py-3 px-6">
+              <SkeletonPulse className="h-3 w-16" />
+            </th>
+            <th className="text-right py-3 px-6">
+              <SkeletonPulse className="h-3 w-16 ml-auto" />
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <tr key={i}>
+              <td className="py-4 px-6">
+                <SkeletonPulse className="h-4 w-24" />
+              </td>
+              <td className="py-4 px-6">
+                <SkeletonPulse className="h-4 w-32" />
+              </td>
+              <td className="py-4 px-6">
+                <SkeletonPulse className="h-4 w-28" />
+              </td>
+              <td className="py-4 px-6">
+                <SkeletonPulse className="h-6 w-24 rounded-full" />
+              </td>
+              <td className="py-4 px-6">
+                <SkeletonPulse className="h-4 w-20 ml-auto" />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    <div className="p-4 border-t border-gray-200 text-center">
+      <SkeletonPulse className="h-4 w-40 mx-auto" />
+    </div>
+  </div>
+);
+
+const FullPageSkeleton = () => (
+  <div className="min-h-screen bg-gray-50">
+    <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+      {/* Header Skeleton */}
+      <div className="mb-8">
+        <SkeletonPulse className="h-9 w-64 mb-2" />
+        <SkeletonPulse className="h-5 w-80" />
+      </div>
+
+      {/* Stats Grid Skeleton */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {[1, 2, 3, 4].map((i) => (
+          <StatCardSkeleton key={i} />
+        ))}
+      </div>
+
+      {/* Payout Card Skeleton */}
+      <PayoutCardSkeleton />
+
+      {/* Two Column Grid Skeleton */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <EarningsCardSkeleton />
+        <PaymentMethodsCardSkeleton />
+      </div>
+
+      {/* Transactions Table Skeleton */}
+      <TransactionsTableSkeleton />
+    </div>
+  </div>
+);
 const ServicerEarningsPayouts = () => {
   const [earnings, setEarnings] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -110,14 +264,7 @@ const ServicerEarningsPayouts = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading earnings...</p>
-        </div>
-      </div>
-    );
+    return <FullPageSkeleton />;
   }
 
   const stats = [

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
+import { useAuth } from './AuthContext'; // Import useAuth to get user role
 
 // Create Context
 const ToastContext = createContext(null);
@@ -14,12 +15,23 @@ export const useToast = () => {
 };
 
 // Enhanced Confetti Component with various shapes and type-specific particles
-const Confetti = ({ type }) => {
-  const colors = {
-    success: ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0', '#d1fae5'],
-    error: ['#ef4444', '#f87171', '#fca5a5', '#fecaca', '#fee2e2'],
-    warning: ['#f59e0b', '#fbbf24', '#fcd34d', '#fde68a', '#fef3c7'],
-    info: ['#3b82f6', '#60a5fa', '#93c5fd', '#bfdbfe', '#dbeafe']
+const Confetti = ({ type, userRole }) => {
+  // Role-based colors (only applies to non-error types)
+  const roleColors = {
+    user: ['#3b82f6', '#60a5fa', '#93c5fd', '#bfdbfe', '#dbeafe'], // Blue
+    servicer: ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0', '#d1fae5'], // Green
+    admin: ['#a855f7', '#c084fc', '#d8b4fe', '#e9d5ff', '#f3e8ff'] // Purple
+  };
+
+  // Error always uses red, regardless of role
+  const errorColors = ['#ef4444', '#f87171', '#fca5a5', '#fecaca', '#fee2e2'];
+
+  // Determine colors based on type and role
+  const getColors = () => {
+    if (type === 'error') {
+      return errorColors;
+    }
+    return roleColors[userRole] || roleColors.user; // Default to user colors
   };
 
   // Different emojis/particles for each type
@@ -31,7 +43,7 @@ const Confetti = ({ type }) => {
   };
 
   const shapes = ['circle', 'square', 'triangle', 'star'];
-  const confettiColors = colors[type];
+  const confettiColors = getColors();
   const typeParticles = particles[type];
   const confettiCount = 30;
 
@@ -99,40 +111,76 @@ const Confetti = ({ type }) => {
 };
 
 // Toast Component
-const Toast = ({ id, message, type, onClose, onClick }) => {
+const Toast = ({ id, message, type, onClose, onClick, userRole }) => {
   const icons = {
-    success: <CheckCircle className="w-6 h-6 text-green-500" />,
+    success: <CheckCircle className="w-6 h-6" />,
     error: <AlertCircle className="w-6 h-6 text-red-500" />,
-    warning: <AlertTriangle className="w-6 h-6 text-yellow-500" />,
-    info: <Info className="w-6 h-6 text-blue-500" />
+    warning: <AlertTriangle className="w-6 h-6" />,
+    info: <Info className="w-6 h-6" />
   };
 
-  const bgColors = {
-    success: 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300',
-    error: 'bg-gradient-to-r from-red-50 to-rose-50 border-red-300',
-    warning: 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-300',
-    info: 'bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-300'
+  // Role-based colors (only applies to non-error types)
+  const getRoleBasedColors = () => {
+    if (type === 'error') {
+      return 'bg-gradient-to-r from-red-50 to-rose-50 border-red-300';
+    }
+
+    // For non-error types, use role-based colors
+    const roleColors = {
+      user: {
+        success: 'bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-300',
+        warning: 'bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-300',
+        info: 'bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-300'
+      },
+      servicer: {
+        success: 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300',
+        warning: 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300',
+        info: 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300'
+      },
+      admin: {
+        success: 'bg-gradient-to-r from-purple-50 to-violet-50 border-purple-300',
+        warning: 'bg-gradient-to-r from-purple-50 to-violet-50 border-purple-300',
+        info: 'bg-gradient-to-r from-purple-50 to-violet-50 border-purple-300'
+      }
+    };
+
+    return roleColors[userRole]?.[type] || roleColors.user[type];
+  };
+
+  // Role-based icon colors (only applies to non-error types)
+  const getIconColor = () => {
+    if (type === 'error') {
+      return 'text-red-500';
+    }
+
+    const iconColors = {
+      user: 'text-blue-500',
+      servicer: 'text-green-500',
+      admin: 'text-purple-500'
+    };
+
+    return iconColors[userRole] || iconColors.user;
   };
 
   const handleToastClick = () => {
     if (onClick && typeof onClick === 'function') {
       onClick();
-      onClose(id); // Close the toast after navigation
+      onClose(id);
     }
   };
 
   return (
     <div className="toast-wrapper">
-      <Confetti type={type} />
+      <Confetti type={type} userRole={userRole} />
       <div
-        className={`flex items-center gap-3 min-w-[340px] max-w-md p-4 rounded-xl border-2 shadow-2xl backdrop-blur-sm ${bgColors[type]} toast-content ${
+        className={`flex items-center gap-3 min-w-[340px] max-w-md p-4 rounded-xl border-2 shadow-2xl backdrop-blur-sm ${getRoleBasedColors()} toast-content ${
           onClick ? 'cursor-pointer hover:scale-[1.02] active:scale-[0.98]' : ''
         }`}
         onClick={handleToastClick}
         role={onClick ? 'button' : 'alert'}
         tabIndex={onClick ? 0 : undefined}
       >
-        <div className="flex-shrink-0 icon-bounce">
+        <div className={`flex-shrink-0 icon-bounce ${getIconColor()}`}>
           {icons[type]}
         </div>
         <p className="flex-1 text-sm font-semibold text-gray-800">
@@ -140,7 +188,7 @@ const Toast = ({ id, message, type, onClose, onClick }) => {
         </p>
         <button
           onClick={(e) => {
-            e.stopPropagation(); // Prevent triggering onClick when closing
+            e.stopPropagation();
             onClose(id);
           }}
           className="flex-shrink-0 p-1.5 rounded-full hover:bg-white/50 transition-all duration-200 hover:scale-110"
@@ -153,7 +201,7 @@ const Toast = ({ id, message, type, onClose, onClick }) => {
 };
 
 // Toast Container
-const ToastContainer = ({ toasts, onClose }) => {
+const ToastContainer = ({ toasts, onClose, userRole }) => {
   return (
     <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[9999] flex flex-col gap-3 pointer-events-none">
       <div className="pointer-events-auto flex flex-col gap-3">
@@ -165,6 +213,7 @@ const ToastContainer = ({ toasts, onClose }) => {
             type={toast.type}
             onClick={toast.onClick}
             onClose={onClose}
+            userRole={userRole}
           />
         ))}
       </div>
@@ -353,6 +402,7 @@ const ToastContainer = ({ toasts, onClose }) => {
 // Toast Provider
 export const ToastProvider = ({ children }) => {
   const [toasts, setToasts] = useState([]);
+  const { user } = useAuth(); // Get current user to determine role
 
   const removeToast = useCallback((id) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
@@ -378,12 +428,17 @@ export const ToastProvider = ({ children }) => {
     warning: (message, duration, onClick) => showToast(message, 'warning', duration, onClick),
     info: (message, duration, onClick) => showToast(message, 'info', duration, onClick),
     dismiss: removeToast,
+    clear: () => setToasts([]),
   };
 
   return (
     <ToastContext.Provider value={toast}>
       {children}
-      <ToastContainer toasts={toasts} onClose={removeToast} />
+      <ToastContainer 
+        toasts={toasts} 
+        onClose={removeToast} 
+        userRole={user?.role || 'user'} 
+      />
     </ToastContext.Provider>
   );
 };

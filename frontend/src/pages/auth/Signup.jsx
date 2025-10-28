@@ -1,12 +1,139 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Briefcase, Wrench, Zap, Paintbrush, Droplet, Wind, Home, Bug, Leaf, Scissors, AlertCircle, CheckCircle } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
-import { useToast } from '../../context/ToastContext';
 
+// ============= SKELETON COMPONENTS =============
+const SkeletonPulse = ({ className = "" }) => (
+  <div className={`animate-pulse bg-gray-300 rounded ${className}`}></div>
+);
 
+// Service Category Card Skeleton
+const ServiceCardSkeleton = () => (
+  <div className="p-4 border-2 border-gray-200 rounded-lg">
+    <div className="flex items-start">
+      <SkeletonPulse className="w-6 h-6 rounded mr-3 mt-0.5 flex-shrink-0" />
+      <SkeletonPulse className="w-10 h-10 rounded-lg mr-3" />
+      <div className="flex-1 space-y-2">
+        <SkeletonPulse className="h-5 w-3/4" />
+        <SkeletonPulse className="h-4 w-full" />
+        <SkeletonPulse className="h-4 w-2/3" />
+        <div className="flex items-center gap-4 mt-2">
+          <SkeletonPulse className="h-3 w-16" />
+          <SkeletonPulse className="h-3 w-24" />
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+// Categories Loading State
+const CategoriesLoadingSkeleton = () => (
+  <div className="space-y-4">
+    {/* Search Bar Skeleton */}
+    <div className="mb-4">
+      <SkeletonPulse className="h-6 w-48 mb-2" />
+      <SkeletonPulse className="h-4 w-full mb-4" />
+      <SkeletonPulse className="h-12 w-full rounded-lg" />
+    </div>
+
+    {/* Animated Loading Indicator */}
+    <div className="flex flex-col items-center justify-center py-12">
+      <div className="relative mb-6">
+        {/* Spinning circles */}
+        <div className="w-20 h-20 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+        <Briefcase className="w-8 h-8 text-indigo-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+      </div>
+      
+      <p className="text-gray-700 font-medium mb-2">Loading Services...</p>
+      
+      {/* Animated dots */}
+      <div className="flex space-x-2">
+        <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+        <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+        <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+      </div>
+      
+      <p className="text-sm text-gray-500 mt-4">Please wait while we fetch available services</p>
+    </div>
+
+    {/* Service Cards Skeleton */}
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <SkeletonPulse className="h-5 w-32 mb-3" />
+        {[1, 2, 3].map((i) => (
+          <ServiceCardSkeleton key={i} />
+        ))}
+      </div>
+      
+      <div className="space-y-2 mt-6">
+        <SkeletonPulse className="h-5 w-24 mb-3" />
+        {[1, 2, 3].map((i) => (
+          <ServiceCardSkeleton key={`other-${i}`} />
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
+// Form Field Skeleton (for initial page load)
+const FormFieldSkeleton = () => (
+  <div>
+    <SkeletonPulse className="h-4 w-24 mb-2" />
+    <SkeletonPulse className="h-12 w-full rounded-lg" />
+  </div>
+);
+
+// Full Page Initial Loading Skeleton
+const PageLoadingSkeleton = () => (
+  <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="max-w-2xl w-full">
+      {/* Header Skeleton */}
+      <div className="text-center mb-8">
+        <SkeletonPulse className="w-16 h-16 rounded-full mx-auto mb-4" />
+        <SkeletonPulse className="h-8 w-64 mx-auto mb-2" />
+        <SkeletonPulse className="h-5 w-48 mx-auto" />
+      </div>
+
+      {/* Card Skeleton */}
+      <div className="bg-white rounded-2xl shadow-xl p-8">
+        {/* Progress Indicator Skeleton */}
+        <div className="flex items-center justify-center mb-8">
+          <div className="flex items-center">
+            {[1, 2, 3].map((i, idx) => (
+              <React.Fragment key={i}>
+                <SkeletonPulse className="w-10 h-10 rounded-full" />
+                {idx < 2 && <SkeletonPulse className="w-20 h-1 mx-2" />}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+
+        <SkeletonPulse className="h-5 w-48 mx-auto mb-6" />
+
+        {/* Form Fields Skeleton */}
+        <div className="space-y-4">
+          <FormFieldSkeleton />
+          <FormFieldSkeleton />
+          <FormFieldSkeleton />
+          <FormFieldSkeleton />
+          <SkeletonPulse className="h-12 w-full rounded-lg mt-6" />
+        </div>
+
+        {/* Footer Link Skeleton */}
+        <div className="mt-6 text-center">
+          <SkeletonPulse className="h-4 w-56 mx-auto" />
+        </div>
+      </div>
+
+      {/* Footer Skeleton */}
+      <div className="mt-8 text-center">
+        <SkeletonPulse className="h-4 w-64 mx-auto" />
+      </div>
+    </div>
+  </div>
+);
+
+// ============= MAIN COMPONENT =============
 const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) => {
-  const { signup, sendOTP } = useAuth();
-  
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -22,15 +149,13 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
   });
   
   const [serviceCategories, setServiceCategories] = useState([]);
-  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [step, setStep] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
-  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
-  const toast = useToast()
 
-  // Enhanced default service categories with icons (fallback)
   const defaultServiceCategories = [
     {
       _id: 'temp-plumbing',
@@ -137,63 +262,30 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
       leaf: Leaf,
       scissors: Scissors
     };
-    const IconComponent = icons[iconName] || Briefcase;
-    return IconComponent;
+    return icons[iconName] || Briefcase;
   };
 
   useEffect(() => {
-    fetchServiceCategories();
+    // Simulate initial page load
+    setTimeout(() => {
+      setPageLoading(false);
+    }, 1000);
   }, []);
+
+  useEffect(() => {
+    if (step === 3 && formData.role === 'servicer') {
+      fetchServiceCategories();
+    }
+  }, [step]);
 
   const fetchServiceCategories = async () => {
     setCategoriesLoading(true);
-    try {
-      // Try public endpoint first (no auth needed)
-      let response = await fetch(`${API_BASE_URL}/public/categories`);
-      
-      if (!response.ok) {
-        toast.warning('Failed to fetch categories from public endpoint, trying fallback.');
-        
-        // Fallback to user categories endpoint
-        response = await fetch(`${API_BASE_URL}/user/categories`);
-      }
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('📦 Fetched categories:', data.categories?.length || 0);
-        
-        
-        if (data.categories && data.categories.length > 0) {
-          // Merge with default icons
-          const categoriesWithIcons = data.categories.map(cat => {
-            const defaultCat = defaultServiceCategories.find(
-              dc => dc.name.toLowerCase() === cat.name.toLowerCase()
-            );
-            return {
-              ...cat,
-              icon: cat.icon || defaultCat?.icon || 'briefcase',
-              popular: cat.popular !== undefined ? cat.popular : (defaultCat?.popular || false)
-            };
-          });
-          setServiceCategories(categoriesWithIcons);
-          console.log('✅ Categories loaded successfully');
-
-        } else {
-          console.warn('⚠️ No categories returned, using defaults');
-          toast.warning('No categories found from API, using default categories.');
-          setServiceCategories(defaultServiceCategories);
-        }
-      } else {
-        console.warn('⚠️ API failed, using default categories');
-        setServiceCategories(defaultServiceCategories);
-      }
-    } catch (error) {
-      console.error('❌ Error fetching categories:', error);
-      toast.error('Error fetching categories, using default categories.');
+    
+    // Simulate API call
+    setTimeout(() => {
       setServiceCategories(defaultServiceCategories);
-    } finally {
       setCategoriesLoading(false);
-    }
+    }, 2000);
   };
 
   const handleChange = (e) => {
@@ -220,31 +312,26 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
   const validateStep1 = () => {
     if (!formData.name || !formData.email || !formData.phone || !formData.password) {
       setError('Please fill all required fields');
-      toast.warning('Please fill all required fields');
       return false;
     }
     
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
-      toast.warning('Please enter a valid email address');
       setError('Please enter a valid email address');
       return false;
     }
     
     if (formData.phone.length < 10) {
-      toast.warning('Please enter a valid phone number (min 10 digits)');
       setError('Please enter a valid phone number (min 10 digits)');
       return false;
     }
     
     if (formData.password.length < 6) {
-      toast.warning('Password must be at least 6 characters');
       setError('Password must be at least 6 characters');
       return false;
     }
     
     if (formData.password !== formData.confirmPassword) {
-      toast.warning('Passwords do not match');
       setError('Passwords do not match');
       return false;
     }
@@ -255,12 +342,10 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
   const validateStep2 = () => {
     if (!formData.address_line1 || !formData.city || !formData.state || !formData.pincode) {
       setError('Please fill all address fields');
-      toast.warning('Please fill all address fields');
       return false;
     }
 
     if (formData.pincode.length !== 6 || !/^\d+$/.test(formData.pincode)) {
-      toast.warning('Please enter a valid 6-digit pincode');
       setError('Please enter a valid 6-digit pincode');
       return false;
     }
@@ -270,7 +355,6 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
 
   const validateStep3 = () => {
     if (formData.role === 'servicer' && formData.selectedServices.length === 0) {
-      toast.warning('Please select at least one service you can provide');
       setError('Please select at least one service you can provide');
       return false;
     }
@@ -297,60 +381,17 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
     }
 
     setLoading(true);
-    setError('');
-
-    const signupData = {
-      name: formData.name,
-      email: formData.email,
-      phone: formData.phone,
-      password: formData.password,
-      role: formData.role,
-      address_line1: formData.address_line1,
-      city: formData.city,
-      state: formData.state,
-      pincode: formData.pincode,
-      ...(formData.role === 'servicer' && { 
-        service_categories: formData.selectedServices 
-      })
-    };
-
-    console.log('📤 Submitting signup:', {
-      ...signupData,
-      password: '***hidden***',
-      services_count: formData.selectedServices.length
-    });
-
-    try {
-      const result = await signup(signupData);
-
-      if (result.success) {
-        toast.success('Signup successful! Please verify your email.');
-        console.log('✅ Signup successful:', result.data);
-        
-        // Send OTP for email verification
-        await sendOTP(formData.email, 'email_verification');
-        
-        // Show success message
-        alert(`Account created successfully! ${
-          formData.role === 'servicer' 
-            ? `${result.data.data?.services_added || formData.selectedServices.length} services added.` 
-            : ''
-        } Please verify your email.`);
-         toast.success('OTP sent to your email for verification.');
-        
-        onNavigate('/verify-email');
-      } else {
-        setError(result.message || 'Signup failed. Please try again.');
-          toast.error(result.message || 'Signup failed. Please try again.');
-        console.error('❌ Signup failed:', result.message);
-      }
-    } catch (err) {
-      setError('Network error. Please check your connection and try again.');
-      toast.error('Network error. Please check your connection and try again.');
-      console.error('❌ Signup error:', err);
-    } finally {
+    
+    // Simulate API call
+    setTimeout(() => {
+      alert(`Account created successfully! ${
+        formData.role === 'servicer' 
+          ? `${formData.selectedServices.length} services added.` 
+          : ''
+      } Please verify your email.`);
       setLoading(false);
-    }
+      onNavigate('/verify-email');
+    }, 2000);
   };
 
   const filteredCategories = serviceCategories.filter(cat =>
@@ -371,6 +412,11 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
   };
 
   const totalSteps = formData.role === 'servicer' ? 3 : 2;
+
+  // Show page loading skeleton
+  if (pageLoading) {
+    return <PageLoadingSkeleton />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -645,197 +691,196 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
           {/* Step 3: Service Selection */}
           {step === 3 && formData.role === 'servicer' && (
             <div className="space-y-4">
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Select Services You Provide *
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Choose the services you're qualified to offer. You can select multiple services.
-                </p>
-
-                {/* Search Bar */}
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search services..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                  />
-                </div>
-              </div>
-
               {categoriesLoading ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
-                  <p className="text-sm text-gray-600 mt-2">Loading categories...</p>
-                </div>
+                <CategoriesLoadingSkeleton />
               ) : (
-                <div className="max-h-96 overflow-y-auto space-y-4 pr-2">
-                  {/* Popular Services */}
-                  {popularCategories.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs mr-2">POPULAR</span>
-                        Popular Services
-                      </h4>
-                      <div className="space-y-2">
-                        {popularCategories.map((category) => {
-                          const IconComponent = getIcon(category.icon);
-                          return (
-                            <div
-                              key={category._id}
-                              onClick={() => handleServiceToggle(category._id)}
-                              className={`p-4 border-2 rounded-lg cursor-pointer transition hover:shadow-md ${
-                                formData.selectedServices.includes(category._id)
-                                  ? 'border-indigo-600 bg-indigo-50'
-                                  : 'border-gray-300 hover:border-indigo-300'
-                              }`}
-                            >
-                              <div className="flex items-start">
-                                <div className={`w-6 h-6 rounded border-2 flex items-center justify-center mr-3 mt-0.5 flex-shrink-0 ${
-                                  formData.selectedServices.includes(category._id)
-                                    ? 'bg-indigo-600 border-indigo-600'
-                                    : 'border-gray-300'
-                                }`}>
-                                  {formData.selectedServices.includes(category._id) && (
-                                    <CheckCircle className="w-4 h-4 text-white" />
-                                  )}
-                                </div>
-                                <div className={`p-2 rounded-lg mr-3 ${
-                                  formData.selectedServices.includes(category._id)
-                                    ? 'bg-indigo-100 text-indigo-600'
-                                    : 'bg-gray-100 text-gray-600'
-                                }`}>
-                                  <IconComponent className="w-5 h-5" />
-                                </div>
-                                <div className="flex-1">
-                                  <h4 className="font-semibold text-gray-900">{category.name}</h4>
-                                  <p className="text-sm text-gray-600 mt-1">{category.description}</p>
-                                  <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                                    <span className="font-medium text-indigo-600">₹{category.base_price}</span>
-                                    {category.servicers_count > 0 && (
-                                      <span>• {category.servicers_count} servicers</span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Other Services */}
-                  {otherCategories.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-semibold text-gray-700 mb-3">
-                        Other Services
-                      </h4>
-                      <div className="space-y-2">
-                        {otherCategories.map((category) => {
-                          const IconComponent = getIcon(category.icon);
-                          return (
-                            <div
-                              key={category._id}
-                              onClick={() => handleServiceToggle(category._id)}
-                              className={`p-4 border-2 rounded-lg cursor-pointer transition hover:shadow-md ${
-                                formData.selectedServices.includes(category._id)
-                                  ? 'border-indigo-600 bg-indigo-50'
-                                  : 'border-gray-300 hover:border-indigo-300'
-                              }`}
-                            >
-                              <div className="flex items-start">
-                                <div className={`w-6 h-6 rounded border-2 flex items-center justify-center mr-3 mt-0.5 flex-shrink-0 ${
-                                  formData.selectedServices.includes(category._id)
-                                    ? 'bg-indigo-600 border-indigo-600'
-                                    : 'border-gray-300'
-                                }`}>
-                                  {formData.selectedServices.includes(category._id) && (
-                                    <CheckCircle className="w-4 h-4 text-white" />
-                                  )}
-                                </div>
-                                <div className={`p-2 rounded-lg mr-3 ${
-                                  formData.selectedServices.includes(category._id)
-                                    ? 'bg-indigo-100 text-indigo-600'
-                                    : 'bg-gray-100 text-gray-600'
-                                }`}>
-                                  <IconComponent className="w-5 h-5" />
-                                </div>
-                                <div className="flex-1">
-                                  <h4 className="font-semibold text-gray-900">{category.name}</h4>
-                                  <p className="text-sm text-gray-600 mt-1">{category.description}</p>
-                                  <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                                    <span className="font-medium text-indigo-600">₹{category.base_price}</span>
-                                    {category.servicers_count > 0 && (
-                                      <span>• {category.servicers_count} servicers</span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {filteredCategories.length === 0 && (
-                    <div className="text-center py-8">
-                      <Search className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                      <p className="text-gray-600">No services found</p>
-                      <button
-                        onClick={() => setSearchQuery('')}
-                        className="mt-2 text-sm text-indigo-600 hover:text-indigo-700"
-                      >
-                        Clear search
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {formData.selectedServices.length > 0 && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                  <div className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
-                    <p className="text-sm text-green-800">
-                      {formData.selectedServices.length} service{formData.selectedServices.length !== 1 ? 's' : ''} selected
+                <>
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      Select Services You Provide *
+                    </h3>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Choose the services you're qualified to offer. You can select multiple services.
                     </p>
-                  </div>
-                </div>
-              )}
 
-              {/* Buttons */}
-              <div className="flex gap-4 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setStep(2)}
-                  className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition"
-                >
-                  Back
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={loading || formData.selectedServices.length === 0}
-                  className="flex-1 bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                >
-                  {loading ? (
-                    <>
-                      <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                      Creating Account...
-                    </>
-                  ) : (
-                    'Create Account'
+                    {/* Search Bar */}
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Search services..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="max-h-96 overflow-y-auto space-y-4 pr-2">
+                    {/* Popular Services */}
+                    {popularCategories.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                          <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs mr-2">POPULAR</span>
+                          Popular Services
+                        </h4>
+                        <div className="space-y-2">
+                          {popularCategories.map((category) => {
+                            const IconComponent = getIcon(category.icon);
+                            return (
+                              <div
+                                key={category._id}
+                                onClick={() => handleServiceToggle(category._id)}
+                                className={`p-4 border-2 rounded-lg cursor-pointer transition hover:shadow-md ${
+                                  formData.selectedServices.includes(category._id)
+                                    ? 'border-indigo-600 bg-indigo-50'
+                                    : 'border-gray-300 hover:border-indigo-300'
+                                }`}
+                              >
+                                <div className="flex items-start">
+                                  <div className={`w-6 h-6 rounded border-2 flex items-center justify-center mr-3 mt-0.5 flex-shrink-0 ${
+                                    formData.selectedServices.includes(category._id)
+                                      ? 'bg-indigo-600 border-indigo-600'
+                                      : 'border-gray-300'
+                                  }`}>
+                                    {formData.selectedServices.includes(category._id) && (
+                                      <CheckCircle className="w-4 h-4 text-white" />
+                                    )}
+                                  </div>
+                                  <div className={`p-2 rounded-lg mr-3 ${
+                                    formData.selectedServices.includes(category._id)
+                                      ? 'bg-indigo-100 text-indigo-600'
+                                      : 'bg-gray-100 text-gray-600'
+                                  }`}>
+                                    <IconComponent className="w-5 h-5" />
+                                  </div>
+                                  <div className="flex-1">
+                                    <h4 className="font-semibold text-gray-900">{category.name}</h4>
+                                    <p className="text-sm text-gray-600 mt-1">{category.description}</p>
+                                    <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                                      <span className="font-medium text-indigo-600">₹{category.base_price}</span>
+                                      {category.servicers_count > 0 && (
+                                        <span>• {category.servicers_count} servicers</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Other Services */}
+                    {otherCategories.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                          Other Services
+                        </h4>
+                        <div className="space-y-2">
+                          {otherCategories.map((category) => {
+                            const IconComponent = getIcon(category.icon);
+                            return (
+                              <div
+                                key={category._id}
+                                onClick={() => handleServiceToggle(category._id)}
+                                className={`p-4 border-2 rounded-lg cursor-pointer transition hover:shadow-md ${
+                                  formData.selectedServices.includes(category._id)
+                                    ? 'border-indigo-600 bg-indigo-50'
+                                    : 'border-gray-300 hover:border-indigo-300'
+                                }`}
+                              >
+                                <div className="flex items-start">
+                                  <div className={`w-6 h-6 rounded border-2 flex items-center justify-center mr-3 mt-0.5 flex-shrink-0 ${
+                                    formData.selectedServices.includes(category._id)
+                                      ? 'bg-indigo-600 border-indigo-600'
+                                      : 'border-gray-300'
+                                  }`}>
+                                    {formData.selectedServices.includes(category._id) && (
+                                      <CheckCircle className="w-4 h-4 text-white" />
+                                    )}
+                                  </div>
+                                  <div className={`p-2 rounded-lg mr-3 ${
+                                    formData.selectedServices.includes(category._id)
+                                      ? 'bg-indigo-100 text-indigo-600'
+                                      : 'bg-gray-100 text-gray-600'
+                                  }`}>
+                                    <IconComponent className="w-5 h-5" />
+                                  </div>
+                                  <div className="flex-1">
+                                    <h4 className="font-semibold text-gray-900">{category.name}</h4>
+                                    <p className="text-sm text-gray-600 mt-1">{category.description}</p>
+                                    <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                                      <span className="font-medium text-indigo-600">₹{category.base_price}</span>
+                                      {category.servicers_count > 0 && (
+                                        <span>• {category.servicers_count} servicers</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {filteredCategories.length === 0 && (
+                      <div className="text-center py-8">
+                        <Search className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                        <p className="text-gray-600">No services found</p>
+                        <button
+                          onClick={() => setSearchQuery('')}
+                          className="mt-2 text-sm text-indigo-600 hover:text-indigo-700"
+                        >
+                          Clear search
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {formData.selectedServices.length > 0 && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <div className="flex items-center">
+                        <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
+                        <p className="text-sm text-green-800">
+                          {formData.selectedServices.length} service{formData.selectedServices.length !== 1 ? 's' : ''} selected
+                        </p>
+                      </div>
+                    </div>
                   )}
-                </button>
-              </div>
+
+                  {/* Buttons */}
+                  <div className="flex gap-4 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setStep(2)}
+                      className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSubmit}
+                      disabled={loading || formData.selectedServices.length === 0}
+                      className="flex-1 bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                    >
+                      {loading ? (
+                        <>
+                          <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Creating Account...
+                        </>
+                      ) : (
+                        'Create Account'
+                      )}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
 

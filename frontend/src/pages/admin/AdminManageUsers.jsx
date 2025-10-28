@@ -1,6 +1,48 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Search, Eye, Lock, Unlock, Filter, Mail, Phone, MapPin, Calendar, DollarSign, ShoppingBag, X, AlertCircle } from 'lucide-react';
 
+const AdminSkeletonusersLoader = () => {
+  return (
+    <div className="min-h-screen bg-gray-50 p-6 animate-pulse">
+      <div className="max-w-7xl mx-auto space-y-6">
+
+        {/* Header Skeleton */}
+        <div className="space-y-3">
+          <div className="h-8 w-64 bg-gray-200 rounded"></div>
+          <div className="h-4 w-80 bg-gray-200 rounded"></div>
+        </div>
+
+        {/* Filters Bar Skeleton */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="h-10 w-full bg-gray-200 rounded"></div>
+            <div className="h-10 w-full bg-gray-200 rounded"></div>
+            <div className="h-10 w-full bg-gray-200 rounded"></div>
+            <div className="h-10 w-full bg-gray-200 rounded"></div>
+          </div>
+        </div>
+
+        {/* Table Rows Skeleton */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          {[1,2,3,4,5].map(i => (
+            <div key={i} className="flex justify-between items-center px-6 py-4 border-b">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+                <div className="space-y-2">
+                  <div className="h-4 w-40 bg-gray-200 rounded"></div>
+                  <div className="h-3 w-32 bg-gray-200 rounded"></div>
+                </div>
+              </div>
+              <div className="h-6 w-24 bg-gray-200 rounded"></div>
+            </div>
+          ))}
+        </div>
+
+      </div>
+    </div>
+  );
+
+};
 const AdminManageUsers = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -110,9 +152,7 @@ const AdminManageUsers = () => {
 
   if (loading && users.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
+      <AdminSkeletonusersLoader/>
     );
   }
 

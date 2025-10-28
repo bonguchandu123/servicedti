@@ -1,6 +1,94 @@
 import React, { useState, useEffect } from 'react';
 import { Home, DollarSign, Star, Briefcase, TrendingUp, Clock, CheckCircle, AlertCircle, Calendar, MapPin, Phone, User } from 'lucide-react';
 
+const ServicerDashboardSkeletonLoader = () => {
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header Skeleton */}
+        <div className="mb-8 animate-pulse">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="h-9 w-48 bg-green-100 rounded mb-2"></div>
+              <div className="h-5 w-64 bg-green-100 rounded"></div>
+            </div>
+            
+            {/* Availability Toggle Skeleton */}
+            <div className="flex items-center gap-3">
+              <div className="h-5 w-24 bg-green-100 rounded"></div>
+              <div className="flex gap-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-10 w-24 bg-green-100 rounded-lg"></div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats Grid Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 animate-pulse">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="h-4 w-28 bg-green-100 rounded mb-3"></div>
+                  <div className="h-8 w-20 bg-green-100 rounded"></div>
+                </div>
+                <div className="w-12 h-12 bg-green-100 rounded-lg"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Today's Bookings Skeleton */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8 animate-pulse">
+          <div className="flex items-center justify-between mb-6">
+            <div className="h-6 w-40 bg-green-100 rounded"></div>
+            <div className="h-5 w-24 bg-green-100 rounded"></div>
+          </div>
+
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="border border-gray-200 rounded-lg p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="h-5 w-24 bg-green-100 rounded"></div>
+                      <div className="h-6 w-28 bg-green-100 rounded-full"></div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      {[1, 2, 3, 4].map((j) => (
+                        <div key={j} className="flex items-center gap-2">
+                          <div className="w-4 h-4 bg-green-100 rounded"></div>
+                          <div className="h-4 flex-1 bg-green-100 rounded"></div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="h-10 w-32 bg-green-100 rounded-lg ml-4"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Quick Actions Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-pulse">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-white border-2 border-green-100 rounded-xl p-6">
+              <div className="w-8 h-8 bg-green-100 rounded mb-3"></div>
+              <div className="h-6 w-32 bg-green-100 rounded mb-2"></div>
+              <div className="h-4 w-28 bg-green-100 rounded"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ServicerDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -51,11 +139,7 @@ const ServicerDashboard = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
+    return <ServicerDashboardSkeletonLoader />;
   }
 
   const stats = [

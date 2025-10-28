@@ -1,6 +1,89 @@
 import React, { useState, useEffect } from 'react';
 import { Heart, Star, Award, Phone, Mail, MapPin, Trash2, Calendar, TrendingUp } from 'lucide-react';
 
+const FavoritesSkeletonLoader = () => {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header Skeleton */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-6 animate-pulse">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <div className="h-8 w-48 bg-gray-200 rounded mb-3"></div>
+              <div className="h-5 w-64 bg-gray-200 rounded"></div>
+            </div>
+            <div className="bg-gray-100 p-4 rounded-lg flex items-center">
+              <div className="w-6 h-6 bg-gray-200 rounded-full mr-2"></div>
+              <div className="h-8 w-8 bg-gray-200 rounded"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Content Skeleton */}
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              {/* Header Image Skeleton */}
+              <div className="relative h-32 bg-gray-200">
+                <div className="absolute top-3 right-3 w-9 h-9 bg-gray-300 rounded-full"></div>
+              </div>
+
+              {/* Content Skeleton */}
+              <div className="p-5">
+                {/* Name Skeleton */}
+                <div className="h-6 w-3/4 bg-gray-200 rounded mb-3"></div>
+
+                {/* Rating Skeleton */}
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="w-5 h-5 bg-gray-200 rounded"></div>
+                  <div className="h-5 w-12 bg-gray-200 rounded"></div>
+                  <div className="h-4 w-20 bg-gray-200 rounded"></div>
+                </div>
+
+                {/* Services Label Skeleton */}
+                <div className="mb-4">
+                  <div className="h-4 w-16 bg-gray-200 rounded mb-2"></div>
+                  <div className="flex flex-wrap gap-2">
+                    <div className="h-6 w-20 bg-gray-200 rounded-full"></div>
+                    <div className="h-6 w-24 bg-gray-200 rounded-full"></div>
+                    <div className="h-6 w-16 bg-gray-200 rounded-full"></div>
+                  </div>
+                </div>
+
+                {/* Added Date Skeleton */}
+                <div className="flex items-center mb-4">
+                  <div className="w-4 h-4 bg-gray-200 rounded mr-1"></div>
+                  <div className="h-4 w-32 bg-gray-200 rounded"></div>
+                </div>
+
+                {/* Action Buttons Skeleton */}
+                <div className="space-y-2">
+                  <div className="w-full h-10 bg-gray-200 rounded-lg"></div>
+                  <div className="w-full h-10 bg-gray-200 rounded-lg"></div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Tips Section Skeleton */}
+        <div className="mt-8 bg-gray-100 border border-gray-200 rounded-xl p-6 animate-pulse">
+          <div className="flex items-start space-x-3">
+            <div className="w-6 h-6 bg-gray-200 rounded flex-shrink-0"></div>
+            <div className="flex-1">
+              <div className="h-5 w-24 bg-gray-200 rounded mb-2"></div>
+              <div className="h-4 w-full bg-gray-200 rounded mb-2"></div>
+              <div className="h-4 w-3/4 bg-gray-200 rounded"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Favorites = () => {
   const [favorites, setFavorites] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -68,14 +151,7 @@ const Favorites = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading favorites...</p>
-        </div>
-      </div>
-    );
+    return <FavoritesSkeletonLoader />;
   }
 
   return (
