@@ -205,7 +205,7 @@ export const NotificationProvider = ({ children }) => {
     console.log(`🚀 Starting notification polling for ${user.role}`);
 
     // Check immediately on mount
-    checkForNewNotifications();
+   
 
     // Then poll every 30 seconds
     const pollInterval = setInterval(() => {

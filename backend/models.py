@@ -516,6 +516,11 @@ class Booking(BaseModel):
     accepted_at: Optional[datetime] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    completion_otp: Optional[str] = Field(None, description="6-digit OTP for service completion")
+    completion_otp_expires_at: Optional[datetime] = Field(None, description="OTP expiration time")
+    otp_verified: bool = Field(False, description="Whether OTP has been verified")
+    otp_verified_at: Optional[datetime] = Field(None, description="When OTP was verified")
+    otp_failed_attempts: int = Field(0, description="Number of failed OTP attempts")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -829,6 +834,34 @@ class AuditLog(BaseModel):
         json_encoders={ObjectId: str}
     )
 
+# ============= OTP COMPLETION MODELS =============
+class OTPVerificationRequest(BaseModel):
+    """Request model for OTP verification"""
+    otp: str = Field(..., min_length=6, max_length=6, description="6-digit OTP")
+    
+    @field_validator('otp')
+    def validate_otp_format(cls, v):
+        if not v.isdigit():
+            raise ValueError('OTP must contain only digits')
+        return v
+
+
+class CompletionOTPResponse(BaseModel):
+    """Response model for OTP retrieval"""
+    otp: str
+    status: str  # "active" or "expired"
+    booking_number: str
+    expires_at: Optional[str] = None
+    message: str
+
+
+class ServiceCompletionResponse(BaseModel):
+    """Response after successful OTP verification"""
+    booking_id: str
+    booking_number: str
+    completed_at: str
+    servicer_name: str
+    verified: bool = True
 
 # ============= RESPONSE MODELS =============
 class Token(BaseModel):

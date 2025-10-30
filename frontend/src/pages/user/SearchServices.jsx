@@ -437,25 +437,38 @@ const SearchServices = ({ onNavigate }) => {
       alert(err.message);
     }
   };
-
-  const handleBookNow = (servicer) => {
-    const hasMultipleServices = servicer.service_categories && servicer.service_categories.length > 1;
-    
-    if (hasMultipleServices && !selectedCategory) {
-      setSelectedServicerForBooking(servicer);
-      setShowServiceSelectModal(true);
-    } else {
-      const categoryId = selectedCategory || 
-                        (servicer.service_categories && servicer.service_categories.length > 0 
-                          ? servicer.service_categories[0] 
-                          : '');
-      
-      if (!categoryId || categoryId.trim() === '') {
-        alert('Unable to determine service category. Please filter by a category first.');
+const handleBookNow = (servicer) => {
+  
+    console.log('🔍 Book Now clicked:', {
+      servicer_id: servicer._id,
+      selectedCategory: selectedCategory,
+      servicer_categories: servicer.service_categories,
+      categories_length: servicer.service_categories?.length
+    });
+    // ✅ FIX: Always show service selector if no category is selected
+    if (!selectedCategory) {
+      // Check if servicer has any categories
+      if (!servicer.service_categories || servicer.service_categories.length === 0) {
+        alert('This servicer has not set up any services yet. Please try another servicer.');
         return;
       }
       
-      onNavigate(`/user/bookings/create?servicer_id=${servicer._id}&category_id=${categoryId}`);
+      // If servicer has only one category, use it directly
+      if (servicer.service_categories.length === 1) {
+        const categoryId = servicer.service_categories[0];
+        if (!categoryId || categoryId.trim() === '') {
+          alert('Unable to determine service category. Please try another servicer.');
+          return;
+        }
+        onNavigate(`/user/bookings/create?servicer_id=${servicer._id}&category_id=${categoryId}`);
+      } else {
+        // Multiple categories - show selector
+        setSelectedServicerForBooking(servicer);
+        setShowServiceSelectModal(true);
+      }
+    } else {
+      // Category is already selected from filter
+      onNavigate(`/user/bookings/create?servicer_id=${servicer._id}&category_id=${selectedCategory}`);
     }
   };
 

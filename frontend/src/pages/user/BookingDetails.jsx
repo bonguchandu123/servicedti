@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Calendar, Clock, MapPin, Phone, Mail, User, DollarSign, CreditCard, Star, MessageSquare, Navigation, XCircle, CheckCircle, Aperture } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, MapPin, Phone, Mail, User, DollarSign, CreditCard, Star, MessageSquare, Navigation, XCircle, CheckCircle, Aperture, Key, AlertCircle } from 'lucide-react';
 
 const BookingDetails = () => {
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showRatingModal, setShowRatingModal] = useState(false);
+  const [showOTPModal, setShowOTPModal] = useState(false);
   const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState('');
   const [ratingLoading, setRatingLoading] = useState(false);
+  const [otpValue, setOtpValue] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState('');
   const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
-  // Get booking ID from URL (you can use react-router params)
   const bookingId = window.location.pathname.split('/').pop();
 
   useEffect(() => {
@@ -77,6 +80,69 @@ const BookingDetails = () => {
       alert(err.message);
     } finally {
       setRatingLoading(false);
+    }
+  };
+
+  const verifyOTPAndComplete = async () => {
+    if (!otpValue || otpValue.length !== 6) {
+      setOtpError('Please enter a valid 6-digit OTP');
+      return;
+    }
+
+    setOtpLoading(true);
+    setOtpError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('otp', otpValue);
+
+      const response = await fetch(
+        `${API_BASE_URL}/user/bookings/${bookingId}/verify-and-complete`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: formData
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to verify OTP');
+      }
+
+      alert('✓ Service completed successfully!');
+      setShowOTPModal(false);
+      setOtpValue('');
+      fetchBookingDetails();
+    } catch (err) {
+      setOtpError(err.message);
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const requestOTPFromServicer = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(
+        `${API_BASE_URL}/user/bookings/${bookingId}/request-completion-otp`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      if (!response.ok) throw new Error('Failed to request OTP');
+
+      alert('✓ Request sent to servicer. They will share the OTP with you.');
+    } catch (err) {
+      alert(err.message);
     }
   };
 
@@ -207,6 +273,30 @@ const BookingDetails = () => {
                       <Mail className="w-4 h-4 mr-2" />
                       <span>{booking.servicer_details.email}</span>
                     </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* OTP Verification Notice for In Progress Status */}
+            {booking.booking_status === 'in_progress' && (
+              <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-6">
+                <div className="flex items-start gap-4">
+                  <div className="bg-purple-100 p-3 rounded-lg">
+                    <Key className="w-6 h-6 text-purple-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-purple-900 mb-2">Service In Progress</h3>
+                    <p className="text-purple-800 text-sm mb-4">
+                      When the servicer completes the work, they will share a 6-digit OTP with you. 
+                      Enter that OTP to mark the service as completed and release payment.
+                    </p>
+                    <button
+                      onClick={requestOTPFromServicer}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+                    >
+                      Request OTP from Servicer
+                    </button>
                   </div>
                 </div>
               </div>
@@ -361,10 +451,20 @@ const BookingDetails = () => {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Actions</h2>
               <div className="space-y-3">
+                {booking.booking_status === 'in_progress' && (
+                  <button
+                    onClick={() => setShowOTPModal(true)}
+                    className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center justify-center font-medium"
+                  >
+                    <Key className="w-4 h-4 mr-2" />
+                    Enter Completion OTP
+                  </button>
+                )}
+
                 {['accepted', 'in_progress'].includes(booking.booking_status) && (
                   <button
                     onClick={() => window.location.href = `/user/bookings/${booking._id}/track`}
-                    className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center justify-center"
+                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center"
                   >
                     <Navigation className="w-4 h-4 mr-2" />
                     Track Service
@@ -373,7 +473,7 @@ const BookingDetails = () => {
 
                 <button
                   onClick={() => window.location.href = `/user/bookings/${booking._id}/chat`}
-                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center"
+                  className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center"
                 >
                   <MessageSquare className="w-4 h-4 mr-2" />
                   Chat with Servicer
@@ -403,6 +503,103 @@ const BookingDetails = () => {
           </div>
         </div>
       </div>
+
+      {/* OTP Verification Modal */}
+      {showOTPModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-900">Verify Completion OTP</h3>
+              <button
+                onClick={() => {
+                  setShowOTPModal(false);
+                  setOtpValue('');
+                  setOtpError('');
+                }}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-blue-800">
+                    <p className="font-medium mb-1">Enter the 6-digit OTP</p>
+                    <p>Ask the servicer to share their completion OTP with you. This verifies that the service has been completed.</p>
+                  </div>
+                </div>
+              </div>
+
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Completion OTP
+              </label>
+              <input
+                type="text"
+                value={otpValue}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                  setOtpValue(value);
+                  setOtpError('');
+                }}
+                placeholder="Enter 6-digit OTP"
+                maxLength={6}
+                className={`w-full px-4 py-3 text-center text-2xl tracking-widest font-bold border-2 rounded-lg focus:outline-none focus:ring-2 ${
+                  otpError 
+                    ? 'border-red-300 focus:border-red-500 focus:ring-red-200' 
+                    : 'border-gray-300 focus:border-blue-500 focus:ring-blue-200'
+                }`}
+              />
+              {otpError && (
+                <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                  <XCircle className="w-4 h-4" />
+                  {otpError}
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowOTPModal(false);
+                  setOtpValue('');
+                  setOtpError('');
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                disabled={otpLoading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={verifyOTPAndComplete}
+                className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                disabled={otpLoading || otpValue.length !== 6}
+              >
+                {otpLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Verifying...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    Verify & Complete
+                  </>
+                )}
+              </button>
+            </div>
+
+            <button
+              onClick={requestOTPFromServicer}
+              className="w-full mt-3 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+            >
+              Don't have OTP? Request from Servicer
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Rating Modal */}
       {showRatingModal && (
