@@ -5843,7 +5843,7 @@ async def start_service(
     current_user: dict = Depends(get_current_user),
     servicer: dict = Depends(get_current_servicer)
 ):
-    """Mark service as started"""
+    """Mark service as started and generate completion OTP"""
     booking = await db[Collections.BOOKINGS].find_one({
         "_id": ObjectId(service_id),
         "servicer_id": ObjectId(servicer['_id']),
@@ -5853,6 +5853,12 @@ async def start_service(
     if not booking:
         raise HTTPException(status_code=404, detail=Messages.BOOKING_NOT_FOUND)
     
+    # Generate 6-digit OTP
+    import random
+    import string
+    completion_otp = ''.join(random.choices(string.digits, k=6))
+    otp_expires_at = datetime.utcnow() + timedelta(hours=24)  # Valid for 24 hours
+    
     # Update booking
     await db[Collections.BOOKINGS].update_one(
         {"_id": ObjectId(service_id)},
@@ -5860,12 +5866,23 @@ async def start_service(
             "$set": {
                 "booking_status": BookingStatus.IN_PROGRESS,
                 "started_at": datetime.utcnow(),
+                "completion_otp": completion_otp,
+                "completion_otp_expires_at": otp_expires_at,
+                "otp_verified": False,
                 "updated_at": datetime.utcnow()
             }
         }
     )
     
-    # Send notification
+    # Send notification to servicer with OTP
+    await create_notification(
+        current_user['_id'],
+        NotificationTypes.BOOKING_UPDATE,
+        "Service Started - Completion OTP",
+        f"Your completion OTP for booking #{booking['booking_number']} is: {completion_otp}. Share this with customer when work is done."
+    )
+    
+    # Send notification to user
     await create_notification(
         str(booking['user_id']),
         NotificationTypes.BOOKING_UPDATE,
@@ -5876,11 +5893,246 @@ async def start_service(
     # Emit socket event
     await sio.emit(
         SocketEvents.SERVICE_STARTED,
-        {"booking_id": service_id},
+        {"booking_id": service_id, "otp_generated": True},
         room=f"user-{str(booking['user_id'])}"
     )
     
-    return SuccessResponse(message="Service started successfully")
+    return SuccessResponse(
+        message="Service started successfully. OTP sent to your notifications.",
+        data={"completion_otp": completion_otp}  # Show OTP to servicer immediately
+    )
+
+# ============= SERVICE COMPLETION OTP ENDPOINTS =============
+
+@app.get("/api/servicer/services/{service_id}/completion-otp")
+async def get_completion_otp(
+    service_id: str,
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Get completion OTP for active service"""
+    booking = await db[Collections.BOOKINGS].find_one({
+        "_id": ObjectId(service_id),
+        "servicer_id": ObjectId(servicer['_id']),
+        "booking_status": BookingStatus.IN_PROGRESS
+    })
+    
+    if not booking:
+        raise HTTPException(status_code=404, detail="Service not found or not in progress")
+    
+    completion_otp = booking.get('completion_otp')
+    otp_expires_at = booking.get('completion_otp_expires_at')
+    
+    if not completion_otp:
+        raise HTTPException(status_code=404, detail="No OTP generated for this service")
+    
+    # Check if expired
+    if otp_expires_at and datetime.utcnow() > otp_expires_at:
+        return {
+            "otp": completion_otp,
+            "status": "expired",
+            "message": "OTP has expired. Please contact support.",
+            "booking_number": booking.get('booking_number')
+        }
+    
+    return {
+        "otp": completion_otp,
+        "status": "active",
+        "booking_number": booking.get('booking_number'),
+        "expires_at": otp_expires_at.isoformat() if otp_expires_at else None,
+        "message": "Share this OTP with customer to complete the service"
+    }
+
+
+@app.post("/api/servicer/services/{service_id}/resend-otp")
+async def resend_completion_otp(
+    service_id: str,
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Resend completion OTP notification"""
+    booking = await db[Collections.BOOKINGS].find_one({
+        "_id": ObjectId(service_id),
+        "servicer_id": ObjectId(servicer['_id']),
+        "booking_status": BookingStatus.IN_PROGRESS
+    })
+    
+    if not booking:
+        raise HTTPException(status_code=404, detail="Service not found")
+    
+    completion_otp = booking.get('completion_otp')
+    
+    if not completion_otp:
+        raise HTTPException(status_code=404, detail="No OTP found for this service")
+    
+    # Send notification again
+    await create_notification(
+        current_user['_id'],
+        NotificationTypes.BOOKING_UPDATE,
+        "Completion OTP (Resent)",
+        f"Your completion OTP for booking #{booking['booking_number']} is: {completion_otp}"
+    )
+    
+    return SuccessResponse(
+        message="OTP sent to your notifications",
+        data={"otp": completion_otp}
+    )
+
+
+@app.post("/api/user/bookings/{booking_id}/verify-and-complete")
+async def verify_otp_and_complete_service(
+    booking_id: str,
+    otp: str = Form(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Verify servicer's OTP and mark service as completed"""
+    
+    booking = await db[Collections.BOOKINGS].find_one({
+        "_id": ObjectId(booking_id),
+        "user_id": ObjectId(current_user['_id']),
+        "booking_status": BookingStatus.IN_PROGRESS
+    })
+    
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found or service not in progress")
+    
+    # Check if OTP exists
+    completion_otp = booking.get('completion_otp')
+    if not completion_otp:
+        raise HTTPException(status_code=400, detail=Messages.OTP_NOT_FOUND)
+    
+    # Check if OTP expired
+    otp_expires_at = booking.get('completion_otp_expires_at')
+    if otp_expires_at and datetime.utcnow() > otp_expires_at:
+        raise HTTPException(status_code=400, detail=Messages.OTP_EXPIRED)
+    
+    # Verify OTP
+    if otp != completion_otp:
+        # Log failed attempt
+        await db[Collections.BOOKINGS].update_one(
+            {"_id": ObjectId(booking_id)},
+            {"$inc": {"otp_failed_attempts": 1}}
+        )
+        
+        raise HTTPException(status_code=400, detail=Messages.OTP_INVALID)
+    
+    # ✅ OTP VERIFIED - Complete the service
+    await db[Collections.BOOKINGS].update_one(
+        {"_id": ObjectId(booking_id)},
+        {
+            "$set": {
+                "booking_status": BookingStatus.COMPLETED,
+                "completed_at": datetime.utcnow(),
+                "otp_verified": True,
+                "otp_verified_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            }
+        }
+    )
+    
+    # Update servicer stats
+    servicer = await db[Collections.SERVICERS].find_one({"_id": ObjectId(booking['servicer_id'])})
+    
+    await db[Collections.SERVICERS].update_one(
+        {"_id": ObjectId(booking['servicer_id'])},
+        {"$inc": {"total_jobs_completed": 1}}
+    )
+    
+    # Handle payment
+    if booking['payment_status'] == PaymentStatus.COMPLETED:
+        await db[Collections.WALLETS].update_one(
+            {"user_id": servicer['user_id']},
+            {
+                "$inc": {
+                    "balance": booking['servicer_amount'],
+                    "total_earned": booking['servicer_amount']
+                },
+                "$set": {"last_transaction_at": datetime.utcnow()}
+            }
+        )
+    
+    # Send notifications
+    await create_notification(
+        current_user['_id'],
+        NotificationTypes.BOOKING_UPDATE,
+        "Service Completed ✅",
+        f"Service for booking #{booking['booking_number']} has been completed successfully!"
+    )
+    
+    await create_notification(
+        str(servicer['user_id']),
+        NotificationTypes.BOOKING_UPDATE,
+        "Service Completed ✅",
+        f"Customer verified completion for booking #{booking['booking_number']}. Great job!"
+    )
+    
+    # Emit socket events
+    await sio.emit(
+        SocketEvents.SERVICE_COMPLETED,
+        {"booking_id": booking_id, "verified": True},
+        room=f"user-{current_user['_id']}"
+    )
+    
+    await sio.emit(
+        SocketEvents.SERVICE_COMPLETED,
+        {"booking_id": booking_id, "verified": True},
+        room=f"user-{str(servicer['user_id'])}"
+    )
+    
+    servicer_user = await db[Collections.USERS].find_one({"_id": servicer['user_id']})
+    
+    return SuccessResponse(
+        message=Messages.SERVICE_COMPLETED_SUCCESS,
+        data={
+            "booking_id": booking_id,
+            "booking_number": booking['booking_number'],
+            "completed_at": datetime.utcnow().isoformat(),
+            "servicer_name": servicer_user.get('name', '') if servicer_user else ''
+        }
+    )
+
+
+@app.post("/api/user/bookings/{booking_id}/request-completion-otp")
+async def request_completion_otp_from_servicer(
+    booking_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Send reminder to servicer to share OTP"""
+    
+    booking = await db[Collections.BOOKINGS].find_one({
+        "_id": ObjectId(booking_id),
+        "user_id": ObjectId(current_user['_id']),
+        "booking_status": BookingStatus.IN_PROGRESS
+    })
+    
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    # Send notification to servicer
+    servicer = await db[Collections.SERVICERS].find_one({"_id": ObjectId(booking['servicer_id'])})
+    
+    await create_notification(
+        str(servicer['user_id']),
+        NotificationTypes.BOOKING_UPDATE,
+        "Customer Requesting Completion OTP",
+        f"Customer is ready to complete booking #{booking['booking_number']}. Please share your completion OTP with them."
+    )
+    
+    # Emit socket
+    await sio.emit(
+        'otp_requested',
+        {
+            "booking_id": booking_id,
+            "message": "Customer is requesting completion OTP"
+        },
+        room=f"user-{str(servicer['user_id'])}"
+    )
+    
+    return SuccessResponse(
+        message=Messages.OTP_REQUEST_SENT,
+        data={"booking_number": booking['booking_number']}
+    )
+
 
 @app.post("/api/servicer/services/{service_id}/location")
 async def update_location(

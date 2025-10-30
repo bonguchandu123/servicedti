@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, CheckCircle, MapPin, DollarSign, Calendar, User, Phone, Clock, Navigation, AlertCircle, MessageCircle, Aperture } from 'lucide-react';
+import { Play, CheckCircle, MapPin, DollarSign, Calendar, User, Phone, Clock, Navigation, AlertCircle, MessageCircle, Key, Copy, RefreshCw, CheckCircle2 } from 'lucide-react';
 
 import { LiveTrackingPage } from './LiveTrackingPage';
 
@@ -100,11 +100,111 @@ const ActiveServicesSkeletonLoader = () => {
   );
 };
 
+const OTPModal = ({ service, onClose, onResend }) => {
+  const [otp, setOtp] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [resending, setResending] = useState(false);
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(otp);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleResend = async () => {
+    setResending(true);
+    await onResend();
+    setResending(false);
+  };
+
+  useEffect(() => {
+    if (service.completion_otp) {
+      setOtp(service.completion_otp);
+    }
+  }, [service.completion_otp]);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold text-gray-900">Completion OTP</h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-2xl"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg p-6 mb-6 border-2 border-blue-200">
+          <p className="text-sm text-gray-600 mb-3 text-center">Share this OTP with customer</p>
+          <div className="bg-white rounded-lg p-4 text-center">
+            <p className="text-4xl font-bold text-blue-600 tracking-widest">{otp}</p>
+          </div>
+        </div>
+
+        <div className="space-y-3 mb-6">
+          <button
+            onClick={copyToClipboard}
+            className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 font-medium"
+          >
+            {copied ? (
+              <>
+                <CheckCircle2 className="w-5 h-5" />
+                Copied!
+              </>
+            ) : (
+              <>
+                <Copy className="w-5 h-5" />
+                Copy OTP
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={handleResend}
+            disabled={resending}
+            className="w-full px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 font-medium disabled:opacity-50"
+          >
+            {resending ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-700"></div>
+                Resending...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-5 h-5" />
+                Resend to Notifications
+              </>
+            )}
+          </button>
+        </div>
+
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-yellow-800">
+              <p className="font-medium mb-1">Important:</p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>Customer needs this OTP to confirm completion</li>
+                <li>Valid for 24 hours</li>
+                <li>Don't share until work is done</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ServicerActiveServices = () => {
   const [activeServices, setActiveServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
   const [trackingServiceId, setTrackingServiceId] = useState(null);
+  const [showOTPModal, setShowOTPModal] = useState(false);
+  const [selectedService, setSelectedService] = useState(null);
   const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   useEffect(() => {
@@ -182,10 +282,20 @@ const ServicerActiveServices = () => {
       );
 
       if (response.ok) {
-        alert('✓ Service started successfully!');
+        const data = await response.json();
+        alert('✓ Service started successfully! OTP sent to your notifications.');
+        
+        // Update the service in the list with the OTP
+        setActiveServices(prev => prev.map(service => 
+          service._id === serviceId 
+            ? { ...service, booking_status: 'in_progress', completion_otp: data.data?.completion_otp }
+            : service
+        ));
+        
         fetchActiveServices();
       } else {
-        alert('Failed to start service');
+        const errorData = await response.json();
+        alert(errorData.detail || 'Failed to start service');
       }
     } catch (error) {
       console.error('Error starting service:', error);
@@ -195,33 +305,52 @@ const ServicerActiveServices = () => {
     }
   };
 
-  const completeService = async (serviceId) => {
-    if (!confirm('Are you sure you want to mark this service as completed?')) {
-      return;
-    }
-
+  const viewOTP = async (service) => {
     try {
-      setActionLoading(serviceId);
       const token = localStorage.getItem('token');
       const response = await fetch(
-        `${API_BASE_URL}/servicer/services/${serviceId}/complete`,
+        `${API_BASE_URL}/servicer/services/${service._id}/completion-otp`,
         {
-          method: 'PUT',
           headers: { 'Authorization': `Bearer ${token}` }
         }
       );
 
       if (response.ok) {
-        alert('✓ Service completed successfully!');
-        fetchActiveServices();
+        const data = await response.json();
+        setSelectedService({ ...service, completion_otp: data.otp });
+        setShowOTPModal(true);
       } else {
-        alert('Failed to complete service');
+        const errorData = await response.json();
+        alert(errorData.detail || 'Failed to fetch OTP');
       }
     } catch (error) {
-      console.error('Error completing service:', error);
-      alert('Failed to complete service');
-    } finally {
-      setActionLoading(null);
+      console.error('Error fetching OTP:', error);
+      alert('Failed to fetch OTP');
+    }
+  };
+
+  const resendOTP = async () => {
+    if (!selectedService) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(
+        `${API_BASE_URL}/servicer/services/${selectedService._id}/resend-otp`,
+        {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        }
+      );
+
+      if (response.ok) {
+        alert('✓ OTP sent to your notifications!');
+      } else {
+        const errorData = await response.json();
+        alert(errorData.detail || 'Failed to resend OTP');
+      }
+    } catch (error) {
+      console.error('Error resending OTP:', error);
+      alert('Failed to resend OTP');
     }
   };
 
@@ -395,23 +524,25 @@ const ServicerActiveServices = () => {
                   )}
 
                   {service.booking_status === 'in_progress' && (
-                    <button
-                      onClick={() => completeService(service._id)}
-                      disabled={actionLoading === service._id}
-                      className="flex-1 bg-green-600 text-white py-3 rounded-lg font-medium hover:bg-green-700 transition-colors disabled:bg-gray-400 flex items-center justify-center gap-2"
-                    >
-                      {actionLoading === service._id ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          Processing...
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle className="w-5 h-5" />
-                          Complete Service
-                        </>
-                      )}
-                    </button>
+                    <>
+                      <button
+                        onClick={() => viewOTP(service)}
+                        className="flex-1 min-w-[200px] bg-purple-600 text-white py-3 rounded-lg font-medium hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Key className="w-5 h-5" />
+                        View Completion OTP
+                      </button>
+                      
+                      <div className="w-full bg-green-50 border border-green-200 rounded-lg p-4">
+                        <div className="flex items-start gap-3">
+                          <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                          <div className="text-sm text-green-800">
+                            <p className="font-medium mb-1">Service In Progress</p>
+                            <p>Share the completion OTP with customer when you finish the work. Customer will verify to mark service as completed.</p>
+                          </div>
+                        </div>
+                      </div>
+                    </>
                   )}
 
                   <a
@@ -435,6 +566,17 @@ const ServicerActiveServices = () => {
           </div>
         )}
       </div>
+
+      {showOTPModal && selectedService && (
+        <OTPModal
+          service={selectedService}
+          onClose={() => {
+            setShowOTPModal(false);
+            setSelectedService(null);
+          }}
+          onResend={resendOTP}
+        />
+      )}
     </div>
   );
 };

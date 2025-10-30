@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, MapPin, Calendar, Clock, CreditCard, Wallet, Banknote, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 const CreateBooking = ({ onNavigate}) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
-  const token = localStorage.getItem('token');
+  const {token} = useAuth()
   
   const [servicer, setServicer] = useState(null);
   const [category, setCategory] = useState(null);

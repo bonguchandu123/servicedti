@@ -197,7 +197,7 @@ export const LiveTrackingPage = ({ serviceId, onClose }) => {
     } catch (err) {
       console.error('Error fetching service:', err);
       setError('Failed to load service details');
-      toast.error('Failed to load service details');
+     
 
       setLoading(false);
     }
@@ -432,18 +432,18 @@ export const LiveTrackingPage = ({ serviceId, onClose }) => {
         console.log('Server response:', data);
         setDistance(data.distance_km);
         setEta(data.eta_minutes);
-        toast.success('Location updated successfully');
+       
       } else {
 
 
         console.error('Server response not OK:', response.status);
-        toast.error('Failed to update location on server');
+        
         const errorText = await response.text();
         console.error('Error details:', errorText);
       }
     } catch (err) {
       console.error('Error updating location:', err);
-      toast.error('Failed to update location on server'); 
+    
       setError('Failed to update location on server');
     }
   };

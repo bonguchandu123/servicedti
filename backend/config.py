@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     CLOUDINARY_CLOUD_NAME: str
     CLOUDINARY_API_KEY: str
     CLOUDINARY_API_SECRET: str
+    COMPLETION_OTP_LENGTH: int = 6
+    COMPLETION_OTP_EXPIRY_HOURS: int = 24
+    MAX_OTP_VERIFICATION_ATTEMPTS: int = 5
+    OTP_VERIFICATION_LOCKOUT_MINUTES: int = 30
     
     # Stripe
     STRIPE_SECRET_KEY: str
@@ -171,6 +175,9 @@ class NotificationTypes:
     DOCUMENT_VERIFICATION = "document_verification"
     PAYOUT = "payout"
     SYSTEM = "system"
+    OTP_GENERATED = "otp_generated"
+    OTP_REQUESTED = "otp_requested"
+    SERVICE_COMPLETION = "service_completion"
 
 
 # WebSocket Events
@@ -227,6 +234,13 @@ class SocketEvents:
     USER_ONLINE = "user_online"
     USER_OFFLINE = "user_offline"
     SERVICER_STATUS_CHANGE = "servicer_status_change"
+
+    # otp events
+    OTP_GENERATED = "otp_generated"
+    OTP_REQUESTED = "otp_requested"
+    OTP_VERIFIED = "otp_verified"
+    OTP_VERIFICATION_FAILED = "otp_verification_failed"
+    COMPLETION_REQUESTED = "completion_requested"
 
 
 # Allowed File Extensions
@@ -308,6 +322,15 @@ class Messages:
     BUNDLE_BOOKING_CREATED = "Bundle booking created successfully"
     NO_SERVICERS_AVAILABLE = "No servicers available in your area"
     SERVICE_ESTIMATE_GENERATED = "Service cost estimate generated"
+    # otp messages
+    OTP_GENERATED = "Completion OTP generated and sent"
+    OTP_RESENT = "OTP sent to your notifications"
+    OTP_INVALID = "Invalid OTP. Please check with servicer and try again."
+    OTP_EXPIRED = "OTP has expired. Please contact support."
+    OTP_NOT_FOUND = "No completion OTP found. Please ask servicer to start the service first."
+    OTP_MAX_ATTEMPTS_REACHED = "Maximum OTP verification attempts reached. Please contact support."
+    SERVICE_COMPLETED_SUCCESS = "Service completed successfully! Thank you for using our service."
+    OTP_REQUEST_SENT = "Reminder sent to servicer. They will share the OTP with you shortly."
 
 
 # Rate Limiting
