@@ -228,6 +228,35 @@ async def create_servicer_profile_background(user_id: str, category_ids: List[st
     except Exception as e:
         print(f"❌ Background servicer creation failed: {e}")
 
+async def create_servicer_profile_with_validated_categories(user_id: str, category_ids: List[ObjectId]):
+    """Create servicer profile with already validated ObjectId categories"""
+    try:
+        print(f"📝 Creating servicer profile for {user_id} with {len(category_ids)} categories")
+        
+        servicer = {
+            "user_id": ObjectId(user_id),
+            "service_categories": category_ids,  # Already ObjectIds
+            "experience_years": 0,
+            "verification_status": VerificationStatus.PENDING,
+            "average_rating": 0.0,
+            "total_ratings": 0,
+            "total_jobs_completed": 0,
+            "service_radius_km": 10.0,
+            "availability_status": AvailabilityStatus.OFFLINE,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        
+        result = await db[Collections.SERVICERS].insert_one(servicer)
+        print(f"✅ Servicer profile created: {result.inserted_id}")
+        
+        # Log categories for debugging
+        for cat_id in category_ids:
+            category = await db[Collections.SERVICE_CATEGORIES].find_one({"_id": cat_id})
+            print(f"  - Category: {category['name'] if category else 'Unknown'}")
+        
+    except Exception as e:
+        print(f"❌ Background servicer creation failed: {e}")
 
 async def send_welcome_email_background(email: str, name: str, role: str):
     """Send welcome email in background"""
@@ -811,12 +840,37 @@ async def get_online_status(sid, data):
 # ============= AUTHENTICATION ENDPOINTS =============
 @app.post("/api/auth/signup", response_model=SuccessResponse)
 async def signup(user_data: UserCreate):
-    """OPTIMIZED signup - returns immediately"""
+    """FIXED signup - validates category IDs"""
     
     # 1. Quick validation
     if user_data.role == UserRole.SERVICER:
         if not user_data.service_categories or len(user_data.service_categories) == 0:
             raise HTTPException(status_code=400, detail="Servicers must select at least one service category")
+        
+        # ✅ FIX: Validate that category IDs exist in database
+        print(f"🔍 Validating {len(user_data.service_categories)} categories...")
+        
+        valid_category_ids = []
+        for cat_id in user_data.service_categories:
+            try:
+                # Convert to ObjectId and check if exists
+                obj_id = ObjectId(cat_id)
+                category = await db[Collections.SERVICE_CATEGORIES].find_one({"_id": obj_id})
+                
+                if category:
+                    valid_category_ids.append(obj_id)
+                    print(f"  ✅ Valid: {cat_id} - {category['name']}")
+                else:
+                    print(f"  ⚠️ Invalid: {cat_id} - not found in database")
+                    
+            except Exception as e:
+                print(f"  ❌ Invalid ObjectId: {cat_id} - {e}")
+                raise HTTPException(status_code=400, detail=f"Invalid category ID: {cat_id}")
+        
+        if len(valid_category_ids) == 0:
+            raise HTTPException(status_code=400, detail="No valid service categories provided")
+        
+        print(f"✅ {len(valid_category_ids)} valid categories confirmed")
     
     # 2. Check duplicates (single query)
     existing = await db[Collections.USERS].find_one({
@@ -845,6 +899,7 @@ async def signup(user_data: UserCreate):
         # Insert user
         user_result = await db[Collections.USERS].insert_one(user_dict)
         user_id = str(user_result.inserted_id)
+        print(f"✅ User created: {user_id}")
         
         # Create wallet immediately
         wallet = {
@@ -857,15 +912,16 @@ async def signup(user_data: UserCreate):
             "updated_at": datetime.utcnow()
         }
         await db[Collections.WALLETS].insert_one(wallet)
+        print(f"✅ Wallet created for user {user_id}")
         
     except Exception as e:
-        print(f"Signup error: {e}")
+        print(f"❌ Signup error: {e}")
         raise HTTPException(status_code=500, detail="Failed to create account")
     
-    # 4. ✅ Handle servicer profile in BACKGROUND
+    # 4. ✅ Handle servicer profile in BACKGROUND with validated IDs
     if user_data.role == UserRole.SERVICER:
         asyncio.create_task(
-            create_servicer_profile_background(user_id, user_data.service_categories)
+            create_servicer_profile_with_validated_categories(user_id, valid_category_ids)
         )
     
     # 5. ✅ Send email in BACKGROUND
@@ -873,16 +929,20 @@ async def signup(user_data: UserCreate):
         send_welcome_email_background(user_data.email, user_data.name, user_data.role)
     )
     
-    # 6. ✅ Return immediately (don't wait for email/servicer profile)
+    # 6. ✅ Return immediately
     return SuccessResponse(
         message="Account created successfully! Welcome email sent.",
         data={
             "user_id": user_id,
             "email": user_data.email,
             "role": user_data.role,
-            "name": user_data.name
+            "name": user_data.name,
+            "categories_added": len(valid_category_ids) if user_data.role == UserRole.SERVICER else 0
         }
     )
+
+
+
 @app.post("/api/auth/send-otp", response_model=SuccessResponse)
 async def send_otp(otp_request: OTPCreate):
     """Send OTP for email verification or password reset"""
@@ -955,7 +1015,6 @@ async def verify_otp(email: EmailStr = Form(...), otp_code: str = Form(...)):
 @app.post("/api/auth/login", response_model=Token)
 async def login(credentials: UserLogin):
     """OPTIMIZED login"""
-    # Find user
     user = await db[Collections.USERS].find_one({"email": credentials.email})
     
     if not user:
@@ -967,10 +1026,28 @@ async def login(credentials: UserLogin):
     if user.get('is_blocked'):
         raise HTTPException(status_code=403, detail=Messages.ACCOUNT_BLOCKED)
     
-    # ✅ Update last login in BACKGROUND
+    if user['role'] == UserRole.SERVICER:
+        servicer = await db[Collections.SERVICERS].find_one({"user_id": user['_id']})
+        if not servicer:
+            print(f"⚠️ Servicer profile missing for {user['_id']}, creating now...")
+            servicer = {
+                "user_id": user['_id'],
+                "service_categories": [],
+                "experience_years": 0,
+                "verification_status": VerificationStatus.PENDING,
+                "average_rating": 0.0,
+                "total_ratings": 0,
+                "total_jobs_completed": 0,
+                "service_radius_km": 10.0,
+                "availability_status": AvailabilityStatus.OFFLINE,
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            }
+            await db[Collections.SERVICERS].insert_one(servicer)
+            print(f"✅ Servicer profile created for {user['_id']}")
+    
     asyncio.create_task(update_last_login_background(user['_id']))
     
-    # Create token immediately
     access_token = create_access_token(
         data={"sub": str(user['_id']), "role": user['role']}
     )
@@ -979,6 +1056,7 @@ async def login(credentials: UserLogin):
     user.pop('password_hash', None)
     
     return Token(access_token=access_token, user=user)
+
 @app.post("/api/auth/forgot-password", response_model=SuccessResponse)
 async def forgot_password(email: EmailStr = Form(...)):
     """Send password reset OTP"""
@@ -2652,6 +2730,8 @@ async def add_money_to_wallet(
         
     except stripe.error.StripeError as e:
         raise HTTPException(status_code=400, detail=f"Payment setup failed: {str(e)}")
+
+
 @app.get("/api/user/notifications")
 async def get_notifications(
     page: int = 1,
@@ -5351,7 +5431,6 @@ async def get_servicer_dashboard(
         "total_jobs_completed": servicer.get('total_jobs_completed', 0)
     }
 
-
 @app.post("/api/servicer/documents")
 async def upload_servicer_documents(
     aadhaar_front: Optional[UploadFile] = File(None),
@@ -5425,8 +5504,7 @@ async def upload_servicer_documents(
             f"Servicer {current_user['name']} has submitted documents for verification"
         )
     
-    return SuccessResponse(message=Messages.DOCUMENT_UPLOADED)
-
+    return SuccessResponse(message="Documents uploaded successfully")
 
 @app.get("/api/servicer/documents/status")
 async def get_document_status(
@@ -6407,6 +6485,7 @@ async def get_servicer_unread_count(
     })
     
     return {"unread_count": unread}
+
 # ============= ADD THESE ENDPOINTS TO YOUR MAIN.PY =============
 
 # Add after other servicer endpoints

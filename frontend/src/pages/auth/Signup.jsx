@@ -8,7 +8,6 @@ const SkeletonPulse = ({ className = "" }) => (
   <div className={`animate-pulse bg-gray-300 rounded ${className}`}></div>
 );
 
-// Service Category Card Skeleton
 const ServiceCardSkeleton = () => (
   <div className="p-4 border-2 border-gray-200 rounded-lg">
     <div className="flex items-start">
@@ -27,27 +26,22 @@ const ServiceCardSkeleton = () => (
   </div>
 );
 
-// Categories Loading State
 const CategoriesLoadingSkeleton = () => (
   <div className="space-y-4">
-    {/* Search Bar Skeleton */}
     <div className="mb-4">
       <SkeletonPulse className="h-6 w-48 mb-2" />
       <SkeletonPulse className="h-4 w-full mb-4" />
       <SkeletonPulse className="h-12 w-full rounded-lg" />
     </div>
 
-    {/* Animated Loading Indicator */}
     <div className="flex flex-col items-center justify-center py-12">
       <div className="relative mb-6">
-        {/* Spinning circles */}
         <div className="w-20 h-20 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
         <Briefcase className="w-8 h-8 text-indigo-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
       </div>
       
       <p className="text-gray-700 font-medium mb-2">Loading Services...</p>
       
-      {/* Animated dots */}
       <div className="flex space-x-2">
         <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
         <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
@@ -57,7 +51,6 @@ const CategoriesLoadingSkeleton = () => (
       <p className="text-sm text-gray-500 mt-4">Please wait while we fetch available services</p>
     </div>
 
-    {/* Service Cards Skeleton */}
     <div className="space-y-4">
       <div className="space-y-2">
         <SkeletonPulse className="h-5 w-32 mb-3" />
@@ -65,39 +58,20 @@ const CategoriesLoadingSkeleton = () => (
           <ServiceCardSkeleton key={i} />
         ))}
       </div>
-      
-      <div className="space-y-2 mt-6">
-        <SkeletonPulse className="h-5 w-24 mb-3" />
-        {[1, 2, 3].map((i) => (
-          <ServiceCardSkeleton key={`other-${i}`} />
-        ))}
-      </div>
     </div>
   </div>
 );
 
-// Form Field Skeleton (for initial page load)
-const FormFieldSkeleton = () => (
-  <div>
-    <SkeletonPulse className="h-4 w-24 mb-2" />
-    <SkeletonPulse className="h-12 w-full rounded-lg" />
-  </div>
-);
-
-// Full Page Initial Loading Skeleton
 const PageLoadingSkeleton = () => (
   <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
     <div className="max-w-2xl w-full">
-      {/* Header Skeleton */}
       <div className="text-center mb-8">
         <SkeletonPulse className="w-16 h-16 rounded-full mx-auto mb-4" />
         <SkeletonPulse className="h-8 w-64 mx-auto mb-2" />
         <SkeletonPulse className="h-5 w-48 mx-auto" />
       </div>
 
-      {/* Card Skeleton */}
       <div className="bg-white rounded-2xl shadow-xl p-8">
-        {/* Progress Indicator Skeleton */}
         <div className="flex items-center justify-center mb-8">
           <div className="flex items-center">
             {[1, 2, 3].map((i, idx) => (
@@ -111,24 +85,16 @@ const PageLoadingSkeleton = () => (
 
         <SkeletonPulse className="h-5 w-48 mx-auto mb-6" />
 
-        {/* Form Fields Skeleton */}
         <div className="space-y-4">
-          <FormFieldSkeleton />
-          <FormFieldSkeleton />
-          <FormFieldSkeleton />
-          <FormFieldSkeleton />
-          <SkeletonPulse className="h-12 w-full rounded-lg mt-6" />
+          <div>
+            <SkeletonPulse className="h-4 w-24 mb-2" />
+            <SkeletonPulse className="h-12 w-full rounded-lg" />
+          </div>
+          <div>
+            <SkeletonPulse className="h-4 w-24 mb-2" />
+            <SkeletonPulse className="h-12 w-full rounded-lg" />
+          </div>
         </div>
-
-        {/* Footer Link Skeleton */}
-        <div className="mt-6 text-center">
-          <SkeletonPulse className="h-4 w-56 mx-auto" />
-        </div>
-      </div>
-
-      {/* Footer Skeleton */}
-      <div className="mt-8 text-center">
-        <SkeletonPulse className="h-4 w-64 mx-auto" />
       </div>
     </div>
   </div>
@@ -149,7 +115,8 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
     pincode: '',
     selectedServices: []
   });
-  const toast= useToast()
+  
+  const toast = useToast();
   const [serviceCategories, setServiceCategories] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
@@ -157,100 +124,7 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
   const [error, setError] = useState('');
   const [step, setStep] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
-  const {signup} = useAuth();
-
-  const defaultServiceCategories = [
-    {
-      _id: 'temp-plumbing',
-      name: 'Plumbing',
-      description: 'Pipe repairs, installations, leak fixing, and drainage solutions',
-      base_price: 500,
-      servicers_count: 45,
-      icon: 'droplet',
-      popular: true
-    },
-    {
-      _id: 'temp-electrical',
-      name: 'Electrical Work',
-      description: 'Wiring, repairs, installations, and electrical maintenance',
-      base_price: 600,
-      servicers_count: 38,
-      icon: 'zap',
-      popular: true
-    },
-    {
-      _id: 'temp-carpentry',
-      name: 'Carpentry',
-      description: 'Furniture repair, custom woodwork, and installation services',
-      base_price: 700,
-      servicers_count: 32,
-      icon: 'briefcase',
-      popular: false
-    },
-    {
-      _id: 'temp-painting',
-      name: 'Painting',
-      description: 'Interior and exterior painting, wall treatments, and finishing',
-      base_price: 450,
-      servicers_count: 28,
-      icon: 'paintbrush',
-      popular: true
-    },
-    {
-      _id: 'temp-cleaning',
-      name: 'Home Cleaning',
-      description: 'Deep cleaning, regular maintenance, and sanitization services',
-      base_price: 400,
-      servicers_count: 56,
-      icon: 'home',
-      popular: true
-    },
-    {
-      _id: 'temp-ac-repair',
-      name: 'AC Repair & Service',
-      description: 'AC installation, maintenance, gas refilling, and repairs',
-      base_price: 550,
-      servicers_count: 41,
-      icon: 'wind',
-      popular: true
-    },
-    {
-      _id: 'temp-appliance-repair',
-      name: 'Appliance Repair',
-      description: 'Washing machine, refrigerator, and other appliance repairs',
-      base_price: 500,
-      servicers_count: 35,
-      icon: 'wrench',
-      popular: false
-    },
-    {
-      _id: 'temp-pest-control',
-      name: 'Pest Control',
-      description: 'Termite control, rodent removal, and general pest management',
-      base_price: 800,
-      servicers_count: 22,
-      icon: 'bug',
-      popular: false
-    },
-    {
-      _id: 'temp-gardening',
-      name: 'Gardening & Landscaping',
-      description: 'Garden maintenance, landscaping, and plant care services',
-      base_price: 600,
-      servicers_count: 19,
-      icon: 'leaf',
-      popular: false
-    },
-    {
-      _id: 'temp-beauty-salon',
-      name: 'Beauty & Salon Services',
-      description: 'Haircut, styling, makeup, and beauty treatments at home',
-      base_price: 500,
-      servicers_count: 43,
-      icon: 'scissors',
-      popular: true
-    }
-  ];
+  const { signup } = useAuth();
 
   const getIcon = (iconName) => {
     const icons = {
@@ -269,7 +143,6 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
   };
 
   useEffect(() => {
-    // Simulate initial page load
     setTimeout(() => {
       setPageLoading(false);
     }, 1000);
@@ -281,14 +154,48 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
     }
   }, [step]);
 
+  // ✅ FIXED: Fetch REAL categories from backend
   const fetchServiceCategories = async () => {
     setCategoriesLoading(true);
+    setError('');
     
-    // Simulate API call
-    setTimeout(() => {
-      setServiceCategories(defaultServiceCategories);
+    try {
+      console.log('📡 Fetching categories from API...');
+      
+      const response = await fetch('http://localhost:8000/api/public/categories', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('📥 Response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API Error:', errorText);
+        throw new Error(`Failed to fetch categories: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Categories received:', data);
+      console.log('📊 Total categories:', data.categories?.length || 0);
+
+      if (data.categories && data.categories.length > 0) {
+        setServiceCategories(data.categories);
+        console.log('✅ Categories set in state:', data.categories.length);
+      } else {
+        console.warn('⚠️ No categories returned from API');
+        setError('No service categories available. Please contact support.');
+      }
+
+    } catch (err) {
+      console.error('❌ Failed to fetch categories:', err);
+      setError(`Failed to load service categories: ${err.message}`);
+      toast?.error?.('Failed to load services. Please refresh the page.');
+    } finally {
       setCategoriesLoading(false);
-    }, 2000);
+    }
   };
 
   const handleChange = (e) => {
@@ -300,13 +207,19 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
   };
 
   const handleServiceToggle = (categoryId) => {
+    console.log('🔄 Toggling category:', categoryId);
+    
     setFormData(prev => {
       const selected = prev.selectedServices.includes(categoryId);
+      const newSelected = selected
+        ? prev.selectedServices.filter(id => id !== categoryId)
+        : [...prev.selectedServices, categoryId];
+      
+      console.log('📋 Selected categories:', newSelected);
+      
       return {
         ...prev,
-        selectedServices: selected
-          ? prev.selectedServices.filter(id => id !== categoryId)
-          : [...prev.selectedServices, categoryId]
+        selectedServices: newSelected
       };
     });
     setError('');
@@ -386,7 +299,6 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
     setLoading(true);
     
     try {
-      // Prepare payload - match backend schema exactly
       const payload = {
         name: formData.name,
         email: formData.email,
@@ -395,19 +307,19 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
         role: formData.role
       };
 
-      // Add optional address fields only if provided
       if (formData.address_line1) payload.address_line1 = formData.address_line1;
       if (formData.address_line2) payload.address_line2 = formData.address_line2;
       if (formData.city) payload.city = formData.city;
       if (formData.state) payload.state = formData.state;
       if (formData.pincode) payload.pincode = formData.pincode;
 
-      // Only add service_categories for servicers with selections
-      if (formData.role === 'servicer' && formData.selectedServices.length > 0) {
+      // ✅ FIXED: Always send service_categories array
+      if (formData.role === 'servicer') {
         payload.service_categories = formData.selectedServices;
+        console.log('📤 Sending payload:', payload);
+        console.log('🔍 Categories being sent:', payload.service_categories);
+        console.log('📊 Categories count:', payload.service_categories.length);
       }
-
-      console.log('Submitting signup with payload:', payload);
 
       const result = await signup(payload);
       
@@ -417,22 +329,25 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
         return;
       }
 
-      // Success - show message and navigate
-      alert(`Account created successfully! ${
+      // Success
+      const successMessage = `Account created successfully! ${
         formData.role === 'servicer' 
-          ? `${formData.selectedServices.length} services added.` 
+          ? `${formData.selectedServices.length} service${formData.selectedServices.length !== 1 ? 's' : ''} added. ` 
           : ''
-      } Please check your email for verification.`);
-      toast.success('Signup successful! Please verify your email.');
+      }Please check your email for verification.`;
+      
+      alert(successMessage);
+      toast?.success?.('Signup successful! Please verify your email.');
       setLoading(false);
       onNavigate('/verify-email');
       
     } catch (err) {
-      console.error('Signup error:', err);
+      console.error('❌ Signup error:', err);
       setError(err.message || 'Signup failed. Please try again.');
       setLoading(false);
     }
   };
+
   const filteredCategories = serviceCategories.filter(cat =>
     cat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (cat.description && cat.description.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -452,7 +367,6 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
 
   const totalSteps = formData.role === 'servicer' ? 3 : 2;
 
-  // Show page loading skeleton
   if (pageLoading) {
     return <PageLoadingSkeleton />;
   }
@@ -732,6 +646,18 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
             <div className="space-y-4">
               {categoriesLoading ? (
                 <CategoriesLoadingSkeleton />
+              ) : serviceCategories.length === 0 ? (
+                <div className="text-center py-12">
+                  <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+                  <p className="text-gray-700 font-medium mb-2">No Services Available</p>
+                  <p className="text-sm text-gray-500 mb-4">Unable to load service categories</p>
+                  <button
+                    onClick={fetchServiceCategories}
+                    className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+                  >
+                    Retry Loading
+                  </button>
+                </div>
               ) : (
                 <>
                   <div className="mb-4">
