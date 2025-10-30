@@ -1,3 +1,5 @@
+
+
 import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { useToast } from './ToastContext';
 import { useAuth } from './AuthContext';
@@ -17,6 +19,7 @@ export const NotificationProvider = ({ children }) => {
   const toast = useToast();
   const lastNotificationIdRef = useRef(null);
   const isFirstLoadRef = useRef(true);
+  const isInitializedRef = useRef(false); // ✅ NEW: Track if polling has started
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const checkForNewNotifications = async () => {
@@ -49,28 +52,30 @@ export const NotificationProvider = ({ children }) => {
 
       const latestId = latestNotifications[0]._id;
       
-      // On first load, just store the latest ID without showing toasts
+      // ✅ FIXED: On first load, just store the latest ID without showing toasts
       if (isFirstLoadRef.current) {
         lastNotificationIdRef.current = latestId;
         isFirstLoadRef.current = false;
+        isInitializedRef.current = true; // Mark as initialized
         console.log('✅ Notification polling initialized. Last notification ID:', latestId);
+        console.log('📋 Skipping', latestNotifications.length, 'existing notifications to avoid login spam');
         return;
       }
       
-      // Check if there's a new notification
+      // ✅ ONLY show notifications that arrived AFTER initialization
       if (lastNotificationIdRef.current && latestId !== lastNotificationIdRef.current) {
         console.log('🔔 New notification detected!');
         
-        // Find all new notifications
+        // Find all new notifications (after last known ID)
         const newNotifications = [];
         for (const notif of latestNotifications) {
           if (notif._id === lastNotificationIdRef.current) break;
           newNotifications.push(notif);
         }
         
-        console.log(`📬 ${newNotifications.length} new notification(s)`);
+        console.log(`📬 ${newNotifications.length} new notification(s) since last check`);
         
-        // Show toast for each new notification
+        // ✅ Show toast for each new notification (with delay to avoid spam)
         newNotifications.reverse().forEach((notif, index) => {
           setTimeout(() => {
             showNotificationToast(notif);
@@ -191,30 +196,40 @@ export const NotificationProvider = ({ children }) => {
     console.log(`🎉 Showing clickable toast: ${message}`);
     
     // Pass the click handler to the toast
-    // Note: This requires the ToastContext to support an onClick parameter
     toast[toastType](message, 5000, handleClick); // Show for 5 seconds with click handler
   };
 
-  // Poll for new notifications every 30 seconds
+  // ✅ FIXED: Delay polling start until after login animations complete
   useEffect(() => {
     if (!user) {
       console.log('⏸️ No user logged in, skipping notification polling');
+      // Reset refs when user logs out
+      isFirstLoadRef.current = true;
+      isInitializedRef.current = false;
+      lastNotificationIdRef.current = null;
       return;
     }
 
     console.log(`🚀 Starting notification polling for ${user.role}`);
 
-    // Check immediately on mount
-    checkForNewNotifications();
+    // ✅ CRITICAL: Delay initial check by 3 seconds to let login animations complete
+    const initialDelay = setTimeout(() => {
+      console.log('⏰ Initial notification check after login animation');
+      checkForNewNotifications();
+    }, 3000); // 3 second delay for LoadingScreen + PageReveal
 
     // Then poll every 30 seconds
     const pollInterval = setInterval(() => {
-      console.log('🔄 Polling for new notifications...');
-      checkForNewNotifications();
+      // ✅ Only poll if initialized (prevents spam during login)
+      if (isInitializedRef.current) {
+        console.log('🔄 Polling for new notifications...');
+        checkForNewNotifications();
+      }
     }, 30000); // 30 seconds
 
     return () => {
       console.log('🛑 Stopping notification polling');
+      clearTimeout(initialDelay);
       clearInterval(pollInterval);
     };
   }, [user]);
