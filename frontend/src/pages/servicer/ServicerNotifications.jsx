@@ -139,7 +139,7 @@ const ServicerNotifications = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 
-  const API_BASE_URL = 'http://localhost:8000';
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
   useEffect(() => {
     fetchNotifications();

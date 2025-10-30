@@ -205,13 +205,13 @@ export const NotificationProvider = ({ children }) => {
     console.log(`🚀 Starting notification polling for ${user.role}`);
 
     // Check immediately on mount
-   
+    checkForNewNotifications();
 
     // Then poll every 30 seconds
     const pollInterval = setInterval(() => {
       console.log('🔄 Polling for new notifications...');
       checkForNewNotifications();
-    }, 1000); // 30 seconds
+    }, 30000); // 30 seconds
 
     return () => {
       console.log('🛑 Stopping notification polling');
