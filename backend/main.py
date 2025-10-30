@@ -329,10 +329,15 @@ async def send_email(to_email: str, subject: str, body: str):
     except Exception as e:
         print(f"⚠️ Email failed (non-blocking): {e}")
         return False
+# In main.py, update _send_email_sync function:
 
 def _send_email_sync(to_email: str, subject: str, body: str):
-    """Synchronous email sending"""
+    """Synchronous email sending with detailed logging"""
     try:
+        print(f"📧 Attempting to send email to: {to_email}")
+        print(f"📧 Subject: {subject}")
+        print(f"📧 SMTP Host: {settings.SMTP_HOST}:{settings.SMTP_PORT}")
+        
         msg = MIMEMultipart('alternative')
         msg['From'] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>"
         msg['To'] = to_email
@@ -342,13 +347,25 @@ def _send_email_sync(to_email: str, subject: str, body: str):
         msg.attach(html_part)
         
         with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as server:
+            server.set_debuglevel(1)  # ✅ Enable SMTP debug output
             server.starttls()
+            print(f"✅ TLS started")
+            
             server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
-            server.send_message(msg)
+            print(f"✅ SMTP login successful")
+            
+            result = server.send_message(msg)
+            print(f"✅ Email sent successfully to {to_email}")
+            print(f"📊 Server response: {result}")
+            
         return True
-    except Exception as e:
-        print(f"Email error: {e}")
+    except smtplib.SMTPException as e:
+        print(f"❌ SMTP Error sending to {to_email}: {e}")
         return False
+    except Exception as e:
+        print(f"❌ General Error sending to {to_email}: {e}")
+        return False
+
 async def send_otp_email(email: str, otp: str, purpose: str):
     """Send OTP email"""
     subject = "Your OTP for Service Provider Platform"
