@@ -1,14 +1,14 @@
 import React from 'react';
-import { 
-  Home, Search, Calendar, Wallet, Bell, User, Menu, X, 
-  Clock, Star, MessageCircle, Settings, FileText, 
-  Users, DollarSign, Package, BarChart3, Shield, 
-  Briefcase, TrendingUp, Award, MapPin, Upload
+import {
+  Home, Search, Calendar, Wallet, Bell, User, X, Clock, Star, 
+  MessageCircle, FileText, Shield, Users, DollarSign, Package, 
+  TrendingUp, Briefcase, Upload, BarChart3, Inbox, History, 
+  FileWarning, Settings, ListChecks, ClipboardList, Ban
 } from 'lucide-react';
 
 const Sidebar = ({ role, currentPath, onNavigate, sidebarOpen, setSidebarOpen, onLogout }) => {
-  
-  // Menu items based on role
+
+  // ========== MENU ITEMS ==========
   const getMenuItems = () => {
     switch(role) {
       case 'user':
@@ -16,25 +16,28 @@ const Sidebar = ({ role, currentPath, onNavigate, sidebarOpen, setSidebarOpen, o
           { title: 'Dashboard', icon: Home, path: '/user/dashboard' },
           { title: 'Search Services', icon: Search, path: '/user/search' },
           { title: 'My Bookings', icon: Calendar, path: '/user/bookings' },
-          { title: 'Booking History', icon: Clock, path: '/user/history' },
+          { title: 'Booking History', icon: History, path: '/user/history' },
           { title: 'Favorites', icon: Star, path: '/user/favorites' },
+          { title: 'Complaints', icon: FileWarning, path: '/user/complaints' },
+          { title: 'Create Complaint', icon: MessageCircle, path: '/user/complaints/create' },
           { title: 'Wallet', icon: Wallet, path: '/user/wallet' },
-          { title: 'Profile', icon: User, path: '/user/profile' }
+          { title: 'Profile', icon: User, path: '/user/profile' },
         ];
-      
+
       case 'servicer':
         return [
           { title: 'Dashboard', icon: Home, path: '/servicer/dashboard' },
           { title: 'Upload Documents', icon: Upload, path: '/servicer/upload-documents' },
-          { title: 'Service Requests', icon: Bell, path: '/servicer/requests' },
+          { title: 'Service Requests', icon: Inbox, path: '/servicer/requests' },
           { title: 'Active Services', icon: Briefcase, path: '/servicer/active-services' },
           { title: 'Earnings & Payouts', icon: DollarSign, path: '/servicer/earnings' },
           { title: 'Reviews', icon: Star, path: '/servicer/reviews' },
           { title: 'Notifications', icon: Bell, path: '/servicer/notifications' },
-  
-          { title: 'Profile', icon: User, path: '/servicer/profile' }
+          { title: 'Refunds', icon: ClipboardList, path: '/servicer/refunds' },
+          { title: 'Status', icon: BarChart3, path: '/servicer/status' },
+          { title: 'Profile', icon: User, path: '/servicer/profile' },
         ];
-      
+
       case 'admin':
         return [
           { title: 'Dashboard', icon: Home, path: '/admin/dashboard' },
@@ -43,9 +46,14 @@ const Sidebar = ({ role, currentPath, onNavigate, sidebarOpen, setSidebarOpen, o
           { title: 'Manage Bookings', icon: Calendar, path: '/admin/bookings' },
           { title: 'Transactions', icon: DollarSign, path: '/admin/transactions' },
           { title: 'Payout Requests', icon: TrendingUp, path: '/admin/payouts' },
-          { title: 'Service Categories', icon: Package, path: '/admin/categories' }
+          { title: 'Service Categories', icon: Package, path: '/admin/categories' },
+          { title: 'Booking Issues', icon: FileWarning, path: '/admin/issues' },
+          { title: 'Transaction Issues', icon: ListChecks, path: '/admin/issues/transcation' },
+          { title: 'Complaints', icon: MessageCircle, path: '/admin/complaints' },
+          { title: 'Blacklist', icon: Ban, path: '/admin/Blacklist' },
+         
         ];
-      
+
       default:
         return [];
     }
@@ -53,7 +61,7 @@ const Sidebar = ({ role, currentPath, onNavigate, sidebarOpen, setSidebarOpen, o
 
   const menuItems = getMenuItems();
 
-  // Role-specific branding
+  // ========== ROLE COLORS ==========
   const getBrandColor = () => {
     switch(role) {
       case 'user': return 'bg-indigo-600';
@@ -81,10 +89,12 @@ const Sidebar = ({ role, currentPath, onNavigate, sidebarOpen, setSidebarOpen, o
     }
   };
 
+  // ========== JSX ==========
   return (
     <>
       {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <div className="flex items-center">
@@ -116,9 +126,7 @@ const Sidebar = ({ role, currentPath, onNavigate, sidebarOpen, setSidebarOpen, o
                   setSidebarOpen(false);
                 }}
                 className={`w-full flex items-center px-4 py-3 rounded-lg transition ${
-                  isActive
-                    ? getActiveColor()
-                    : 'text-gray-700 hover:bg-gray-100'
+                  isActive ? getActiveColor() : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
                 <item.icon className="w-5 h-5 mr-3" />
@@ -128,7 +136,7 @@ const Sidebar = ({ role, currentPath, onNavigate, sidebarOpen, setSidebarOpen, o
           })}
         </nav>
 
-        {/* Logout Button */}
+        {/* Logout */}
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-white">
           <button
             onClick={onLogout}

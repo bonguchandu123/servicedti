@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, MapPin, Star, Filter, Heart, Award, Phone, MessageCircle, X, Briefcase, Wrench, Zap, Paintbrush, Droplet, Wind, Home, Bug, Leaf, Scissors, TrendingUp } from 'lucide-react';
+import { Search, MapPin, Star, Filter, Heart, Award, Phone, MessageCircle, X, Briefcase, Wrench, Zap, Paintbrush, Droplet, Wind, Home, Bug, Leaf, Scissors, TrendingUp, AlertTriangle } from 'lucide-react';
 
 // Enhanced Loading Component with Multiple Animations
 const SearchServicesSkeletonLoader = () => {
@@ -406,7 +406,18 @@ const SearchServices = ({ onNavigate }) => {
       }
 
       const data = await response.json();
-      setServicers(data.servicers || []);
+      
+      // ✅ FILTER OUT SUSPENDED/BLOCKED SERVICERS
+      const activeServicers = (data.servicers || []).filter(servicer => {
+        // Check if servicer is blocked/suspended
+        const isBlocked = servicer.is_blocked === true;
+        const isSuspended = servicer.is_suspended === true;
+        
+        // Only show servicers that are NOT blocked and NOT suspended
+        return !isBlocked && !isSuspended;
+      });
+      
+      setServicers(activeServicers);
       setTotalPages(data.pages || 1);
     } catch (err) {
       console.error('Search error:', err);
@@ -437,15 +448,22 @@ const SearchServices = ({ onNavigate }) => {
       alert(err.message);
     }
   };
-const handleBookNow = (servicer) => {
-  
+
+  const handleBookNow = (servicer) => {
+    // ✅ CHECK IF SERVICER IS SUSPENDED BEFORE BOOKING
+    if (servicer.is_blocked || servicer.is_suspended) {
+      alert('This servicer is currently unavailable. Please choose another servicer.');
+      return;
+    }
+
     console.log('🔍 Book Now clicked:', {
       servicer_id: servicer._id,
       selectedCategory: selectedCategory,
       servicer_categories: servicer.service_categories,
       categories_length: servicer.service_categories?.length
     });
-    // ✅ FIX: Always show service selector if no category is selected
+    
+    // Always show service selector if no category is selected
     if (!selectedCategory) {
       // Check if servicer has any categories
       if (!servicer.service_categories || servicer.service_categories.length === 0) {
@@ -665,7 +683,7 @@ const handleBookNow = (servicer) => {
       <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-6">
           <p className="text-gray-600">
-            Found <span className="font-semibold">{servicers.length}</span> servicers
+            Found <span className="font-semibold">{servicers.length}</span> available servicers
             {selectedCategory && (
               <span className="ml-2 text-sm">
                 in <span className="font-semibold">
@@ -695,13 +713,13 @@ const handleBookNow = (servicer) => {
         )}
 
         {!searchLoading && servicers.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ">
             {servicers.map((servicer) => (
               <div
                 key={servicer._id}
                 className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg transition"
               >
-                <div className="relative h-48 bg-gradient-to-br from-blue-500 to-purple-600">
+                <div className="relative h-60 bg-gradient-to-br from-blue-500 to-purple-600">
                   {servicer.profile_image_url && servicer.profile_image_url.trim() !== '' ? (
                     <img
                       src={servicer.profile_image_url}
@@ -832,7 +850,7 @@ const handleBookNow = (servicer) => {
           <div className="text-center py-12">
             <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              No servicers found
+              No available servicers found
             </h3>
             <p className="text-gray-600 mb-4">
               Try adjusting your filters or search radius
