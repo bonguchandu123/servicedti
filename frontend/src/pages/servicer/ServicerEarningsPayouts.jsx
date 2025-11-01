@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, TrendingUp, Clock, CreditCard, Calendar, Download, Wallet, ArrowUpRight, ArrowDownRight, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { DollarSign, TrendingUp, Clock, CreditCard, Calendar, Download, Wallet, ArrowUpRight, ArrowDownRight, X, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 
 // ============= SKELETON COMPONENTS =============
 const SkeletonPulse = ({ className = "" }) => (
@@ -155,9 +155,12 @@ const FullPageSkeleton = () => (
     </div>
   </div>
 );
+
 const ServicerEarningsPayouts = () => {
   const [earnings, setEarnings] = useState(null);
+  const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [payoutAmount, setPayoutAmount] = useState('');
   const [payoutMethod, setPayoutMethod] = useState('bank_transfer');
@@ -172,6 +175,7 @@ const ServicerEarningsPayouts = () => {
 
   useEffect(() => {
     fetchEarnings();
+    fetchTransactions();
   }, []);
 
   const fetchEarnings = async () => {
@@ -183,13 +187,45 @@ const ServicerEarningsPayouts = () => {
           'Authorization': `Bearer ${token}`
         }
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
+      console.log('✅ Earnings data fetched:', data);
       setEarnings(data);
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching earnings:', error);
+      console.error('❌ Error fetching earnings:', error);
+      alert('Failed to load earnings data. Please refresh the page.');
       setLoading(false);
     }
+  };
+
+  const fetchTransactions = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/servicer/transactions?limit=10`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Transactions fetched:', data);
+        setTransactions(data.transactions || []);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching transactions:', error);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([fetchEarnings(), fetchTransactions()]);
+    setRefreshing(false);
   };
 
   const requestPayout = async () => {
@@ -201,7 +237,7 @@ const ServicerEarningsPayouts = () => {
     }
 
     if (amount > earnings.wallet_balance) {
-      alert('Insufficient balance');
+      alert(`Insufficient balance. Available: ₹${earnings.wallet_balance.toFixed(2)}`);
       return;
     }
 
@@ -251,13 +287,14 @@ const ServicerEarningsPayouts = () => {
         });
         setUpiId('');
         fetchEarnings();
+        fetchTransactions();
       } else {
         const error = await response.json();
         alert(error.detail || 'Failed to request payout');
       }
     } catch (error) {
       console.error('Error requesting payout:', error);
-      alert('Failed to request payout');
+      alert('Failed to request payout. Please try again.');
     } finally {
       setRequesting(false);
     }
@@ -267,34 +304,35 @@ const ServicerEarningsPayouts = () => {
     return <FullPageSkeleton />;
   }
 
+  // Calculate actual stats from earnings data
   const stats = [
     {
       title: 'Available Balance',
       value: `₹${earnings?.wallet_balance?.toFixed(2) || '0.00'}`,
       icon: Wallet,
       color: 'emerald',
-      change: '+12.5%'
+      change: earnings?.wallet_balance > 0 ? 'Available for withdrawal' : 'Complete bookings to earn'
     },
     {
       title: 'Total Earned',
       value: `₹${earnings?.total_earned?.toFixed(2) || '0.00'}`,
       icon: TrendingUp,
       color: 'blue',
-      change: '+8.2%'
+      change: earnings?.total_earned > 0 ? 'All time earnings' : 'Start earning today'
     },
     {
       title: 'Pending Payouts',
       value: `₹${earnings?.pending_payouts?.toFixed(2) || '0.00'}`,
       icon: Clock,
       color: 'orange',
-      change: '2 requests'
+      change: earnings?.pending_payouts > 0 ? 'Being processed' : 'No pending requests'
     },
     {
       title: 'This Month',
       value: `₹${earnings?.this_month_earnings?.toFixed(2) || '0.00'}`,
       icon: Calendar,
       color: 'purple',
-      change: '+15.3%'
+      change: earnings?.this_month_earnings > 0 ? 'Current month' : 'No earnings yet'
     }
   ];
 
@@ -325,56 +363,29 @@ const ServicerEarningsPayouts = () => {
     }
   };
 
-  const sampleTransactions = [
-    {
-      date: 'Dec 20, 2024',
-      type: 'Service Payment',
-      booking: '#BK20241220001',
-      status: 'Completed',
-      amount: 425.00,
-      isCredit: true
-    },
-    {
-      date: 'Dec 19, 2024',
-      type: 'Payout',
-      booking: '-',
-      status: 'Processing',
-      amount: 2000.00,
-      isCredit: false
-    },
-    {
-      date: 'Dec 18, 2024',
-      type: 'Service Payment',
-      booking: '#BK20241218003',
-      status: 'Completed',
-      amount: 680.00,
-      isCredit: true
-    },
-    {
-      date: 'Dec 17, 2024',
-      type: 'Service Payment',
-      booking: '#BK20241217002',
-      status: 'Completed',
-      amount: 550.00,
-      isCredit: true
-    },
-    {
-      date: 'Dec 16, 2024',
-      type: 'Service Payment',
-      booking: '#BK20241216005',
-      status: 'Completed',
-      amount: 320.00,
-      isCredit: true
-    }
-  ];
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Earnings & Payouts</h1>
-          <p className="text-gray-600">Track your earnings and manage withdrawals</p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Earnings & Payouts</h1>
+            <p className="text-gray-600">Track your earnings and manage withdrawals</p>
+          </div>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
         </div>
 
         {/* Stats Grid */}
@@ -426,27 +437,27 @@ const ServicerEarningsPayouts = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* This Week's Earnings */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">This Week's Earnings</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Earnings Summary</h3>
             
             <div className="space-y-3">
               <div className="flex justify-between items-center py-3 border-b border-gray-100">
-                <span className="text-gray-600">Completed Jobs</span>
-                <span className="font-semibold text-gray-900">12</span>
+                <span className="text-gray-600">Available Balance</span>
+                <span className="font-semibold text-emerald-600">₹{earnings?.wallet_balance?.toFixed(2) || '0.00'}</span>
               </div>
               
               <div className="flex justify-between items-center py-3 border-b border-gray-100">
-                <span className="text-gray-600">Total Earnings</span>
-                <span className="font-semibold text-emerald-600">₹3,240.00</span>
+                <span className="text-gray-600">Total Earned (All Time)</span>
+                <span className="font-semibold text-gray-900">₹{earnings?.total_earned?.toFixed(2) || '0.00'}</span>
               </div>
               
               <div className="flex justify-between items-center py-3 border-b border-gray-100">
-                <span className="text-gray-600">Platform Fee</span>
-                <span className="font-semibold text-red-600">-₹486.00</span>
+                <span className="text-gray-600">This Month</span>
+                <span className="font-semibold text-blue-600">₹{earnings?.this_month_earnings?.toFixed(2) || '0.00'}</span>
               </div>
               
               <div className="flex justify-between items-center py-3 bg-gray-50 -mx-6 px-6 mt-4">
-                <span className="font-semibold text-gray-900">Net Earnings</span>
-                <span className="text-xl font-bold text-emerald-600">₹2,754.00</span>
+                <span className="font-semibold text-gray-900">Pending Payouts</span>
+                <span className="text-xl font-bold text-orange-600">₹{earnings?.pending_payouts?.toFixed(2) || '0.00'}</span>
               </div>
             </div>
           </div>
@@ -503,41 +514,58 @@ const ServicerEarningsPayouts = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {sampleTransactions.map((txn, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="py-4 px-6 text-sm text-gray-900">{txn.date}</td>
-                    <td className="py-4 px-6 text-sm text-gray-600">{txn.type}</td>
-                    <td className="py-4 px-6 text-sm text-gray-600 font-mono">{txn.booking}</td>
-                    <td className="py-4 px-6">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-                        txn.status === 'Completed' 
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                          : 'bg-orange-50 text-orange-700 border border-orange-200'
-                      }`}>
-                        {txn.status === 'Completed' ? (
-                          <CheckCircle className="w-3 h-3" />
-                        ) : (
-                          <AlertCircle className="w-3 h-3" />
-                        )}
-                        {txn.status}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6 text-right">
-                      <span className={`font-semibold ${txn.isCredit ? 'text-emerald-600' : 'text-red-600'}`}>
-                        {txn.isCredit ? '+' : '-'}₹{txn.amount.toFixed(2)}
-                      </span>
+                {transactions && transactions.length > 0 ? (
+                  transactions.map((txn, index) => (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="py-4 px-6 text-sm text-gray-900">{formatDate(txn.created_at)}</td>
+                      <td className="py-4 px-6 text-sm text-gray-600">{txn.transaction_type?.replace('_', ' ') || 'N/A'}</td>
+                      <td className="py-4 px-6 text-sm text-gray-600 font-mono">{txn.booking_number || '-'}</td>
+                      <td className="py-4 px-6">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                          txn.transaction_status === 'completed' 
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                            : txn.transaction_status === 'pending'
+                            ? 'bg-orange-50 text-orange-700 border border-orange-200'
+                            : 'bg-gray-50 text-gray-700 border border-gray-200'
+                        }`}>
+                          {txn.transaction_status === 'completed' ? (
+                            <CheckCircle className="w-3 h-3" />
+                          ) : (
+                            <AlertCircle className="w-3 h-3" />
+                          )}
+                          {txn.transaction_status || 'Unknown'}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6 text-right">
+                        <span className={`font-semibold ${
+                          txn.transaction_type === 'payout' || txn.transaction_type === 'refund' 
+                            ? 'text-red-600' 
+                            : 'text-emerald-600'
+                        }`}>
+                          {txn.transaction_type === 'payout' || txn.transaction_type === 'refund' ? '-' : '+'}
+                          ₹{txn.amount?.toFixed(2) || '0.00'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="5" className="py-8 text-center text-gray-500">
+                      No transactions yet. Complete bookings to start earning!
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
 
-          <div className="p-4 border-t border-gray-200 text-center">
-            <button className="text-sm font-medium text-blue-600 hover:text-blue-700">
-              View All Transactions
-            </button>
-          </div>
+          {transactions && transactions.length > 0 && (
+            <div className="p-4 border-t border-gray-200 text-center">
+              <button className="text-sm font-medium text-blue-600 hover:text-blue-700">
+                View All Transactions
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

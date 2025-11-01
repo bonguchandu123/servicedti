@@ -446,7 +446,7 @@ const BookingHistory = () => {
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex flex-wrap gap-3">
+                   <div className="flex flex-wrap gap-3">
                     <button
                       onClick={() => window.location.href = `/user/bookings/${booking._id}`}
                       className="flex items-center space-x-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
@@ -474,6 +474,19 @@ const BookingHistory = () => {
                       <TrendingUp className="w-4 h-4" />
                       <span>Book Again</span>
                     </button>
+
+                    {booking.servicer_id && (
+                      <button
+                        onClick={() => {
+                          // Navigate to complaint creation with servicer_id and booking_id
+                          window.location.href = `/user/complaints/create?servicer_id=${booking.servicer_id}&booking_id=${booking._id}`;
+                        }}
+                        className="flex items-center space-x-2 px-5 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium"
+                      >
+                        <AlertCircle className="w-4 h-4" />
+                        <span>File Complaint</span>
+                      </button>
+                    )}
                   </div>
 
                   {/* Cancellation Info */}

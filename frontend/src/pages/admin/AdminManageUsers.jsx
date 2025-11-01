@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Search, Eye, Lock, Unlock, Filter, Mail, Phone, MapPin, Calendar, DollarSign, ShoppingBag, X, AlertCircle } from 'lucide-react';
+import { Users, Search, Eye, Lock, Unlock, Filter, Mail, Phone, MapPin, Calendar, DollarSign, ShoppingBag, X, AlertCircle, Ban, UserX } from 'lucide-react';
+
+const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
 const AdminSkeletonusersLoader = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6 animate-pulse">
       <div className="max-w-7xl mx-auto space-y-6">
-
-        {/* Header Skeleton */}
         <div className="space-y-3">
           <div className="h-8 w-64 bg-gray-200 rounded"></div>
           <div className="h-4 w-80 bg-gray-200 rounded"></div>
         </div>
-
-        {/* Filters Bar Skeleton */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="h-10 w-full bg-gray-200 rounded"></div>
@@ -21,8 +19,6 @@ const AdminSkeletonusersLoader = () => {
             <div className="h-10 w-full bg-gray-200 rounded"></div>
           </div>
         </div>
-
-        {/* Table Rows Skeleton */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           {[1,2,3,4,5].map(i => (
             <div key={i} className="flex justify-between items-center px-6 py-4 border-b">
@@ -37,18 +33,158 @@ const AdminSkeletonusersLoader = () => {
             </div>
           ))}
         </div>
-
       </div>
     </div>
   );
-
 };
+
+// Suspend Modal Component
+const SuspendUserModal = ({ user, onClose, onSuspend }) => {
+  const [reason, setReason] = useState('');
+  const [durationType, setDurationType] = useState('temporary');
+  const [duration, setDuration] = useState(7);
+  const [loading, setLoading] = useState(false);
+
+  const handleSuspend = async () => {
+    if (!reason.trim()) {
+      alert('Please provide a reason for suspension');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await onSuspend(user._id, reason, durationType === 'temporary' ? duration : null, durationType === 'permanent');
+      onClose();
+    } catch (error) {
+      alert('Error suspending user: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+      <div className="bg-white rounded-lg max-w-md w-full my-8">
+        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 rounded-t-lg z-10">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <UserX className="w-6 h-6 text-red-600" />
+              <h2 className="text-xl font-bold">Suspend User</h2>
+            </div>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <X size={24} />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+          {/* User Info */}
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <p className="text-sm text-gray-600">Suspending:</p>
+            <p className="font-medium text-gray-900">{user.name}</p>
+            <p className="text-sm text-gray-500">{user.email}</p>
+          </div>
+
+          {/* Suspension Type */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Suspension Type *
+            </label>
+            <select
+              value={durationType}
+              onChange={(e) => setDurationType(e.target.value)}
+              className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-red-500"
+            >
+              <option value="temporary">Temporary Suspension</option>
+              <option value="permanent">Permanent Ban</option>
+            </select>
+          </div>
+
+          {/* Duration (if temporary) */}
+          {durationType === 'temporary' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Duration *
+              </label>
+              <select
+                value={duration}
+                onChange={(e) => setDuration(parseInt(e.target.value))}
+                className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-red-500"
+              >
+                <option value="1">1 Day</option>
+                <option value="3">3 Days</option>
+                <option value="7">7 Days</option>
+                <option value="14">14 Days</option>
+                <option value="30">30 Days</option>
+                <option value="90">90 Days</option>
+              </select>
+            </div>
+          )}
+
+          {/* Reason */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Reason for Suspension *
+            </label>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Explain why this user is being suspended..."
+              className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-red-500"
+              rows={4}
+              required
+            />
+          </div>
+
+          {/* Warning */}
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-red-700">
+                <p className="font-medium mb-1">Warning:</p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>User will be immediately suspended</li>
+                  <li>Active bookings will be cancelled</li>
+                  <li>User will be notified via email</li>
+                  <li>This action is logged for audit</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Sticky Footer with Actions */}
+        <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-6 rounded-b-lg">
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              disabled={loading}
+              className="flex-1 px-6 py-3 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSuspend}
+              disabled={loading || !reason.trim()}
+              className="flex-1 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium flex items-center justify-center gap-2"
+            >
+              <Ban size={20} />
+              {loading ? 'Suspending...' : durationType === 'permanent' ? 'Ban User' : 'Suspend User'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const AdminManageUsers = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [showSuspendModal, setShowSuspendModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [blockReason, setBlockReason] = useState('');
   
@@ -58,7 +194,6 @@ const AdminManageUsers = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   useEffect(() => {
     fetchUsers();
@@ -144,6 +279,60 @@ const AdminManageUsers = () => {
     }
   };
 
+  const handleSuspendUser = async (userId, reason, durationDays, isPermanent) => {
+    try {
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('reason', reason);
+      formData.append('ban_type', isPermanent ? 'permanent' : 'temporary');
+      if (durationDays) formData.append('duration_days', durationDays.toString());
+      formData.append('notify_user', 'true');
+
+      const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/suspend`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+
+      if (!response.ok) throw new Error('Failed to suspend user');
+
+      const data = await response.json();
+      alert(data.message || 'User suspended successfully!');
+      setShowSuspendModal(false);
+      setShowModal(false);
+      fetchUsers();
+    } catch (err) {
+      throw err;
+    }
+  }
+
+
+  
+
+  const handleUnsuspendUser = async (userId) => {
+    if (!confirm('Are you sure you want to remove this user\'s suspension?')) return;
+
+    setActionLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/unsuspend`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!response.ok) throw new Error('Failed to unsuspend user');
+
+      alert('User suspension removed successfully!');
+      setShowModal(false);
+      fetchUsers();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+
   const filteredUsers = users.filter(user =>
     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -151,9 +340,7 @@ const AdminManageUsers = () => {
   );
 
   if (loading && users.length === 0) {
-    return (
-      <AdminSkeletonusersLoader/>
-    );
+    return <AdminSkeletonusersLoader/>;
   }
 
   return (
@@ -171,7 +358,6 @@ const AdminManageUsers = () => {
         {/* Filters & Search */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* Search */}
             <div className="md:col-span-2 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
@@ -183,7 +369,6 @@ const AdminManageUsers = () => {
               />
             </div>
 
-            {/* Role Filter */}
             <div>
               <select
                 value={roleFilter}
@@ -200,7 +385,6 @@ const AdminManageUsers = () => {
               </select>
             </div>
 
-            {/* Status Filter */}
             <div>
               <select
                 value={statusFilter}
@@ -277,41 +461,44 @@ const AdminManageUsers = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          user.is_blocked ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                          user.is_blocked || user.is_suspended ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
                         }`}>
-                          {user.is_blocked ? 'Blocked' : 'Active'}
+                          {user.is_blocked || user.is_suspended ? 'Suspended' : 'Active'}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(user.created_at).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button
-                          onClick={() => viewUserDetails(user._id)}
-                          className="text-blue-600 hover:text-blue-900 mr-3"
-                        >
-                          <Eye className="w-5 h-5" />
-                        </button>
-                        {user.is_blocked ? (
+                        <div className="flex items-center justify-end gap-2">
                           <button
-                            onClick={() => handleBlockUnblock(user._id, false)}
-                            className="text-green-600 hover:text-green-900"
-                            title="Unblock user"
+                            onClick={() => viewUserDetails(user._id)}
+                            className="text-blue-600 hover:text-blue-900"
+                            title="View details"
                           >
-                            <Unlock className="w-5 h-5" />
+                            <Eye className="w-5 h-5" />
                           </button>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setShowModal(true);
-                            }}
-                            className="text-red-600 hover:text-red-900"
-                            title="Block user"
-                          >
-                            <Lock className="w-5 h-5" />
-                          </button>
-                        )}
+                          {user.is_blocked || user.is_suspended ? (
+                            <button
+                              onClick={() => handleUnsuspendUser(user._id)}
+                              className="text-green-600 hover:text-green-900"
+                              title="Remove suspension"
+                            >
+                              <Unlock className="w-5 h-5" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setSelectedUser(user);
+                                setShowSuspendModal(true);
+                              }}
+                              className="text-red-600 hover:text-red-900"
+                              title="Suspend user"
+                            >
+                              <Ban className="w-5 h-5" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -350,7 +537,6 @@ const AdminManageUsers = () => {
         {showModal && selectedUser && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
             <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full my-8">
-              {/* Modal Header */}
               <div className="sticky top-0 bg-white border-b border-gray-200 p-6 rounded-t-lg">
                 <div className="flex items-center justify-between">
                   <h2 className="text-2xl font-bold text-gray-900">User Details</h2>
@@ -367,8 +553,25 @@ const AdminManageUsers = () => {
                 </div>
               </div>
 
-              {/* Modal Body */}
               <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+                {/* Suspension Status Alert */}
+                {(selectedUser.is_blocked || selectedUser.is_suspended) && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <Ban className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-semibold text-red-900">Account Suspended</p>
+                        {selectedUser.blocked_reason && (
+                          <p className="text-sm text-red-700 mt-1">Reason: {selectedUser.blocked_reason}</p>
+                        )}
+                        {selectedUser.blocked_until && (
+                          <p className="text-sm text-red-700">Until: {new Date(selectedUser.blocked_until).toLocaleDateString()}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Basic Info */}
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-3">Basic Information</h3>
@@ -410,9 +613,9 @@ const AdminManageUsers = () => {
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-700">Status:</span>
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        selectedUser.is_blocked ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                        selectedUser.is_blocked || selectedUser.is_suspended ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
                       }`}>
-                        {selectedUser.is_blocked ? 'Blocked' : 'Active'}
+                        {selectedUser.is_blocked || selectedUser.is_suspended ? 'Suspended' : 'Active'}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -446,59 +649,54 @@ const AdminManageUsers = () => {
                     </div>
                   </div>
                 )}
-
-                {/* Block Reason Input */}
-                {!selectedUser.is_blocked && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Block Reason <span className="text-red-500">(Required to block user)</span>
-                    </label>
-                    <textarea
-                      value={blockReason}
-                      onChange={(e) => setBlockReason(e.target.value)}
-                      placeholder="Enter reason for blocking this user..."
-                      rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                    />
-                  </div>
-                )}
               </div>
 
               {/* Modal Footer */}
               <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-6 rounded-b-lg">
                 <div className="flex gap-3">
-                  {selectedUser.is_blocked ? (
+                  {selectedUser.is_blocked || selectedUser.is_suspended ? (
                     <button
-                      onClick={() => handleBlockUnblock(selectedUser._id, false)}
+                      onClick={() => handleUnsuspendUser(selectedUser._id)}
                       disabled={actionLoading}
                       className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                     >
                       <Unlock className="w-5 h-5" />
-                      {actionLoading ? 'Processing...' : 'Unblock User'}
+                      {actionLoading ? 'Processing...' : 'Remove Suspension'}
                     </button>
                   ) : (
                     <button
-                      onClick={() => handleBlockUnblock(selectedUser._id, true)}
-                      disabled={actionLoading || !blockReason.trim()}
+                      onClick={() => {
+                        setShowModal(false);
+                        setShowSuspendModal(true);
+                      }}
+                      disabled={actionLoading}
                       className="flex-1 flex items-center justify-center gap-2 bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                     >
-                      <Lock className="w-5 h-5" />
-                      {actionLoading ? 'Processing...' : 'Block User'}
+                      <Ban className="w-5 h-5" />
+                      Suspend User
                     </button>
                   )}
                 </div>
-                {!selectedUser.is_blocked && !blockReason.trim() && (
-                  <p className="text-xs text-red-500 mt-2 text-center">
-                    Block reason is required to block user
-                  </p>
-                )}
               </div>
             </div>
           </div>
+        )}
+
+        {/* Suspend User Modal */}
+        {showSuspendModal && selectedUser && (
+          <SuspendUserModal
+            user={selectedUser}
+            onClose={() => {
+              setShowSuspendModal(false);
+              setSelectedUser(null);
+            }}
+            onSuspend={handleSuspendUser}
+          />
         )}
       </div>
     </div>
   );
 };
+
 
 export default AdminManageUsers;

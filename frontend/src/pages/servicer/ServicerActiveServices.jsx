@@ -211,22 +211,61 @@ const ServicerActiveServices = () => {
     fetchActiveServices();
   }, []);
 
-  const fetchActiveServices = async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/servicer/services/active`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      setActiveServices(data.active_services || []);
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching active services:', error);
-      setLoading(false);
-    }
-  };
+  // const fetchActiveServices = async () => {
+  //   try {
+  //     setLoading(true);
+  //     const token = localStorage.getItem('token');
+  //     const response = await fetch(`${API_BASE_URL}/servicer/services/active`, {
+  //       headers: { 'Authorization': `Bearer ${token}` }
+  //     });
+  //     const data = await response.json();
+  //     setActiveServices(data.active_services || []);
+  //     setLoading(false);
+  //   } catch (error) {
+  //     console.error('Error fetching active services:', error);
+  //     setLoading(false);
+  //   }
+  // };
 
+  const fetchActiveServices = async () => {
+  try {
+    setLoading(true);
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/servicer/services/active`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await response.json();
+    const servicesData = data.active_services || [];
+    
+    // ✅ Fetch transaction issues for each service
+    const servicesWithIssues = await Promise.all(
+      servicesData.map(async (service) => {
+        try {
+          const issueResponse = await fetch(
+            `${API_BASE_URL}/servicer/bookings/${service._id}/transaction-issue`,
+            {
+              headers: { 'Authorization': `Bearer ${token}` }
+            }
+          );
+          
+          if (issueResponse.ok) {
+            const issueData = await issueResponse.json();
+            return { ...service, transaction_issue: issueData.issue };
+          }
+        } catch (err) {
+          console.error('Error fetching transaction issue:', err);
+        }
+        return service;
+      })
+    );
+    
+    setActiveServices(servicesWithIssues);
+    setLoading(false);
+  } catch (error) {
+    console.error('Error fetching active services:', error);
+    setLoading(false);
+  }
+};
   const startTracking = async (serviceId) => {
     if (!navigator.geolocation) {
       alert('Geolocation is not supported by your browser');
@@ -552,6 +591,20 @@ const ServicerActiveServices = () => {
                     <MessageCircle className="w-5 h-5" />
                     Chat
                   </a>
+                  {service.transaction_issue && (
+  <a
+    href={`/servicer/chat?issue_id=${service.transaction_issue._id}`}
+    className="px-6 py-3 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 transition-colors flex items-center justify-center gap-2 relative"
+  >
+    <DollarSign className="w-5 h-5" />
+    Payment Issue Chat
+    {service.transaction_issue.unread_messages > 0 && (
+      <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold">
+        {service.transaction_issue.unread_messages}
+      </span>
+    )}
+  </a>
+)}
                 </div>
               </div>
             ))}
