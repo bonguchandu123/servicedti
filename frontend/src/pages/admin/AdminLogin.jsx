@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Shield, Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
 
 const AdminLogin = ({ onNavigate }) => {
   const [formData, setFormData] = useState({
@@ -9,7 +9,7 @@ const AdminLogin = ({ onNavigate }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-    const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   const handleChange = (e) => {
     setFormData({
@@ -50,8 +50,12 @@ const AdminLogin = ({ onNavigate }) => {
         localStorage.setItem('token', data.access_token);
         localStorage.setItem('user', JSON.stringify(data.user));
         
-        // Redirect will happen automatically via App.js
-        window.location.reload();
+        // Success message before redirect
+        console.log('✅ Admin login successful');
+        
+        // IMPORTANT: Force page reload to update AuthContext
+        // This ensures the user state is properly loaded before navigation
+        window.location.href = '/admin/dashboard';
       } else {
         setError(data.detail || 'Login failed. Please check your credentials.');
       }
@@ -61,6 +65,14 @@ const AdminLogin = ({ onNavigate }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Auto-fill credentials function (for development/demo)
+  const fillDemoCredentials = () => {
+    setFormData({
+      email: 'admin@example.com',
+      password: 'admin123'
+    });
   };
 
   return (
@@ -79,6 +91,27 @@ const AdminLogin = ({ onNavigate }) => {
             <p className="text-gray-600 text-sm">
               Secure administrator access only
             </p>
+          </div>
+
+          {/* Demo Credentials Banner */}
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-start mb-2">
+              <CheckCircle className="w-5 h-5 text-blue-600 mr-2 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-blue-900 mb-1">Demo Admin Credentials</p>
+                <div className="text-xs text-blue-700 space-y-1">
+                  <p><strong>Email:</strong> admin@example.com</p>
+                  <p><strong>Password:</strong> admin123</p>
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={fillDemoCredentials}
+              className="mt-2 w-full text-xs bg-blue-600 text-white py-2 px-3 rounded hover:bg-blue-700 transition-colors"
+            >
+              Auto-fill Demo Credentials
+            </button>
           </div>
 
           {/* Error Message */}
@@ -108,7 +141,7 @@ const AdminLogin = ({ onNavigate }) => {
                   value={formData.email}
                   onChange={handleChange}
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                  placeholder="admin@serviceapp.com"
+                  placeholder="admin@example.com"
                 />
               </div>
             </div>
@@ -170,7 +203,7 @@ const AdminLogin = ({ onNavigate }) => {
           <div className="mt-8 pt-6 border-t border-gray-200 text-center">
             <button
               onClick={() => onNavigate('/login')}
-              className="text-sm text-gray-600 hover:text-gray-800"
+              className="text-sm text-gray-600 hover:text-gray-800 transition-colors"
             >
               ← Back to User Login
             </button>
@@ -180,7 +213,7 @@ const AdminLogin = ({ onNavigate }) => {
         {/* Info Note */}
         <div className="mt-6 text-center">
           <p className="text-xs text-gray-400">
-            Admin accounts must be created directly in the database
+            🔒 This is a demo admin portal. In production, use secure credentials.
           </p>
         </div>
       </div>
