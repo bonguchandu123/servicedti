@@ -120,6 +120,18 @@ class Collections:
     SERVICE_BUNDLES = "service_bundles"
     SERVICE_ESTIMATES = "service_estimates"
     INSTANT_AVAILABILITY = "instant_availability"
+    TRANSACTION_ISSUES = "transaction_issues"  # ✅ ADD THIS LINE
+    PRE_BOOKING_CHATS = "pre_booking_chats"  # ✅ ADD THIS TOO (used in socket events)
+    PRE_BOOKING_MESSAGES = "pre_booking_messages"  # ✅ AND THIS
+    # In Collections class
+    COMPLAINTS = "complaints"
+    COMPLAINT_RESPONSES = "complaint_responses"
+    REFUND_REQUESTS = "refund_requests"
+    BLACKLIST = "blacklist"
+    SERVICER_WARNINGS = "servicer_warnings"
+
+    TRANSACTION_ISSUE_MESSAGES = "transaction_issue_messages" 
+    
 
 
 # Cloudinary Folders
@@ -139,6 +151,7 @@ class CloudinaryFolders:
     PROBLEM_DIAGNOSIS = "service-platform/problem-diagnosis"
     ISSUE_EVIDENCE = "service-platform/issue-evidence"
     WORK_PROGRESS = "service-platform/work-progress"
+    COMPLAINT_EVIDENCE = "complaints/evidence"
 
 
 # Email Templates
@@ -178,6 +191,8 @@ class NotificationTypes:
     OTP_GENERATED = "otp_generated"
     OTP_REQUESTED = "otp_requested"
     SERVICE_COMPLETION = "service_completion"
+    COMPLAINT = "complaint"
+    
 
 
 # WebSocket Events
@@ -234,6 +249,7 @@ class SocketEvents:
     USER_ONLINE = "user_online"
     USER_OFFLINE = "user_offline"
     SERVICER_STATUS_CHANGE = "servicer_status_change"
+    TRANSACTION_ISSUES = "transaction_issues"
 
     # otp events
     OTP_GENERATED = "otp_generated"

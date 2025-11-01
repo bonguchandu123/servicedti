@@ -43,11 +43,15 @@ class VerificationStatus(str, Enum):
 
 class BookingStatus(str, Enum):
     PENDING = "pending"
-    ACCEPTED = "accepted"
-    IN_PROGRESS = "in_progress"
+    CONFIRMED = "confirmed"      # ✅ add this
+    SCHEDULED = "scheduled"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
-
+    ACCEPTED = "accepted"
+    IN_PROGRESS = "in_progress"
+    CANCEL_REQUESTED = "cancel_requested"
+    
+    
 
 class PaymentMethod(str, Enum):
     CASH = "cash"
@@ -834,6 +838,31 @@ class AuditLog(BaseModel):
         json_encoders={ObjectId: str}
     )
 
+
+class TransactionIssue(BaseModel):
+    """Model for transaction-related issues"""
+    id: Optional[PyObjectId] = Field(default=None, alias="_id")
+    transaction_id: Optional[PyObjectId] = None
+    booking_id: Optional[PyObjectId] = None
+    user_id: PyObjectId
+    issue_type: str  # payment_failed, payment_pending, refund_request, duplicate_charge, payment_not_received, incorrect_amount
+    description: str
+    amount: float
+    evidence_urls: List[str] = []
+    priority: str = "medium"  # low, medium, high, urgent
+    status: str = "pending_review"  # pending_review, investigating, resolved, rejected
+    resolution: Optional[str] = None
+    refund_amount: Optional[float] = None
+    admin_notes: Optional[str] = None
+    resolved_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str}
+    )
 # ============= OTP COMPLETION MODELS =============
 class OTPVerificationRequest(BaseModel):
     """Request model for OTP verification"""
@@ -880,3 +909,36 @@ class ErrorResponse(BaseModel):
     success: bool = False
     message: str
     error: Optional[str] = None
+
+
+# Complaint Models
+class ComplaintCreate(BaseModel):
+    complaint_against_id: str  # User/Servicer being complained about
+    complaint_against_type: str  # "user" or "servicer"
+    booking_id: Optional[str] = None
+    complaint_type: str  # See ComplaintType enum below
+    subject: str
+    description: str
+    severity: str = "medium"  # low, medium, high, critical
+    refund_requested: bool = False
+    refund_amount: Optional[float] = None
+
+class ComplaintType:
+    NO_SHOW = "no_show"
+    POOR_QUALITY = "poor_quality"
+    RUDE_BEHAVIOR = "rude_behavior"
+    OVERCHARGING = "overcharging"
+    DAMAGE_PROPERTY = "damage_property"
+    SAFETY_CONCERN = "safety_concern"
+    FRAUD = "fraud"
+    LATE_ARRIVAL = "late_arrival"
+    INCOMPLETE_WORK = "incomplete_work"
+    PAYMENT_ISSUE = "payment_issue"
+    OTHER = "other"
+
+class ComplaintStatus:
+    PENDING = "pending"
+    INVESTIGATING = "investigating"
+    RESOLVED = "resolved"
+    REJECTED = "rejected"
+    CLOSED = "closed"

@@ -563,6 +563,97 @@ def convert_objectid_to_str(document):
     return document
 
 
+# Around line 3500 - After booking endpoints
+
+@app.post("/api/user/bookings/{booking_id}/report-refund-delay")
+async def report_refund_delay(
+    booking_id: str,
+    issue_description: str = Form(...),
+    evidence_images: Optional[List[UploadFile]] = File(None),
+    current_user: dict = Depends(get_current_user)
+):
+    """User reports servicer for not processing refund on time"""
+    
+    booking = await db[Collections.BOOKINGS].find_one({
+        "_id": ObjectId(booking_id),
+        "user_id": ObjectId(current_user['_id']),
+        "booking_status": BookingStatus.CANCELLED,
+        "requires_servicer_refund": True,
+        "refund_processed": False
+    })
+    
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found or refund already processed")
+    
+    # Check if deadline passed
+    if not booking.get('deadline_passed'):
+        deadline = booking.get('servicer_refund_deadline')
+        if deadline and datetime.utcnow() < deadline:
+            hours_remaining = (deadline - datetime.utcnow()).total_seconds() / 3600
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Servicer has {int(hours_remaining)} hours remaining. You can report after deadline."
+            )
+    
+    # Upload evidence
+    evidence_urls = []
+    if evidence_images:
+        for img in evidence_images:
+            result = await upload_to_cloudinary(img, CloudinaryFolders.ISSUE_EVIDENCE)
+            evidence_urls.append(result['url'])
+    
+    # Create booking issue
+    issue = {
+        "booking_id": ObjectId(booking_id),
+        "user_id": ObjectId(current_user['_id']),
+        "servicer_id": booking['servicer_id'],
+        "issue_type": "refund_not_processed",
+        "description": f"Servicer failed to process refund within deadline. User report: {issue_description}",
+        "evidence_urls": evidence_urls,
+        "expected_refund_amount": booking.get('expected_refund_amount', 0),
+        "refund_percentage": booking.get('refund_percentage', 0),
+        "deadline_missed": booking.get('servicer_refund_deadline'),
+        "status": "pending_review",
+        "priority": "high",
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    }
+    
+    result = await db[Collections.BOOKING_ISSUES].insert_one(issue)
+    
+    # Mark booking as issue reported
+    await db[Collections.BOOKINGS].update_one(
+        {"_id": ObjectId(booking_id)},
+        {"$set": {"issue_reported_by_user": True}}
+    )
+    
+    # Notify all admins
+    admins = await db[Collections.USERS].find({"role": UserRole.ADMIN}).to_list(100)
+    for admin in admins:
+        await create_notification(
+            str(admin['_id']),
+            NotificationTypes.SYSTEM,
+            "🚨 Servicer Refund Delay",
+            f"Servicer missed 48hr refund deadline for booking #{booking['booking_number']}"
+        )
+    
+    # Notify servicer
+    servicer = await db[Collections.SERVICERS].find_one({"_id": booking['servicer_id']})
+    if servicer:
+        await create_notification(
+            str(servicer['user_id']),
+            NotificationTypes.SYSTEM,
+            "⚠️ Issue Reported - Admin Review",
+            f"User reported refund delay for #{booking['booking_number']}. Admin will review."
+        )
+    
+    return SuccessResponse(
+        message="Issue reported to admin. They will process the refund and take action.",
+        data={
+            "issue_id": str(result.inserted_id),
+            "reference": f"REF{datetime.utcnow().strftime('%Y%m%d')}{str(result.inserted_id)[-6:]}"
+        }
+    )
 # ============= SOCKET.IO CHAT EVENTS (Add after existing socket events) =============
 
 # Store connected users
@@ -1394,7 +1485,600 @@ async def get_booking_statistics(current_user: dict = Depends(get_current_user))
     }
 
 
+# ============= ADD/UPDATE THESE ENDPOINTS IN main.py =============
 
+# 1. UPDATE THE USER CANCEL BOOKING ENDPOINT (Replace existing one)
+@app.put("/api/user/bookings/{booking_id}/cancel")
+async def cancel_booking(
+    booking_id: str,
+    cancellation_reason: str = Form(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Cancel booking with servicer refund deadline tracking"""
+    booking = await db[Collections.BOOKINGS].find_one({
+        "_id": ObjectId(booking_id),
+        "user_id": ObjectId(current_user['_id'])
+    })
+    
+    if not booking:
+        raise HTTPException(status_code=404, detail=Messages.BOOKING_NOT_FOUND)
+    
+    if booking['booking_status'] not in [BookingStatus.PENDING, BookingStatus.ACCEPTED]:
+        raise HTTPException(status_code=400, detail=Messages.CANNOT_CANCEL_BOOKING)
+    
+    # Calculate refund eligibility
+    booking_date = datetime.fromisoformat(booking['booking_date'])
+    hours_before = (booking_date - datetime.utcnow()).total_seconds() / 3600
+    
+    refund_percentage = 0
+    if hours_before >= 24:
+        refund_percentage = 100
+    elif hours_before >= 12:
+        refund_percentage = 75
+    elif hours_before >= 6:
+        refund_percentage = 50
+    elif hours_before >= 2:
+        refund_percentage = 25
+    
+    refund_amount = booking['total_amount'] * (refund_percentage / 100) if refund_percentage > 0 else 0
+    
+    # Calculate servicer deadline (48 hours from cancellation)
+    servicer_deadline = datetime.utcnow() + timedelta(hours=48)
+    
+    # Update booking status
+    await db[Collections.BOOKINGS].update_one(
+        {"_id": ObjectId(booking_id)},
+        {
+            "$set": {
+                "booking_status": BookingStatus.CANCELLED,
+                "cancellation_reason": cancellation_reason,
+                "cancelled_by": ObjectId(current_user['_id']),
+                "cancelled_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+                "refund_percentage": refund_percentage,
+                "expected_refund_amount": refund_amount,
+                "refund_processed": False,
+                "requires_servicer_refund": refund_percentage > 0 and booking['payment_status'] == PaymentStatus.COMPLETED,
+                "servicer_refund_deadline": servicer_deadline if refund_percentage > 0 else None,
+                "deadline_passed": False,
+                "issue_reported_by_user": False
+            }
+        }
+    )
+    
+    refund_info = None
+    
+    # Handle refund based on payment completion
+    if booking['payment_status'] == PaymentStatus.COMPLETED and refund_percentage > 0:
+        # Notify servicer with deadline
+        servicer = await db[Collections.SERVICERS].find_one({"_id": ObjectId(booking['servicer_id'])})
+        if servicer:
+            await create_notification(
+                str(servicer['user_id']),
+                NotificationTypes.BOOKING_UPDATE,
+                "⚠️ Refund Required - 48 Hour Deadline",
+                f"User cancelled booking #{booking['booking_number']}. Process {refund_percentage}% refund (₹{refund_amount}) within 48 hours or face penalties."
+            )
+            
+            # Send email to servicer
+            servicer_user = await db[Collections.USERS].find_one({"_id": servicer['user_id']})
+            if servicer_user:
+                await send_email(
+                    servicer_user['email'],
+                    "🚨 URGENT: Refund Required - 48 Hour Deadline",
+                    f"""
+                    <html>
+                        <body style="font-family: Arial, sans-serif; padding: 20px;">
+                            <h2 style="color: #dc2626;">Refund Action Required</h2>
+                            <p>User has cancelled booking #{booking['booking_number']}</p>
+                            <div style="background-color: #fef2f2; padding: 15px; border-left: 4px solid #dc2626; margin: 20px 0;">
+                                <p><strong>Refund Amount:</strong> ₹{refund_amount} ({refund_percentage}%)</p>
+                                <p><strong>Deadline:</strong> {servicer_deadline.strftime('%Y-%m-%d %H:%M')}</p>
+                                <p><strong>Time Remaining:</strong> 48 hours</p>
+                            </div>
+                            <p style="color: #991b1b;"><strong>Important:</strong> Failure to process refund within 48 hours will result in:</p>
+                            <ul style="color: #991b1b;">
+                                <li>Issue reported to admin</li>
+                                <li>Automatic admin intervention</li>
+                                <li>Potential account penalties</li>
+                            </ul>
+                            <p>Process refund in your Refund Management dashboard.</p>
+                        </body>
+                    </html>
+                    """
+                )
+        
+        refund_info = {
+            "method": "pending_servicer_approval",
+            "amount": refund_amount,
+            "percentage": refund_percentage,
+            "status": "pending",
+            "deadline": servicer_deadline.isoformat(),
+            "hours_remaining": 48,
+            "message": f"Refund request sent to servicer. Expected: ₹{refund_amount} ({refund_percentage}%)"
+        }
+    elif booking['payment_status'] == PaymentStatus.COMPLETED and refund_percentage == 0:
+        refund_info = {
+            "status": "no_refund",
+            "message": "No refund applicable (less than 2 hours before booking)",
+            "percentage": 0
+        }
+    else:
+        refund_info = {
+            "status": "no_payment_to_refund"
+        }
+    
+    # Notify user
+    user_message = f"Your booking #{booking['booking_number']} has been cancelled. "
+    if refund_percentage > 0:
+        user_message += f"Refund of ₹{refund_amount} ({refund_percentage}%) will be processed by servicer within 48 hours."
+    else:
+        user_message += "No refund applicable as per cancellation policy."
+    
+    await create_notification(
+        current_user['_id'],
+        NotificationTypes.BOOKING_UPDATE,
+        "Booking Cancelled",
+        user_message
+    )
+    
+    # Emit socket event
+    await sio.emit(
+        SocketEvents.BOOKING_CANCELLED,
+        {"booking_id": booking_id, "refund_required": refund_percentage > 0},
+        room=f"user-{str(booking['servicer_id'])}"
+    )
+    
+    return SuccessResponse(
+        message=Messages.BOOKING_CANCELLED,
+        data={
+            "booking_id": booking_id,
+            "booking_number": booking['booking_number'],
+            "refund": refund_info
+        }
+    )
+
+# 2. UPDATE SERVICER REJECT REQUEST ENDPOINT
+@app.put("/api/servicer/requests/{request_id}/reject")
+async def reject_service_request(
+    request_id: str,
+    rejection_reason: str = Form(...),
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Reject service request with automatic refund"""
+    booking = await db[Collections.BOOKINGS].find_one({
+        "_id": ObjectId(request_id),
+        "servicer_id": ObjectId(servicer['_id']),
+        "booking_status": BookingStatus.PENDING
+    })
+    
+    if not booking:
+        raise HTTPException(status_code=404, detail=Messages.BOOKING_NOT_FOUND)
+    
+    # Update booking
+    await db[Collections.BOOKINGS].update_one(
+        {"_id": ObjectId(request_id)},
+        {
+            "$set": {
+                "booking_status": BookingStatus.CANCELLED,
+                "cancellation_reason": rejection_reason,
+                "cancelled_by": ObjectId(current_user['_id']),
+                "rejected_by_servicer": True,
+                "cancelled_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            }
+        }
+    )
+    
+    refund_info = None
+    
+    # Process full refund if payment was completed (servicer rejection = 100% refund)
+    if booking['payment_status'] == PaymentStatus.COMPLETED:
+        refund_amount = booking['total_amount']
+        
+        # Process refund based on payment method
+        if booking['payment_method'] == PaymentMethod.STRIPE:
+            try:
+                transaction = await db[Collections.TRANSACTIONS].find_one({
+                    "booking_id": ObjectId(request_id)
+                })
+                
+                if transaction and transaction.get('stripe_payment_intent_id'):
+                    refund = stripe.Refund.create(
+                        payment_intent=transaction['stripe_payment_intent_id']
+                    )
+                    
+                    await db[Collections.TRANSACTIONS].update_one(
+                        {"_id": transaction['_id']},
+                        {
+                            "$set": {
+                                "transaction_status": PaymentStatus.REFUNDED,
+                                "refund_amount": refund_amount,
+                                "refunded_at": datetime.utcnow()
+                            }
+                        }
+                    )
+                    
+                    refund_info = {
+                        "method": "stripe",
+                        "amount": refund_amount,
+                        "percentage": 100,
+                        "status": "processed"
+                    }
+            except Exception as e:
+                print(f"Stripe refund failed: {e}")
+                # Fallback to wallet
+                await db[Collections.WALLETS].update_one(
+                    {"user_id": booking['user_id']},
+                    {
+                        "$inc": {"balance": refund_amount},
+                        "$set": {"last_transaction_at": datetime.utcnow()}
+                    }
+                )
+                
+                refund_info = {
+                    "method": "wallet",
+                    "amount": refund_amount,
+                    "percentage": 100,
+                    "status": "processed"
+                }
+        
+        elif booking['payment_method'] == PaymentMethod.WALLET:
+            await db[Collections.WALLETS].update_one(
+                {"user_id": booking['user_id']},
+                {
+                    "$inc": {"balance": refund_amount},
+                    "$set": {"last_transaction_at": datetime.utcnow()}
+                }
+            )
+            
+            refund_info = {
+                "method": "wallet",
+                "amount": refund_amount,
+                "percentage": 100,
+                "status": "processed"
+            }
+        
+        # Create refund transaction
+        if refund_info:
+            refund_transaction = {
+                "booking_id": ObjectId(request_id),
+                "user_id": booking['user_id'],
+                "transaction_type": TransactionType.REFUND,
+                "payment_method": booking['payment_method'],
+                "amount": refund_amount,
+                "transaction_status": PaymentStatus.COMPLETED,
+                "metadata": {
+                    "refund_percentage": 100,
+                    "reason": "Servicer rejected booking",
+                    "rejection_reason": rejection_reason
+                },
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            }
+            await db[Collections.TRANSACTIONS].insert_one(refund_transaction)
+            
+            # Update booking
+            await db[Collections.BOOKINGS].update_one(
+                {"_id": ObjectId(request_id)},
+                {
+                    "$set": {
+                        "refund_processed": True,
+                        "refund_amount": refund_amount,
+                        "refund_percentage": 100,
+                        "refunded_at": datetime.utcnow()
+                    }
+                }
+            )
+            
+            # Notify user about refund
+            await create_notification(
+                str(booking['user_id']),
+                NotificationTypes.PAYMENT,
+                "Full Refund Processed",
+                f"₹{refund_amount} has been refunded for booking #{booking['booking_number']} as servicer rejected the request"
+            )
+    
+    # Send rejection notification
+    await create_notification(
+        str(booking['user_id']),
+        NotificationTypes.BOOKING_UPDATE,
+        "Booking Rejected by Servicer",
+        f"Your booking #{booking['booking_number']} was rejected. Reason: {rejection_reason}"
+    )
+    
+    # Emit socket event
+    await sio.emit(
+        SocketEvents.BOOKING_REJECTED,
+        {"booking_id": request_id, "refund": refund_info},
+        room=f"user-{str(booking['user_id'])}"
+    )
+    
+    return SuccessResponse(
+        message=Messages.BOOKING_REJECTED,
+        data={
+            "booking_id": request_id,
+            "refund": refund_info or {"status": "no_payment_to_refund"}
+        }
+    )
+
+
+
+@app.get("/api/servicer/transactions")
+async def get_servicer_transactions(
+    page: int = 1,
+    limit: int = 20,
+    transaction_type: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Get servicer's transaction history"""
+    query = {
+        "$or": [
+            {"user_id": ObjectId(current_user['_id'])},
+            {"servicer_id": ObjectId(servicer['_id'])}
+        ]
+    }
+    
+    if transaction_type:
+        query["transaction_type"] = transaction_type
+    
+    skip = (page - 1) * limit
+    
+    transactions = await db[Collections.TRANSACTIONS].find(query).sort(
+        "created_at", -1
+    ).skip(skip).limit(limit).to_list(limit)
+    
+    # Convert ObjectIds to strings
+    for txn in transactions:
+        txn['_id'] = str(txn['_id'])
+        txn['user_id'] = str(txn['user_id'])
+        if txn.get('booking_id'):
+            txn['booking_id'] = str(txn['booking_id'])
+            # Get booking number
+            booking = await db[Collections.BOOKINGS].find_one({"_id": ObjectId(txn['booking_id'])})
+            txn['booking_number'] = booking.get('booking_number') if booking else None
+        if txn.get('servicer_id'):
+            txn['servicer_id'] = str(txn['servicer_id'])
+    
+    total = await db[Collections.TRANSACTIONS].count_documents(query)
+    
+    return {
+        "transactions": transactions,
+        "total": total,
+        "page": page,
+        "pages": math.ceil(total / limit)
+    }
+# 3. ADD NEW ENDPOINT TO GET REFUND POLICY
+@app.get("/api/public/refund-policy")
+async def get_refund_policy():
+    """Get refund policy details"""
+    return {
+        "policy": {
+            "24_hours_or_more": {
+                "percentage": 100,
+                "description": "Full refund if cancelled 24 hours or more before booking"
+            },
+            "12_to_24_hours": {
+                "percentage": 75,
+                "description": "75% refund if cancelled between 12-24 hours before booking"
+            },
+            "6_to_12_hours": {
+                "percentage": 50,
+                "description": "50% refund if cancelled between 6-12 hours before booking"
+            },
+            "2_to_6_hours": {
+                "percentage": 25,
+                "description": "25% refund if cancelled between 2-6 hours before booking"
+            },
+            "less_than_2_hours": {
+                "percentage": 0,
+                "description": "No refund if cancelled less than 2 hours before booking"
+            },
+            "servicer_rejection": {
+                "percentage": 100,
+                "description": "Full refund if servicer rejects the booking"
+            }
+        },
+        "refund_timeline": {
+            "stripe": "5-7 business days to your original payment method",
+            "wallet": "Instant credit to your wallet"
+        }
+    }
+
+
+# 4. ADD ENDPOINT TO CHECK REFUND ELIGIBILITY
+# Replace the check_refund_eligibility endpoint in main.py (around line 1800-1850)
+
+# Add with other background tasks (around line 8000)
+
+async def check_refund_deadlines():
+    """Check for servicer refund deadlines and mark as passed"""
+    try:
+        print("⏰ Checking refund deadlines...")
+        
+        # Find bookings where deadline passed but not yet marked
+        bookings = await db[Collections.BOOKINGS].find({
+            "requires_servicer_refund": True,
+            "refund_processed": False,
+            "servicer_refund_deadline": {"$lte": datetime.utcnow()},
+            "deadline_passed": False
+        }).to_list(100)
+        
+        for booking in bookings:
+            # Mark deadline as passed
+            await db[Collections.BOOKINGS].update_one(
+                {"_id": booking['_id']},
+                {"$set": {"deadline_passed": True}}
+            )
+            
+            # Get booking details
+            user = await db[Collections.USERS].find_one({"_id": booking['user_id']})
+            servicer_doc = await db[Collections.SERVICERS].find_one({"_id": booking['servicer_id']})
+            servicer_user = await db[Collections.USERS].find_one({"_id": servicer_doc['user_id']}) if servicer_doc else None
+            
+            # Notify user they can now report
+            await create_notification(
+                str(booking['user_id']),
+                NotificationTypes.SYSTEM,
+                "⏰ Refund Deadline Passed",
+                f"Servicer missed the 48-hour deadline for booking #{booking['booking_number']}. You can now report this issue to admin."
+            )
+            
+            # Send email to user
+            if user:
+                await send_email(
+                    user['email'],
+                    "⏰ Refund Deadline Passed - Action Available",
+                    f"""
+                    <html>
+                        <body style="font-family: Arial, sans-serif; padding: 20px;">
+                            <h2 style="color: #f59e0b;">Refund Deadline Passed</h2>
+                            <p>The servicer has not processed your refund within 48 hours for booking #{booking['booking_number']}</p>
+                            <div style="background-color: #fffbeb; padding: 15px; border-left: 4px solid #f59e0b; margin: 20px 0;">
+                                <p><strong>Expected Refund:</strong> ₹{booking.get('expected_refund_amount', 0)}</p>
+                                <p><strong>Deadline Was:</strong> {booking['servicer_refund_deadline'].strftime('%Y-%m-%d %H:%M')}</p>
+                            </div>
+                            <p>You can now report this issue to admin who will process your refund and take action against the servicer.</p>
+                            <a href="http://localhost:5173/user/bookings" style="display: inline-block; background-color: #f59e0b; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+                                Report Issue
+                            </a>
+                        </body>
+                    </html>
+                    """
+                )
+            
+            # Warn servicer (urgent)
+            if servicer_user:
+                await create_notification(
+                    str(servicer_user['_id']),
+                    NotificationTypes.SYSTEM,
+                    "🚨 URGENT: Refund Deadline Missed",
+                    f"You missed the 48-hour refund deadline for #{booking['booking_number']}. Process immediately to avoid admin penalties and account restrictions."
+                )
+                
+                await send_email(
+                    servicer_user['email'],
+                    "🚨 URGENT: Refund Deadline Violation",
+                    f"""
+                    <html>
+                        <body style="font-family: Arial, sans-serif; padding: 20px;">
+                            <div style="background-color: #fee2e2; padding: 20px; border-left: 4px solid #dc2626;">
+                                <h2 style="color: #dc2626;">⚠️ Deadline Violation</h2>
+                                <p>You have missed the 48-hour refund deadline for booking #{booking['booking_number']}</p>
+                                <p><strong>Refund Amount:</strong> ₹{booking.get('expected_refund_amount', 0)}</p>
+                            </div>
+                            <p style="color: #dc2626; margin-top: 20px;"><strong>Consequences:</strong></p>
+                            <ul style="color: #dc2626;">
+                                <li>User can now report this issue to admin</li>
+                                <li>Admin may process refund directly</li>
+                                <li>Your account may receive penalties</li>
+                                <li>Repeated violations may lead to suspension</li>
+                            </ul>
+                            <p style="margin-top: 20px;">Process the refund immediately in your dashboard to minimize impact.</p>
+                        </body>
+                    </html>
+                    """
+                )
+            
+            print(f"⏰ Deadline passed for booking {booking['booking_number']}")
+            
+        print(f"✅ Deadline check complete. {len(bookings)} deadlines marked as passed")
+        
+    except Exception as e:
+        print(f"❌ Deadline check error: {e}")
+
+@app.get("/api/user/bookings/{booking_id}/refund-eligibility")
+async def check_refund_eligibility(
+    booking_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Check if booking is eligible for refund and calculate amount"""
+    
+    # ✅ FIX: Reject reserved words BEFORE ObjectId validation
+    if booking_id in ['create', 'stats', 'history', 'refund-eligibility']:
+        raise HTTPException(
+            status_code=400, 
+            detail="Invalid booking ID"
+        )
+    
+    # ✅ FIX: Validate ObjectId format
+    if not ObjectId.is_valid(booking_id):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid booking ID format"
+        )
+    
+    booking = await db[Collections.BOOKINGS].find_one({
+        "_id": ObjectId(booking_id),
+        "user_id": ObjectId(current_user['_id'])
+    })
+    
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    # Check if already refunded
+    if booking.get('refund_processed'):
+        return {
+            "eligible": False,
+            "reason": "Refund already processed",
+            "refund_amount": booking.get('refund_amount', 0),
+            "refunded_at": booking.get('refunded_at')
+        }
+    
+    # Check booking status
+    if booking['booking_status'] not in [BookingStatus.PENDING, BookingStatus.ACCEPTED]:
+        return {
+            "eligible": False,
+            "reason": f"Cannot cancel booking in {booking['booking_status']} status"
+        }
+    
+    # Check if payment was completed
+    if booking['payment_status'] != PaymentStatus.COMPLETED:
+        return {
+            "eligible": True,
+            "can_cancel": True,
+            "refund_amount": 0,
+            "reason": "No payment to refund"
+        }
+    
+    # Calculate refund based on time remaining
+    booking_date = datetime.fromisoformat(booking['booking_date'])
+    hours_before = (booking_date - datetime.utcnow()).total_seconds() / 3600
+    
+    refund_percentage = 0
+    policy_applied = ""
+    
+    if hours_before >= 24:
+        refund_percentage = 100
+        policy_applied = "24+ hours before booking"
+    elif hours_before >= 12:
+        refund_percentage = 75
+        policy_applied = "12-24 hours before booking"
+    elif hours_before >= 6:
+        refund_percentage = 50
+        policy_applied = "6-12 hours before booking"
+    elif hours_before >= 2:
+        refund_percentage = 25
+        policy_applied = "2-6 hours before booking"
+    else:
+        refund_percentage = 0
+        policy_applied = "Less than 2 hours before booking"
+    
+    refund_amount = booking['total_amount'] * (refund_percentage / 100)
+    
+    return {
+        "eligible": True,
+        "can_cancel": True,
+        "refund_amount": round(refund_amount, 2),
+        "refund_percentage": refund_percentage,
+        "policy_applied": policy_applied,
+        "hours_until_booking": round(hours_before, 1),
+        "payment_method": booking['payment_method'],
+        "refund_method": "Wallet - Instant" if booking['payment_method'] == PaymentMethod.WALLET else "Original payment method - 5-7 days",
+        "processing_time": "Instant" if booking['payment_method'] == PaymentMethod.WALLET else "5-7 business days"
+    }
 @app.get("/api/user/bookings/history")
 async def get_booking_history(
     page: int = 1,
@@ -1484,6 +2168,122 @@ async def get_user_dashboard(current_user: dict = Depends(get_current_user)):
         "unread_notifications": unread_notifications,
         "recent_bookings": recent_bookings
     }
+# @app.get("/api/user/servicers/search")
+# async def search_servicers(
+#     category: Optional[str] = None,
+#     lat: Optional[float] = None,
+#     lng: Optional[float] = None,
+#     radius: float = 10.0,
+#     min_rating: Optional[float] = None,
+#     page: int = 1,
+#     limit: int = 20,
+#     current_user: dict = Depends(get_current_user)
+# ):
+#     """Search servicers with filters"""
+#     query = {"verification_status": VerificationStatus.APPROVED}
+    
+#     # ✅ IMPROVED: Handle both ObjectId and string category IDs
+#     if category:
+#         # Try to convert to ObjectId, fall back to string comparison
+#         try:
+#             category_obj = ObjectId(category)
+#             # Search for either ObjectId or string version
+#             query["service_categories"] = {
+#                 "$in": [category_obj, category]
+#             }
+#             print(f"🔍 Searching for category: {category} (as ObjectId: {category_obj})")
+#         except:
+#             # If not a valid ObjectId, search as string only
+#             query["service_categories"] = {"$in": [category]}
+#             print(f"🔍 Searching for category: {category} (as string)")
+    
+#     if min_rating:
+#         query["average_rating"] = {"$gte": min_rating}
+    
+#     # ✅ Debug logging
+#     print(f"🔍 Full search query: {query}")
+#     print(f"📍 Location: lat={lat}, lng={lng}, radius={radius}km")
+    
+#     skip = (page - 1) * limit
+    
+#     # ✅ First, let's see ALL servicers to debug
+#     all_servicers = await db[Collections.SERVICERS].find(
+#         {"verification_status": VerificationStatus.APPROVED}
+#     ).to_list(100)
+    
+#     print(f"📊 Total approved servicers in DB: {len(all_servicers)}")
+#     for s in all_servicers[:3]:  # Print first 3 for debugging
+#         print(f"  - Servicer {s.get('_id')}: categories={s.get('service_categories')}")
+    
+#     servicers = await db[Collections.SERVICERS].find(query).skip(skip).limit(limit).to_list(limit)
+    
+#     print(f"📊 Found {len(servicers)} servicers matching query")
+    
+#     result = []
+#     for servicer in servicers:
+#         # Fetch user from users collection
+#         user = await db[Collections.USERS].find_one({"_id": servicer['user_id']})
+        
+#         if not user:
+#             print(f"  ⚠️ User not found for servicer {servicer['_id']}")
+#             continue
+        
+#         # Build clean servicer data with all ObjectIds converted to strings
+#         servicer_data = {
+#             '_id': str(servicer['_id']),
+#             'user_id': str(servicer['user_id']),
+#             'user_name': user.get('name', ''),
+#             'user_email': user.get('email', ''),
+#             'user_phone': user.get('phone', ''),
+#             'profile_image_url': user.get('profile_image_url', ''),
+#             'service_categories': [
+#                 str(cat) if isinstance(cat, ObjectId) else cat 
+#                 for cat in servicer.get('service_categories', [])
+#             ],
+#             'experience_years': servicer.get('experience_years', 0),
+#             'verification_status': servicer.get('verification_status'),
+#             'average_rating': float(servicer.get('average_rating', 0.0)),
+#             'total_ratings': servicer.get('total_ratings', 0),
+#             'total_jobs_completed': servicer.get('total_jobs_completed', 0),
+#             'service_radius_km': float(servicer.get('service_radius_km', 10.0)),
+#             'availability_status': servicer.get('availability_status', 'offline'),
+#         }
+        
+#         # Calculate distance if coordinates provided
+#         if lat and lng and user.get('latitude') and user.get('longitude'):
+#             try:
+#                 distance = calculate_distance(lat, lng, user['latitude'], user['longitude'])
+#                 servicer_data['distance_km'] = round(distance, 2)
+                
+#                 # Filter by radius
+#                 if distance > radius:
+#                     print(f"  ⏭️ Skipping {user.get('name')} - distance {distance}km > radius {radius}km")
+#                     continue
+#                 else:
+#                     print(f"  ✅ Including {user.get('name')} - distance {distance}km")
+                    
+#             except Exception as e:
+#                 print(f"  ⚠️ Distance calculation error for {user.get('name')}: {e}")
+#                 pass
+#         else:
+#             # If no location provided, include all servicers
+#             servicer_data['distance_km'] = None
+#             print(f"  ✅ Including {user.get('name')} - no location filter")
+        
+#         result.append(servicer_data)
+    
+#     print(f"✅ Returning {len(result)} servicers after distance filter")
+#     if len(result) > 0:
+#         print(f"   First servicer: {result[0]['user_name']} with categories: {result[0]['service_categories']}")
+    
+#     total = await db[Collections.SERVICERS].count_documents(query)
+    
+#     return {
+#         "servicers": result,
+#         "total": total,
+#         "page": page,
+#         "pages": math.ceil(total / limit)
+#     }
 @app.get("/api/user/servicers/search")
 async def search_servicers(
     category: Optional[str] = None,
@@ -1495,42 +2295,33 @@ async def search_servicers(
     limit: int = 20,
     current_user: dict = Depends(get_current_user)
 ):
-    """Search servicers with filters"""
-    query = {"verification_status": VerificationStatus.APPROVED}
+    """Search servicers with filters - EXCLUDES BLOCKED SERVICERS"""
     
-    # ✅ IMPROVED: Handle both ObjectId and string category IDs
+    # ✅ Base query: Only approved servicers
+    query = {
+        "verification_status": VerificationStatus.APPROVED
+    }
+    
+    # ✅ Handle category filtering (both ObjectId and string formats)
     if category:
-        # Try to convert to ObjectId, fall back to string comparison
         try:
             category_obj = ObjectId(category)
-            # Search for either ObjectId or string version
-            query["service_categories"] = {
-                "$in": [category_obj, category]
-            }
+            query["service_categories"] = {"$in": [category_obj, category]}
             print(f"🔍 Searching for category: {category} (as ObjectId: {category_obj})")
         except:
-            # If not a valid ObjectId, search as string only
             query["service_categories"] = {"$in": [category]}
             print(f"🔍 Searching for category: {category} (as string)")
     
+    # ✅ Rating filter
     if min_rating:
         query["average_rating"] = {"$gte": min_rating}
     
-    # ✅ Debug logging
     print(f"🔍 Full search query: {query}")
     print(f"📍 Location: lat={lat}, lng={lng}, radius={radius}km")
     
     skip = (page - 1) * limit
     
-    # ✅ First, let's see ALL servicers to debug
-    all_servicers = await db[Collections.SERVICERS].find(
-        {"verification_status": VerificationStatus.APPROVED}
-    ).to_list(100)
-    
-    print(f"📊 Total approved servicers in DB: {len(all_servicers)}")
-    for s in all_servicers[:3]:  # Print first 3 for debugging
-        print(f"  - Servicer {s.get('_id')}: categories={s.get('service_categories')}")
-    
+    # Fetch servicers matching query
     servicers = await db[Collections.SERVICERS].find(query).skip(skip).limit(limit).to_list(limit)
     
     print(f"📊 Found {len(servicers)} servicers matching query")
@@ -1544,7 +2335,12 @@ async def search_servicers(
             print(f"  ⚠️ User not found for servicer {servicer['_id']}")
             continue
         
-        # Build clean servicer data with all ObjectIds converted to strings
+        # ✅ CRITICAL: Filter out BLOCKED users only
+        if user.get('is_blocked', False):
+            print(f"  🚫 Skipping {user.get('name')} - Account is blocked")
+            continue
+        
+        # Build clean servicer data
         servicer_data = {
             '_id': str(servicer['_id']),
             'user_id': str(servicer['user_id']),
@@ -1565,7 +2361,7 @@ async def search_servicers(
             'availability_status': servicer.get('availability_status', 'offline'),
         }
         
-        # Calculate distance if coordinates provided
+        # ✅ Calculate distance if coordinates provided
         if lat and lng and user.get('latitude') and user.get('longitude'):
             try:
                 distance = calculate_distance(lat, lng, user['latitude'], user['longitude'])
@@ -1580,25 +2376,22 @@ async def search_servicers(
                     
             except Exception as e:
                 print(f"  ⚠️ Distance calculation error for {user.get('name')}: {e}")
-                pass
+                servicer_data['distance_km'] = None
         else:
-            # If no location provided, include all servicers
             servicer_data['distance_km'] = None
             print(f"  ✅ Including {user.get('name')} - no location filter")
         
         result.append(servicer_data)
     
-    print(f"✅ Returning {len(result)} servicers after distance filter")
+    print(f"✅ Returning {len(result)} servicers after all filters")
     if len(result) > 0:
         print(f"   First servicer: {result[0]['user_name']} with categories: {result[0]['service_categories']}")
     
-    total = await db[Collections.SERVICERS].count_documents(query)
-    
     return {
         "servicers": result,
-        "total": total,
+        "total": len(result),
         "page": page,
-        "pages": math.ceil(total / limit)
+        "pages": math.ceil(len(result) / limit) if limit > 0 else 0
     }
 @app.post("/api/payments/check-status/{payment_intent_id}")
 async def check_payment_status(
@@ -1732,162 +2525,7 @@ async def get_servicer_details(servicer_id: str, current_user: dict = Depends(ge
         print(f"Error in get_servicer_details: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-# @app.post("/api/user/bookings", response_model=SuccessResponse)
-# async def create_booking(booking_data: BookingCreate, current_user: dict = Depends(get_current_user)):
-#     """Create new service booking"""
-#     # ... existing code for validation ...
-    
-#     servicer = await db[Collections.SERVICERS].find_one({
-#         "_id": ObjectId(booking_data.servicer_id),
-#         "verification_status": VerificationStatus.APPROVED
-#     })
-#     if not servicer:
-#         raise HTTPException(status_code=404, detail="Servicer not found or not verified")
-    
-#     category = await db[Collections.SERVICE_CATEGORIES].find_one({"_id": ObjectId(booking_data.service_category_id)})
-#     if not category:
-#         raise HTTPException(status_code=404, detail="Service category not found")
-    
-#     pricing = await db[Collections.SERVICER_PRICING].find_one({
-#         "servicer_id": ObjectId(booking_data.servicer_id),
-#         "category_id": ObjectId(booking_data.service_category_id)
-#     })
-    
-#     base_amount = pricing.get('fixed_price') if pricing and pricing.get('fixed_price') else category['base_price']
-#     platform_fee = calculate_platform_fee(base_amount)
-#     servicer_amount = calculate_servicer_amount(base_amount, platform_fee)
-    
-#     # Create booking
-#     booking_dict = booking_data.dict()
-#     booking_dict['booking_number'] = generate_booking_number()
-#     booking_dict['user_id'] = ObjectId(current_user['_id'])
-#     booking_dict['servicer_id'] = ObjectId(booking_data.servicer_id)
-#     booking_dict['service_category_id'] = ObjectId(booking_data.service_category_id)
-#     booking_dict['service_type'] = category['name']
-#     booking_dict['total_amount'] = base_amount
-#     booking_dict['platform_fee'] = platform_fee
-#     booking_dict['servicer_amount'] = servicer_amount
-#     booking_dict['booking_status'] = BookingStatus.PENDING
-#     booking_dict['payment_status'] = PaymentStatus.PENDING
-#     booking_dict['created_at'] = datetime.utcnow()
-#     booking_dict['updated_at'] = datetime.utcnow()
-    
-#     result = await db[Collections.BOOKINGS].insert_one(booking_dict)
-#     booking_id = str(result.inserted_id)
-    
-#     # Create transaction
-#     transaction = {
-#         "booking_id": ObjectId(booking_id),
-#         "user_id": ObjectId(current_user['_id']),
-#         "servicer_id": ObjectId(booking_data.servicer_id),
-#         "transaction_type": TransactionType.BOOKING_PAYMENT,
-#         "payment_method": booking_data.payment_method,
-#         "amount": base_amount,
-#         "platform_fee": platform_fee,
-#         "servicer_earnings": servicer_amount,
-#         "transaction_status": PaymentStatus.PENDING,
-#         "created_at": datetime.utcnow(),
-#         "updated_at": datetime.utcnow()
-#     }
-    
-#     # Handle different payment methods
-#     response_data = {
-#         "booking_id": booking_id,
-#         "booking_number": booking_dict['booking_number'],
-#         "total_amount": base_amount
-#     }
-    
-#     if booking_data.payment_method == PaymentMethod.STRIPE:
-#         try:
-#             # Create Stripe Payment Intent
-#             payment_intent = stripe.PaymentIntent.create(
-#                 amount=int(base_amount * 100),  # Convert to paise
-#                 currency=settings.STRIPE_CURRENCY,
-#                 metadata={
-#                     'booking_id': booking_id,
-#                     'user_id': current_user['_id'],
-#                     'purpose': 'booking_payment'
-#                 },
-#                 automatic_payment_methods={'enabled': True}
-#             )
-            
-#             # Update transaction with Stripe ID
-#             transaction['stripe_payment_intent_id'] = payment_intent.id
-#             await db[Collections.TRANSACTIONS].insert_one(transaction)
-            
-#             response_data['payment'] = {
-#                 'client_secret': payment_intent.client_secret,
-#                 'payment_intent_id': payment_intent.id,
-#                 'publishable_key': settings.STRIPE_PUBLISHABLE_KEY
-#             }
-            
-#         except stripe.error.StripeError as e:
-#             # Rollback booking if payment intent creation fails
-#             await db[Collections.BOOKINGS].delete_one({"_id": ObjectId(booking_id)})
-#             raise HTTPException(status_code=400, detail=f"Payment setup failed: {str(e)}")
-    
-#     elif booking_data.payment_method == PaymentMethod.WALLET:
-#         # Check wallet balance
-#         wallet = await db[Collections.WALLETS].find_one({"user_id": ObjectId(current_user['_id'])})
-        
-#         if not wallet or wallet['balance'] < base_amount:
-#             await db[Collections.BOOKINGS].delete_one({"_id": ObjectId(booking_id)})
-#             raise HTTPException(status_code=400, detail=Messages.INSUFFICIENT_BALANCE)
-        
-#         # Deduct from wallet immediately
-#         await db[Collections.WALLETS].update_one(
-#             {"user_id": ObjectId(current_user['_id'])},
-#             {
-#                 "$inc": {"balance": -base_amount, "total_spent": base_amount},
-#                 "$set": {"last_transaction_at": datetime.utcnow()}
-#             }
-#         )
-        
-#         # Mark transaction as completed
-#         transaction['transaction_status'] = PaymentStatus.COMPLETED
-#         await db[Collections.TRANSACTIONS].insert_one(transaction)
-        
-#         # Update booking payment status
-#         await db[Collections.BOOKINGS].update_one(
-#             {"_id": ObjectId(booking_id)},
-#             {"$set": {"payment_status": PaymentStatus.COMPLETED}}
-#         )
-        
-#         response_data['payment'] = {'method': 'wallet', 'status': 'completed'}
-    
-#     elif booking_data.payment_method == PaymentMethod.CASH:
-#         # Cash on service - no immediate payment
-#         await db[Collections.TRANSACTIONS].insert_one(transaction)
-#         response_data['payment'] = {'method': 'cash', 'status': 'pending'}
-    
-#     # Send notifications
-#     await create_notification(
-#         current_user['_id'],
-#         NotificationTypes.BOOKING_UPDATE,
-#         "Booking Created",
-#         f"Your booking #{booking_dict['booking_number']} has been created successfully"
-#     )
-    
-#     servicer_user = await db[Collections.USERS].find_one({"_id": servicer['user_id']})
-#     await create_notification(
-#         str(servicer['user_id']),
-#         NotificationTypes.BOOKING_UPDATE,
-#         "New Booking Request",
-#         f"New booking request from {current_user['name']}"
-#     )
-    
-#     # Emit socket event to servicer
-#     await sio.emit(
-#         SocketEvents.NEW_BOOKING_REQUEST,
-#         {"booking_id": booking_id, "booking_number": booking_dict['booking_number']},
-#         room=f"user-{str(servicer['user_id'])}"
-#     )
-    
-#     return SuccessResponse(
-#         message=Messages.BOOKING_CREATED,
-#         data=response_data
-#     )
-# Updated create_booking with better Stripe error handling
+
 
 def convert_objectids(doc):
     """Recursively convert ObjectIds and datetimes to JSON-serializable formats"""
@@ -1967,10 +2605,9 @@ async def get_booking_details(booking_id: str, current_user: dict = Depends(get_
     
     if not booking:
         raise HTTPException(status_code=404, detail=Messages.BOOKING_NOT_FOUND)
-    booking['_id'] = str(booking['_id'])
-    booking['user_id'] = str(booking['user_id'])
-    booking['servicer_id'] = str(booking['servicer_id'])
-    booking['service_category_id'] = str(booking['service_category_id'])
+    
+    # ✅ FIX: Use the convert_objectid_to_str helper function for ALL conversions
+    booking = convert_objectid_to_str(booking)
     
     # Get servicer details
     servicer = await db[Collections.SERVICERS].find_one({"_id": ObjectId(booking['servicer_id'])})
@@ -1981,7 +2618,7 @@ async def get_booking_details(booking_id: str, current_user: dict = Depends(get_
             "phone": user.get('phone', ''),
             "email": user.get('email', ''),
             "image": user.get('profile_image_url', ''),
-            "rating": servicer.get('average_rating', 0)
+            "rating": float(servicer.get('average_rating', 0))
         }
     
     # Get tracking data if service is in progress
@@ -1991,8 +2628,8 @@ async def get_booking_details(booking_id: str, current_user: dict = Depends(get_
             sort=[("created_at", -1)]
         )
         if tracking:
-            tracking['_id'] = str(tracking['_id'])
-            tracking['booking_id'] = str(tracking['booking_id'])
+            # ✅ FIX: Convert tracking ObjectIds too
+            tracking = convert_objectid_to_str(tracking)
             booking['tracking'] = tracking
     
     # Get chat messages count
@@ -2002,7 +2639,6 @@ async def get_booking_details(booking_id: str, current_user: dict = Depends(get_
     booking['messages_count'] = messages_count
     
     return booking
-
 @app.post("/api/user/bookings", response_model=SuccessResponse)
 async def create_booking(booking_data: BookingCreate, current_user: dict = Depends(get_current_user)):
     """Create new service booking - WITH DETAILED STRIPE ERROR HANDLING"""
@@ -2259,13 +2895,17 @@ async def create_booking(booking_data: BookingCreate, current_user: dict = Depen
         data=response_data
     )
 
+# Replace the cancel_booking endpoint in main.py (around line 1900-2000)
+
+# Around line 1800 - Update the cancel_booking endpoint
+
 @app.put("/api/user/bookings/{booking_id}/cancel")
 async def cancel_booking(
     booking_id: str,
     cancellation_reason: str = Form(...),
     current_user: dict = Depends(get_current_user)
 ):
-    """Cancel booking"""
+    """Cancel booking with automatic refund processing"""
     booking = await db[Collections.BOOKINGS].find_one({
         "_id": ObjectId(booking_id),
         "user_id": ObjectId(current_user['_id'])
@@ -2274,9 +2914,27 @@ async def cancel_booking(
     if not booking:
         raise HTTPException(status_code=404, detail=Messages.BOOKING_NOT_FOUND)
     
-    # Can only cancel if pending or accepted
     if booking['booking_status'] not in [BookingStatus.PENDING, BookingStatus.ACCEPTED]:
         raise HTTPException(status_code=400, detail=Messages.CANNOT_CANCEL_BOOKING)
+    
+    # Calculate refund
+    booking_date = datetime.fromisoformat(booking['booking_date'])
+    hours_before = (booking_date - datetime.utcnow()).total_seconds() / 3600
+    
+    refund_percentage = 0
+    if hours_before >= 24:
+        refund_percentage = 100
+    elif hours_before >= 12:
+        refund_percentage = 75
+    elif hours_before >= 6:
+        refund_percentage = 50
+    elif hours_before >= 2:
+        refund_percentage = 25
+    
+    refund_amount = booking['total_amount'] * (refund_percentage / 100) if refund_percentage > 0 else 0
+    
+    # ✅ NEW: Calculate servicer deadline (48 hours from now)
+    servicer_deadline = datetime.utcnow() + timedelta(hours=48)
     
     # Update booking
     await db[Collections.BOOKINGS].update_one(
@@ -2286,61 +2944,58 @@ async def cancel_booking(
                 "booking_status": BookingStatus.CANCELLED,
                 "cancellation_reason": cancellation_reason,
                 "cancelled_by": ObjectId(current_user['_id']),
-                "updated_at": datetime.utcnow()
+                "cancelled_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+                "refund_percentage": refund_percentage,
+                "expected_refund_amount": refund_amount,
+                "refund_processed": False,
+                "requires_servicer_refund": True,
+                # ✅ NEW FIELDS
+                "servicer_refund_deadline": servicer_deadline,
+                "deadline_passed": False,
+                "issue_reported_by_user": False
             }
         }
     )
     
-    # Process refund if payment was completed
-    if booking['payment_status'] == PaymentStatus.COMPLETED:
-        if booking['payment_method'] == PaymentMethod.STRIPE:
-            # Process Stripe refund
-            transaction = await db[Collections.TRANSACTIONS].find_one({"booking_id": ObjectId(booking_id)})
-            if transaction and transaction.get('stripe_payment_intent_id'):
-                try:
-                    refund = stripe.Refund.create(
-                        payment_intent=transaction['stripe_payment_intent_id']
-                    )
-                    
-                    # Update transaction
-                    await db[Collections.TRANSACTIONS].update_one(
-                        {"_id": transaction['_id']},
-                        {"$set": {"transaction_status": PaymentStatus.REFUNDED}}
-                    )
-                except Exception as e:
-                    print(f"Refund failed: {e}")
-        
-        elif booking['payment_method'] == PaymentMethod.WALLET:
-            # Refund to wallet
-            await db[Collections.WALLETS].update_one(
-                {"user_id": ObjectId(current_user['_id'])},
-                {"$inc": {"balance": booking['total_amount']}}
-            )
+    refund_info = None
     
-    # Send notifications
+    if booking['payment_status'] == PaymentStatus.COMPLETED and refund_percentage > 0:
+        # Notify servicer
+        servicer = await db[Collections.SERVICERS].find_one({"_id": ObjectId(booking['servicer_id'])})
+        if servicer:
+            await create_notification(
+                str(servicer['user_id']),
+                NotificationTypes.BOOKING_UPDATE,
+                "⚠️ Refund Required - 48 Hour Deadline",
+                f"User cancelled booking #{booking['booking_number']}. Process {refund_percentage}% refund (₹{refund_amount}) within 48 hours or issue will be escalated."
+            )
+        
+        refund_info = {
+            "method": "pending_servicer_approval",
+            "amount": refund_amount,
+            "percentage": refund_percentage,
+            "status": "pending",
+            "deadline": servicer_deadline.isoformat(),
+            "message": f"Refund request sent to servicer. Expected: ₹{refund_amount} ({refund_percentage}%)"
+        }
+    
+    # Notify user
     await create_notification(
         current_user['_id'],
         NotificationTypes.BOOKING_UPDATE,
         "Booking Cancelled",
-        f"Your booking #{booking['booking_number']} has been cancelled"
+        f"Your booking #{booking['booking_number']} cancelled. " + 
+        (f"Refund of ₹{refund_amount} will be processed by servicer within 48 hours." if refund_percentage > 0 else "No refund applicable.")
     )
     
-    servicer = await db[Collections.SERVICERS].find_one({"_id": ObjectId(booking['servicer_id'])})
-    await create_notification(
-        str(servicer['user_id']),
-        NotificationTypes.BOOKING_UPDATE,
-        "Booking Cancelled",
-        f"Booking #{booking['booking_number']} has been cancelled by user"
+    return SuccessResponse(
+        message=Messages.BOOKING_CANCELLED,
+        data={
+            "booking_id": booking_id,
+            "refund": refund_info or {"status": "no_payment_to_refund"}
+        }
     )
-    
-    # Emit socket event
-    await sio.emit(
-        SocketEvents.BOOKING_CANCELLED,
-        {"booking_id": booking_id},
-        room=f"user-{str(servicer['user_id'])}"
-    )
-    
-    return SuccessResponse(message=Messages.BOOKING_CANCELLED)
 
 @app.get("/api/user/bookings/{booking_id}/track")
 async def track_service(booking_id: str, current_user: dict = Depends(get_current_user)):
@@ -2469,6 +3124,238 @@ async def send_chat_message(
     )
     
     return message_dict
+
+# ============= PRE-BOOKING CHAT ENDPOINTS =============
+# Add after chat endpoints in main.py
+
+@app.post("/api/user/pre-booking-chat/create")
+async def create_pre_booking_chat(
+    servicer_id: str = Form(...),
+    initial_message: str = Form(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Create a pre-booking chat with a servicer"""
+    # Check if chat already exists
+    existing_chat = await db[Collections.PRE_BOOKING_CHATS].find_one({
+        "user_id": ObjectId(current_user['_id']),
+        "servicer_id": ObjectId(servicer_id),
+        "status": "active"
+    })
+    
+    if existing_chat:
+        return {
+            "chat_id": str(existing_chat['_id']),
+            "message": "Chat already exists"
+        }
+    
+    # Create new chat
+    chat = {
+        "user_id": ObjectId(current_user['_id']),
+        "servicer_id": ObjectId(servicer_id),
+        "status": "active",
+        "last_message_at": datetime.utcnow(),
+        "created_at": datetime.utcnow()
+    }
+    
+    result = await db[Collections.PRE_BOOKING_CHATS].insert_one(chat)
+    chat_id = str(result.inserted_id)
+    
+    # Send initial message
+    message = {
+        "chat_id": ObjectId(chat_id),
+        "sender_id": ObjectId(current_user['_id']),
+        "receiver_id": ObjectId(servicer_id),
+        "message_type": "text",
+        "message_text": initial_message,
+        "timestamp": datetime.utcnow(),
+        "created_at": datetime.utcnow(),
+        "is_read": False
+    }
+    
+    await db[Collections.PRE_BOOKING_MESSAGES].insert_one(message)
+    
+    # Notify servicer
+    servicer = await db[Collections.SERVICERS].find_one({"_id": ObjectId(servicer_id)})
+    await create_notification(
+        str(servicer['user_id']),
+        NotificationTypes.MESSAGE,
+        "New Chat Request",
+        f"{current_user['name']}: {initial_message[:100]}"
+    )
+    
+    return SuccessResponse(
+        message="Chat created successfully",
+        data={"chat_id": chat_id}
+    )
+
+
+@app.get("/api/user/pre-booking-chats")
+async def get_user_pre_booking_chats(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all pre-booking chats for user"""
+    chats = await db[Collections.PRE_BOOKING_CHATS].find({
+        "user_id": ObjectId(current_user['_id'])
+    }).sort("last_message_at", -1).to_list(100)
+    
+    result = []
+    for chat in chats:
+        # Get servicer details
+        servicer = await db[Collections.SERVICERS].find_one({"_id": chat['servicer_id']})
+        servicer_user = await db[Collections.USERS].find_one({"_id": servicer['user_id']})
+        
+        # Get last message
+        last_message = await db[Collections.PRE_BOOKING_MESSAGES].find_one(
+            {"chat_id": chat['_id']},
+            sort=[("created_at", -1)]
+        )
+        
+        # Count unread messages
+        unread_count = await db[Collections.PRE_BOOKING_MESSAGES].count_documents({
+            "chat_id": chat['_id'],
+            "receiver_id": ObjectId(current_user['_id']),
+            "is_read": False
+        })
+        
+        result.append({
+            "chat_id": str(chat['_id']),
+            "servicer_id": str(chat['servicer_id']),
+            "servicer_name": servicer_user.get('name'),
+            "servicer_image": servicer_user.get('profile_image_url'),
+            "servicer_rating": servicer.get('average_rating', 0),
+            "last_message": last_message.get('message_text') if last_message else None,
+            "last_message_at": chat.get('last_message_at'),
+            "unread_count": unread_count,
+            "status": chat.get('status')
+        })
+    
+    return {"chats": result}
+
+
+@app.get("/api/user/pre-booking-chats/{chat_id}/messages")
+async def get_pre_booking_chat_messages(
+    chat_id: str,
+    page: int = 1,
+    limit: int = 50,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get messages from a pre-booking chat"""
+    skip = (page - 1) * limit
+    
+    messages = await db[Collections.PRE_BOOKING_MESSAGES].find(
+        {"chat_id": ObjectId(chat_id)}
+    ).sort("created_at", 1).skip(skip).limit(limit).to_list(limit)
+    
+    for message in messages:
+        message['_id'] = str(message['_id'])
+        message['chat_id'] = str(message['chat_id'])
+        message['sender_id'] = str(message['sender_id'])
+        message['receiver_id'] = str(message['receiver_id'])
+    
+    return {"messages": messages}
+
+
+@app.post("/api/user/pre-booking-chats/{chat_id}/close")
+async def close_pre_booking_chat(
+    chat_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Close a pre-booking chat (when booking is created or user no longer interested)"""
+    result = await db[Collections.PRE_BOOKING_CHATS].update_one(
+        {
+            "_id": ObjectId(chat_id),
+            "user_id": ObjectId(current_user['_id'])
+        },
+        {"$set": {"status": "closed", "closed_at": datetime.utcnow()}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    return SuccessResponse(message="Chat closed successfully")
+
+
+# ============= SERVICER PRE-BOOKING CHAT ENDPOINTS =============
+
+@app.get("/api/servicer/pre-booking-chats")
+async def get_servicer_pre_booking_chats(
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Get all pre-booking chats for servicer"""
+    chats = await db[Collections.PRE_BOOKING_CHATS].find({
+        "servicer_id": ObjectId(servicer['_id'])
+    }).sort("last_message_at", -1).to_list(100)
+    
+    result = []
+    for chat in chats:
+        # Get user details
+        user = await db[Collections.USERS].find_one({"_id": chat['user_id']})
+        
+        # Get last message
+        last_message = await db[Collections.PRE_BOOKING_MESSAGES].find_one(
+            {"chat_id": chat['_id']},
+            sort=[("created_at", -1)]
+        )
+        
+        # Count unread messages
+        unread_count = await db[Collections.PRE_BOOKING_MESSAGES].count_documents({
+            "chat_id": chat['_id'],
+            "receiver_id": ObjectId(current_user['_id']),
+            "is_read": False
+        })
+        
+        result.append({
+            "chat_id": str(chat['_id']),
+            "user_id": str(chat['user_id']),
+            "user_name": user.get('name'),
+            "user_image": user.get('profile_image_url'),
+            "last_message": last_message.get('message_text') if last_message else None,
+            "last_message_at": chat.get('last_message_at'),
+            "unread_count": unread_count,
+            "status": chat.get('status')
+        })
+    
+    return {"chats": result}
+
+# ============= SERVICER AVAILABILITY SCHEDULE =============
+
+@app.post("/api/servicer/availability/schedule")
+async def set_availability_schedule(
+    schedule: dict = Form(...),  # {"monday": {"start": "09:00", "end": "17:00"}, ...}
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Set weekly availability schedule"""
+    availability = {
+        "servicer_id": ObjectId(servicer['_id']),
+        "schedule": schedule,
+        "updated_at": datetime.utcnow()
+    }
+    
+    await db[Collections.SERVICER_AVAILABILITY].update_one(
+        {"servicer_id": ObjectId(servicer['_id'])},
+        {"$set": availability},
+        upsert=True
+    )
+    
+    return SuccessResponse(message="Availability schedule updated")
+
+
+@app.get("/api/servicer/availability/schedule")
+async def get_availability_schedule(
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Get weekly availability schedule"""
+    availability = await db[Collections.SERVICER_AVAILABILITY].find_one(
+        {"servicer_id": ObjectId(servicer['_id'])}
+    )
+    
+    if not availability:
+        return {"schedule": {}}
+    
+    return {"schedule": availability.get('schedule', {})}
 @app.post("/api/user/bookings/{booking_id}/confirm-payment")
 async def confirm_cash_payment(
     booking_id: str,
@@ -3004,6 +3891,7 @@ async def get_tracking_history(
 # ============= ADDITIONAL USER ENDPOINTS =============
 
 # ============= 1. SEARCH & DISCOVERY ENHANCEMENTS =============
+
 
 @app.get("/api/user/servicers/nearby")
 async def get_nearby_servicers(
@@ -6108,6 +6996,54 @@ async def verify_otp_and_complete_service(
         }
     )
 
+@app.get("/api/user/bookings/{booking_id}/transaction-issue")
+async def get_booking_transaction_issue(
+    booking_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get transaction issue for a specific booking (if exists)"""
+    
+    try:
+        # Validate booking belongs to user
+        booking = await db[Collections.BOOKINGS].find_one({
+            "_id": ObjectId(booking_id),
+            "user_id": ObjectId(current_user['_id'])
+        })
+        
+        if not booking:
+            raise HTTPException(status_code=404, detail="Booking not found")
+        
+        # Find transaction issue for this booking
+        issue = await db[Collections.TRANSACTION_ISSUES].find_one({
+            "booking_id": ObjectId(booking_id),
+            "user_id": ObjectId(current_user['_id'])
+        })
+        
+        if not issue:
+            # No issue found - return 404 so frontend can skip
+            raise HTTPException(status_code=404, detail="No transaction issue found")
+        
+        # Convert ObjectIds to strings
+        issue = serialize_doc(issue)
+        
+        # Count unread messages in transaction issue chat
+        unread_messages = await db[Collections.TRANSACTION_ISSUE_MESSAGES].count_documents({
+            "issue_id": ObjectId(issue['_id']),
+            "sender_role": {"$ne": "user"},  # Messages not from user
+            "is_read_by_user": False
+        })
+        
+        issue['unread_messages'] = unread_messages
+        
+        return {
+            "issue": issue
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching transaction issue: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/user/bookings/{booking_id}/request-completion-otp")
 async def request_completion_otp_from_servicer(
@@ -6208,21 +7144,23 @@ async def update_location(
     
     return SuccessResponse(message="Location updated", data=tracking)
 
+# Around line 4200 - Update the complete_service endpoint
 @app.put("/api/servicer/services/{service_id}/complete")
 async def complete_service(
     service_id: str,
     current_user: dict = Depends(get_current_user),
     servicer: dict = Depends(get_current_servicer)
 ):
-    """Mark service as completed"""
+    """Mark service as completed AND credit wallet"""
     booking = await db[Collections.BOOKINGS].find_one({
         "_id": ObjectId(service_id),
         "servicer_id": ObjectId(servicer['_id']),
-        "booking_status": BookingStatus.IN_PROGRESS
+        "booking_status": BookingStatus.IN_PROGRESS,
+        "otp_verified": True  # OTP must be verified first
     })
     
     if not booking:
-        raise HTTPException(status_code=404, detail=Messages.BOOKING_NOT_FOUND)
+        raise HTTPException(status_code=404, detail="Booking not found or OTP not verified")
     
     # Update booking
     await db[Collections.BOOKINGS].update_one(
@@ -6242,21 +7180,25 @@ async def complete_service(
         {"$inc": {"total_jobs_completed": 1}}
     )
     
-    # If payment is cash, wait for user confirmation
-    # If payment is stripe and completed, credit servicer wallet
-    if booking['payment_status'] == PaymentStatus.COMPLETED and booking['payment_method'] != PaymentMethod.CASH:
+    # ✅ CREDIT SERVICER WALLET IF PAYMENT COMPLETED
+    if booking['payment_status'] == PaymentStatus.COMPLETED:
+        servicer_amount = booking.get('servicer_amount', 0)
+        
+        # Update servicer wallet
         await db[Collections.WALLETS].update_one(
             {"user_id": ObjectId(current_user['_id'])},
             {
                 "$inc": {
-                    "balance": booking['servicer_amount'],
-                    "total_earned": booking['servicer_amount']
+                    "balance": servicer_amount,
+                    "total_earned": servicer_amount
                 },
-                "$set": {"last_transaction_at": datetime.utcnow()}
+                "$set": {"last_transaction_at": datetime.utcnow(), "updated_at": datetime.utcnow()}
             }
         )
+        
+        print(f"✅ Credited ₹{servicer_amount} to servicer {current_user['_id']}")
     
-    # Send notification
+    # Send notifications
     await create_notification(
         str(booking['user_id']),
         NotificationTypes.BOOKING_UPDATE,
@@ -6264,15 +7206,13 @@ async def complete_service(
         f"Service for booking #{booking['booking_number']} has been completed"
     )
     
-    # Emit socket event
     await sio.emit(
         SocketEvents.SERVICE_COMPLETED,
         {"booking_id": service_id},
         room=f"user-{str(booking['user_id'])}"
     )
     
-    return SuccessResponse(message=Messages.BOOKING_COMPLETED)
-
+    return SuccessResponse(message="Service completed and wallet credited!")
 @app.get("/api/servicer/earnings")
 async def get_earnings(
     current_user: dict = Depends(get_current_user),
@@ -7127,6 +8067,443 @@ async def get_admin_dashboard(current_admin: dict = Depends(get_current_admin)):
         "pending_payout_amount": pending_payout_amount
     }
 
+
+# ============= PLATFORM ANALYTICS =============
+
+@app.get("/api/admin/analytics/overview")
+async def get_platform_analytics(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Get comprehensive platform analytics"""
+    from datetime import datetime as dt
+    
+    # Date range
+    if start_date and end_date:
+        start = dt.fromisoformat(start_date)
+        end = dt.fromisoformat(end_date)
+    else:
+        # Last 30 days by default
+        end = datetime.utcnow()
+        start = end - timedelta(days=30)
+    
+    # User growth
+    total_users = await db[Collections.USERS].count_documents({"role": UserRole.USER})
+    new_users = await db[Collections.USERS].count_documents({
+        "role": UserRole.USER,
+        "created_at": {"$gte": start, "$lte": end}
+    })
+    
+    # Servicer growth
+    total_servicers = await db[Collections.SERVICERS].count_documents({})
+    active_servicers = await db[Collections.SERVICERS].count_documents({
+        "verification_status": VerificationStatus.APPROVED
+    })
+    
+    # Booking stats
+    total_bookings = await db[Collections.BOOKINGS].count_documents({
+        "created_at": {"$gte": start, "$lte": end}
+    })
+    completed_bookings = await db[Collections.BOOKINGS].count_documents({
+        "booking_status": BookingStatus.COMPLETED,
+        "created_at": {"$gte": start, "$lte": end}
+    })
+    cancelled_bookings = await db[Collections.BOOKINGS].count_documents({
+        "booking_status": BookingStatus.CANCELLED,
+        "created_at": {"$gte": start, "$lte": end}
+    })
+    
+    # Revenue
+    completed_transactions = await db[Collections.TRANSACTIONS].find({
+        "transaction_status": PaymentStatus.COMPLETED,
+        "transaction_type": TransactionType.BOOKING_PAYMENT,
+        "created_at": {"$gte": start, "$lte": end}
+    }).to_list(10000)
+    
+    total_revenue = sum(t['amount'] for t in completed_transactions)
+    platform_fees = sum(t['platform_fee'] for t in completed_transactions)
+    servicer_earnings = sum(t['servicer_earnings'] for t in completed_transactions)
+    
+    # Top categories
+    pipeline = [
+        {"$match": {
+            "booking_status": BookingStatus.COMPLETED,
+            "created_at": {"$gte": start, "$lte": end}
+        }},
+        {"$group": {"_id": "$service_category_id", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 5}
+    ]
+    top_categories = await db[Collections.BOOKINGS].aggregate(pipeline).to_list(5)
+    
+    # Enrich with category names
+    for cat in top_categories:
+        category = await db[Collections.SERVICE_CATEGORIES].find_one({"_id": cat['_id']})
+        cat['category_name'] = category.get('name') if category else 'Unknown'
+        cat['_id'] = str(cat['_id'])
+    
+    # Top servicers
+    pipeline = [
+        {"$match": {
+            "booking_status": BookingStatus.COMPLETED,
+            "created_at": {"$gte": start, "$lte": end}
+        }},
+        {"$group": {"_id": "$servicer_id", "total_jobs": {"$sum": 1}, "total_earned": {"$sum": "$servicer_amount"}}},
+        {"$sort": {"total_jobs": -1}},
+        {"$limit": 5}
+    ]
+    top_servicers = await db[Collections.BOOKINGS].aggregate(pipeline).to_list(5)
+    
+    # Enrich with servicer names
+    for s in top_servicers:
+        servicer = await db[Collections.SERVICERS].find_one({"_id": s['_id']})
+        if servicer:
+            user = await db[Collections.USERS].find_one({"_id": servicer['user_id']})
+            s['servicer_name'] = user.get('name') if user else 'Unknown'
+        s['_id'] = str(s['_id'])
+    
+    # Daily booking trend
+    pipeline = [
+        {"$match": {"created_at": {"$gte": start, "$lte": end}}},
+        {"$group": {
+            "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}},
+            "count": {"$sum": 1}
+        }},
+        {"$sort": {"_id": 1}}
+    ]
+    daily_trend = await db[Collections.BOOKINGS].aggregate(pipeline).to_list(100)
+    
+    return {
+        "period": {"start": start.isoformat(), "end": end.isoformat()},
+        "users": {
+            "total": total_users,
+            "new": new_users
+        },
+        "servicers": {
+            "total": total_servicers,
+            "active": active_servicers
+        },
+        "bookings": {
+            "total": total_bookings,
+            "completed": completed_bookings,
+            "cancelled": cancelled_bookings,
+            "completion_rate": round((completed_bookings / total_bookings * 100) if total_bookings > 0 else 0, 2)
+        },
+        "revenue": {
+            "total": round(total_revenue, 2),
+            "platform_fees": round(platform_fees, 2),
+            "servicer_earnings": round(servicer_earnings, 2)
+        },
+        "top_categories": top_categories,
+        "top_servicers": top_servicers,
+        "daily_trend": daily_trend
+    }
+
+
+@app.get("/api/admin/analytics/revenue")
+async def get_revenue_analytics(
+    period: str = "month",  # day, week, month, year
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Get detailed revenue breakdown"""
+    # Calculate date range based on period
+    now = datetime.utcnow()
+    
+    if period == "day":
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    elif period == "week":
+        start = now - timedelta(days=7)
+    elif period == "month":
+        start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    else:  # year
+        start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    # Get all completed transactions
+    transactions = await db[Collections.TRANSACTIONS].find({
+        "transaction_status": PaymentStatus.COMPLETED,
+        "created_at": {"$gte": start, "$lte": now}
+    }).to_list(10000)
+    
+    # Calculate metrics
+    total_revenue = sum(t['amount'] for t in transactions)
+    platform_revenue = sum(t.get('platform_fee', 0) for t in transactions)
+    
+    # Group by payment method
+    by_payment_method = {}
+    for txn in transactions:
+        method = txn.get('payment_method', 'unknown')
+        by_payment_method[method] = by_payment_method.get(method, 0) + txn['amount']
+    
+    # Group by transaction type
+    by_type = {}
+    for txn in transactions:
+        txn_type = txn.get('transaction_type', 'unknown')
+        by_type[txn_type] = by_type.get(txn_type, 0) + txn['amount']
+    
+    return {
+        "period": period,
+        "total_revenue": round(total_revenue, 2),
+        "platform_revenue": round(platform_revenue, 2),
+        "transaction_count": len(transactions),
+        "average_transaction": round(total_revenue / len(transactions) if transactions else 0, 2),
+        "by_payment_method": by_payment_method,
+        "by_type": by_type
+    }
+
+# ============= ADMIN NOTIFICATION ENDPOINTS =============
+# Add after admin endpoints
+
+
+# ============= PLATFORM ANALYTICS =============
+
+@app.get("/api/admin/analytics/overview")
+async def get_platform_analytics(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Get comprehensive platform analytics"""
+    from datetime import datetime as dt
+    
+    # Date range
+    if start_date and end_date:
+        start = dt.fromisoformat(start_date)
+        end = dt.fromisoformat(end_date)
+    else:
+        # Last 30 days by default
+        end = datetime.utcnow()
+        start = end - timedelta(days=30)
+    
+    # User growth
+    total_users = await db[Collections.USERS].count_documents({"role": UserRole.USER})
+    new_users = await db[Collections.USERS].count_documents({
+        "role": UserRole.USER,
+        "created_at": {"$gte": start, "$lte": end}
+    })
+    
+    # Servicer growth
+    total_servicers = await db[Collections.SERVICERS].count_documents({})
+    active_servicers = await db[Collections.SERVICERS].count_documents({
+        "verification_status": VerificationStatus.APPROVED
+    })
+    
+    # Booking stats
+    total_bookings = await db[Collections.BOOKINGS].count_documents({
+        "created_at": {"$gte": start, "$lte": end}
+    })
+    completed_bookings = await db[Collections.BOOKINGS].count_documents({
+        "booking_status": BookingStatus.COMPLETED,
+        "created_at": {"$gte": start, "$lte": end}
+    })
+    cancelled_bookings = await db[Collections.BOOKINGS].count_documents({
+        "booking_status": BookingStatus.CANCELLED,
+        "created_at": {"$gte": start, "$lte": end}
+    })
+    
+    # Revenue
+    completed_transactions = await db[Collections.TRANSACTIONS].find({
+        "transaction_status": PaymentStatus.COMPLETED,
+        "transaction_type": TransactionType.BOOKING_PAYMENT,
+        "created_at": {"$gte": start, "$lte": end}
+    }).to_list(10000)
+    
+    total_revenue = sum(t['amount'] for t in completed_transactions)
+    platform_fees = sum(t['platform_fee'] for t in completed_transactions)
+    servicer_earnings = sum(t['servicer_earnings'] for t in completed_transactions)
+    
+    # Top categories
+    pipeline = [
+        {"$match": {
+            "booking_status": BookingStatus.COMPLETED,
+            "created_at": {"$gte": start, "$lte": end}
+        }},
+        {"$group": {"_id": "$service_category_id", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 5}
+    ]
+    top_categories = await db[Collections.BOOKINGS].aggregate(pipeline).to_list(5)
+    
+    # Enrich with category names
+    for cat in top_categories:
+        category = await db[Collections.SERVICE_CATEGORIES].find_one({"_id": cat['_id']})
+        cat['category_name'] = category.get('name') if category else 'Unknown'
+        cat['_id'] = str(cat['_id'])
+    
+    # Top servicers
+    pipeline = [
+        {"$match": {
+            "booking_status": BookingStatus.COMPLETED,
+            "created_at": {"$gte": start, "$lte": end}
+        }},
+        {"$group": {"_id": "$servicer_id", "total_jobs": {"$sum": 1}, "total_earned": {"$sum": "$servicer_amount"}}},
+        {"$sort": {"total_jobs": -1}},
+        {"$limit": 5}
+    ]
+    top_servicers = await db[Collections.BOOKINGS].aggregate(pipeline).to_list(5)
+    
+    # Enrich with servicer names
+    for s in top_servicers:
+        servicer = await db[Collections.SERVICERS].find_one({"_id": s['_id']})
+        if servicer:
+            user = await db[Collections.USERS].find_one({"_id": servicer['user_id']})
+            s['servicer_name'] = user.get('name') if user else 'Unknown'
+        s['_id'] = str(s['_id'])
+    
+    # Daily booking trend
+    pipeline = [
+        {"$match": {"created_at": {"$gte": start, "$lte": end}}},
+        {"$group": {
+            "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}},
+            "count": {"$sum": 1}
+        }},
+        {"$sort": {"_id": 1}}
+    ]
+    daily_trend = await db[Collections.BOOKINGS].aggregate(pipeline).to_list(100)
+    
+    return {
+        "period": {"start": start.isoformat(), "end": end.isoformat()},
+        "users": {
+            "total": total_users,
+            "new": new_users
+        },
+        "servicers": {
+            "total": total_servicers,
+            "active": active_servicers
+        },
+        "bookings": {
+            "total": total_bookings,
+            "completed": completed_bookings,
+            "cancelled": cancelled_bookings,
+            "completion_rate": round((completed_bookings / total_bookings * 100) if total_bookings > 0 else 0, 2)
+        },
+        "revenue": {
+            "total": round(total_revenue, 2),
+            "platform_fees": round(platform_fees, 2),
+            "servicer_earnings": round(servicer_earnings, 2)
+        },
+        "top_categories": top_categories,
+        "top_servicers": top_servicers,
+        "daily_trend": daily_trend
+    }
+
+
+@app.get("/api/admin/analytics/revenue")
+async def get_revenue_analytics(
+    period: str = "month",  # day, week, month, year
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Get detailed revenue breakdown"""
+    # Calculate date range based on period
+    now = datetime.utcnow()
+    
+    if period == "day":
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    elif period == "week":
+        start = now - timedelta(days=7)
+    elif period == "month":
+        start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    else:  # year
+        start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    # Get all completed transactions
+    transactions = await db[Collections.TRANSACTIONS].find({
+        "transaction_status": PaymentStatus.COMPLETED,
+        "created_at": {"$gte": start, "$lte": now}
+    }).to_list(10000)
+    
+    # Calculate metrics
+    total_revenue = sum(t['amount'] for t in transactions)
+    platform_revenue = sum(t.get('platform_fee', 0) for t in transactions)
+    
+    # Group by payment method
+    by_payment_method = {}
+    for txn in transactions:
+        method = txn.get('payment_method', 'unknown')
+        by_payment_method[method] = by_payment_method.get(method, 0) + txn['amount']
+    
+    # Group by transaction type
+    by_type = {}
+    for txn in transactions:
+        txn_type = txn.get('transaction_type', 'unknown')
+        by_type[txn_type] = by_type.get(txn_type, 0) + txn['amount']
+    
+    return {
+        "period": period,
+        "total_revenue": round(total_revenue, 2),
+        "platform_revenue": round(platform_revenue, 2),
+        "transaction_count": len(transactions),
+        "average_transaction": round(total_revenue / len(transactions) if transactions else 0, 2),
+        "by_payment_method": by_payment_method,
+        "by_type": by_type
+    }
+@app.post("/api/admin/notifications/broadcast")
+async def broadcast_notification(
+    title: str = Form(...),
+    message: str = Form(...),
+    target: str = Form(...),  # all, users, servicers
+    notification_type: str = Form("system"),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Send notification to all users or specific group"""
+    query = {}
+    
+    if target == "users":
+        query["role"] = UserRole.USER
+    elif target == "servicers":
+        query["role"] = UserRole.SERVICER
+    
+    users = await db[Collections.USERS].find(query).to_list(10000)
+    
+    notifications = []
+    for user in users:
+        notification = {
+            "user_id": user['_id'],
+            "notification_type": notification_type,
+            "title": title,
+            "message": message,
+            "is_read": False,
+            "metadata": {"broadcast": True, "admin_id": current_admin['_id']},
+            "created_at": datetime.utcnow()
+        }
+        notifications.append(notification)
+    
+    if notifications:
+        await db[Collections.NOTIFICATIONS].insert_many(notifications)
+    
+    # Create audit log
+    await db[Collections.AUDIT_LOGS].insert_one({
+        "admin_id": ObjectId(current_admin['_id']),
+        "action_type": "notification_broadcast",
+        "target_type": "notification",
+        "details": {"target": target, "recipients": len(notifications)},
+        "created_at": datetime.utcnow()
+    })
+    
+    return SuccessResponse(
+        message=f"Notification sent to {len(notifications)} users",
+        data={"recipients": len(notifications)}
+    )
+
+
+@app.get("/api/admin/notifications/stats")
+async def get_notification_stats(current_admin: dict = Depends(get_current_admin)):
+    """Get notification statistics"""
+    total = await db[Collections.NOTIFICATIONS].count_documents({})
+    unread = await db[Collections.NOTIFICATIONS].count_documents({"is_read": False})
+    
+    # Group by type
+    pipeline = [
+        {"$group": {"_id": "$notification_type", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}}
+    ]
+    by_type = await db[Collections.NOTIFICATIONS].aggregate(pipeline).to_list(10)
+    
+    return {
+        "total": total,
+        "unread": unread,
+        "by_type": by_type
+    }
 # Replace the get_pending_verifications endpoint in main.py with this:
 
 @app.get("/api/admin/verifications")
@@ -7372,6 +8749,7 @@ async def get_all_users(
         "pages": math.ceil(total / limit)
     }
 
+
 @app.get("/api/admin/users/{user_id}")
 async def get_user_details_admin(user_id: str, current_admin: dict = Depends(get_current_admin)):
     """Get detailed user profile and activity"""
@@ -7380,7 +8758,6 @@ async def get_user_details_admin(user_id: str, current_admin: dict = Depends(get
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    user['_id'] = str(user['_id'])
     user.pop('password_hash', None)
     
     # Get bookings count
@@ -7391,17 +8768,10 @@ async def get_user_details_admin(user_id: str, current_admin: dict = Depends(get
         {"user_id": ObjectId(user_id)}
     ).sort("created_at", -1).limit(10).to_list(10)
     
-    for txn in transactions:
-        txn['_id'] = str(txn['_id'])
-        txn['user_id'] = str(txn['user_id'])
-        if txn.get('booking_id'):
-            txn['booking_id'] = str(txn['booking_id'])
-    
     user['bookings_count'] = bookings_count
     user['recent_transactions'] = transactions
     
-    return user
-
+    return serialize_doc(user)
 @app.put("/api/admin/users/{user_id}/block")
 async def block_unblock_user(
     user_id: str,
@@ -7524,6 +8894,510 @@ async def get_all_transactions_admin(
         "page": page,
         "pages": math.ceil(total / limit)
     }
+
+
+# ============= TRANSACTION ISSUE CHAT ENDPOINTS =============
+# Add after transaction issues endpoints (around line 8500)
+
+@app.get("/api/admin/transaction-issues/{issue_id}/chat")
+async def get_transaction_issue_chat(
+    issue_id: str,
+    page: int = 1,
+    limit: int = 50,
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Get all chat messages for a transaction issue"""
+    
+    issue = await db[Collections.TRANSACTION_ISSUES].find_one({"_id": ObjectId(issue_id)})
+    if not issue:
+        raise HTTPException(status_code=404, detail="Transaction issue not found")
+    
+    skip = (page - 1) * limit
+    
+    # Get messages
+    messages = await db[Collections.TRANSACTION_ISSUE_MESSAGES].find(
+        {"issue_id": ObjectId(issue_id)}
+    ).sort("created_at", 1).skip(skip).limit(limit).to_list(limit)
+    
+    # Process messages
+    for message in messages:
+        message['_id'] = str(message['_id'])
+        message['issue_id'] = str(message['issue_id'])
+        message['sender_id'] = str(message['sender_id'])
+        
+        # Get sender details
+        sender = await db[Collections.USERS].find_one({"_id": ObjectId(message['sender_id'])})
+        if sender:
+            message['sender_name'] = sender.get('name', 'Unknown')
+            message['sender_role'] = sender.get('role', 'user')
+            message['sender_image'] = sender.get('profile_image_url', '')
+    
+    return {
+        "messages": messages,
+        "total": len(messages)
+    }
+
+
+@app.post("/api/admin/transaction-issues/{issue_id}/chat")
+async def send_transaction_issue_message_admin(
+    issue_id: str,
+    message_text: str = Form(...),
+    message_type: str = Form("text"),
+    attachments: Optional[List[UploadFile]] = File(None),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Admin sends message in transaction issue chat"""
+    
+    issue = await db[Collections.TRANSACTION_ISSUES].find_one({"_id": ObjectId(issue_id)})
+    if not issue:
+        raise HTTPException(status_code=404, detail="Transaction issue not found")
+    
+    # Upload attachments if any
+    attachment_urls = []
+    if attachments:
+        for file in attachments:
+            result = await upload_to_cloudinary(file, CloudinaryFolders.CHAT_ATTACHMENTS)
+            attachment_urls.append(result['url'])
+    
+    # Create message
+    message = {
+        "issue_id": ObjectId(issue_id),
+        "sender_id": ObjectId(current_admin['_id']),
+        "sender_role": "admin",
+        "message_type": message_type,
+        "message_text": message_text,
+        "attachments": attachment_urls,
+        "is_read_by_user": False,
+        "is_read_by_servicer": False,
+        "created_at": datetime.utcnow()
+    }
+    
+    result = await db[Collections.TRANSACTION_ISSUE_MESSAGES].insert_one(message)
+    
+    # Convert for response
+    message['_id'] = str(result.inserted_id)
+    message['issue_id'] = str(message['issue_id'])
+    message['sender_id'] = str(message['sender_id'])
+    message['sender_name'] = current_admin['name']
+    message['sender_image'] = current_admin.get('profile_image_url', '')
+    
+    # Notify user
+    await create_notification(
+        str(issue['user_id']),
+        NotificationTypes.MESSAGE,
+        "Admin Message - Transaction Issue",
+        f"Admin: {message_text[:100]}{'...' if len(message_text) > 100 else ''}",
+        metadata={"issue_id": issue_id}
+    )
+    
+    # Notify servicer if exists
+    if issue.get('servicer_id'):
+        await create_notification(
+            str(issue['servicer_id']),
+            NotificationTypes.MESSAGE,
+            "Admin Message - Transaction Issue",
+            f"Admin: {message_text[:100]}{'...' if len(message_text) > 100 else ''}",
+            metadata={"issue_id": issue_id}
+        )
+    
+    # Emit socket event
+    await sio.emit('transaction_issue_message', message, room=f"issue-{issue_id}")
+    
+    return message
+
+
+# ============= USER TRANSACTION ISSUE CHAT ENDPOINTS =============
+
+@app.get("/api/user/transaction-issues/{issue_id}/chat")
+async def get_transaction_issue_chat_user(
+    issue_id: str,
+    page: int = 1,
+    limit: int = 50,
+    current_user: dict = Depends(get_current_user)
+):
+    """User gets chat messages for their transaction issue"""
+    
+    issue = await db[Collections.TRANSACTION_ISSUES].find_one({
+        "_id": ObjectId(issue_id),
+        "user_id": ObjectId(current_user['_id'])
+    })
+    
+    if not issue:
+        raise HTTPException(status_code=404, detail="Transaction issue not found")
+    
+    skip = (page - 1) * limit
+    
+    messages = await db[Collections.TRANSACTION_ISSUE_MESSAGES].find(
+        {"issue_id": ObjectId(issue_id)}
+    ).sort("created_at", 1).skip(skip).limit(limit).to_list(limit)
+    
+    # Mark messages as read by user
+    await db[Collections.TRANSACTION_ISSUE_MESSAGES].update_many(
+        {
+            "issue_id": ObjectId(issue_id),
+            "sender_role": {"$ne": "user"},
+            "is_read_by_user": False
+        },
+        {"$set": {"is_read_by_user": True, "read_by_user_at": datetime.utcnow()}}
+    )
+    
+    # Process messages
+    for message in messages:
+        message['_id'] = str(message['_id'])
+        message['issue_id'] = str(message['issue_id'])
+        message['sender_id'] = str(message['sender_id'])
+        
+        sender = await db[Collections.USERS].find_one({"_id": ObjectId(message['sender_id'])})
+        if sender:
+            message['sender_name'] = sender.get('name', 'Unknown')
+            message['sender_role'] = sender.get('role', 'user')
+            message['sender_image'] = sender.get('profile_image_url', '')
+    
+    return {"messages": messages}
+
+
+@app.post("/api/user/transaction-issues/{issue_id}/chat")
+async def send_transaction_issue_message_user(
+    issue_id: str,
+    message_text: str = Form(...),
+    message_type: str = Form("text"),
+    attachments: Optional[List[UploadFile]] = File(None),
+    current_user: dict = Depends(get_current_user)
+):
+    """User sends message in transaction issue chat"""
+    
+    issue = await db[Collections.TRANSACTION_ISSUES].find_one({
+        "_id": ObjectId(issue_id),
+        "user_id": ObjectId(current_user['_id'])
+    })
+    
+    if not issue:
+        raise HTTPException(status_code=404, detail="Transaction issue not found")
+    
+    # Upload attachments
+    attachment_urls = []
+    if attachments:
+        for file in attachments:
+            result = await upload_to_cloudinary(file, CloudinaryFolders.CHAT_ATTACHMENTS)
+            attachment_urls.append(result['url'])
+    
+    message = {
+        "issue_id": ObjectId(issue_id),
+        "sender_id": ObjectId(current_user['_id']),
+        "sender_role": "user",
+        "message_type": message_type,
+        "message_text": message_text,
+        "attachments": attachment_urls,
+        "is_read_by_admin": False,
+        "is_read_by_servicer": False,
+        "created_at": datetime.utcnow()
+    }
+    
+    result = await db[Collections.TRANSACTION_ISSUE_MESSAGES].insert_one(message)
+    
+    message['_id'] = str(result.inserted_id)
+    message['issue_id'] = str(message['issue_id'])
+    message['sender_id'] = str(message['sender_id'])
+    message['sender_name'] = current_user['name']
+    message['sender_image'] = current_user.get('profile_image_url', '')
+    
+    # Notify admins
+    admins = await db[Collections.USERS].find({"role": UserRole.ADMIN}).to_list(100)
+    for admin in admins:
+        await create_notification(
+            str(admin['_id']),
+            NotificationTypes.MESSAGE,
+            "New Message - Transaction Issue",
+            f"{current_user['name']}: {message_text[:100]}",
+            metadata={"issue_id": issue_id}
+        )
+    
+    # Notify servicer if exists
+    if issue.get('servicer_id'):
+        await create_notification(
+            str(issue['servicer_id']),
+            NotificationTypes.MESSAGE,
+            "New Message - Transaction Issue",
+            f"User: {message_text[:100]}",
+            metadata={"issue_id": issue_id}
+        )
+    
+    await sio.emit('transaction_issue_message', message, room=f"issue-{issue_id}")
+    
+    return message
+
+
+# ============= SERVICER TRANSACTION ISSUE CHAT ENDPOINTS =============
+
+@app.get("/api/servicer/transaction-issues")
+async def get_servicer_transaction_issues(
+    status: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20,
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Get transaction issues where servicer is involved"""
+    
+    query = {"servicer_id": ObjectId(servicer['_id'])}
+    
+    if status:
+        query["status"] = status
+    
+    skip = (page - 1) * limit
+    
+    issues = await db[Collections.TRANSACTION_ISSUES].find(query).sort(
+        "created_at", -1
+    ).skip(skip).limit(limit).to_list(limit)
+    
+    for issue in issues:
+        issue = convert_objectid_to_str(issue)
+        
+        # Get unread message count
+        unread = await db[Collections.TRANSACTION_ISSUE_MESSAGES].count_documents({
+            "issue_id": ObjectId(issue['_id']),
+            "sender_role": {"$ne": "servicer"},
+            "is_read_by_servicer": False
+        })
+        issue['unread_messages'] = unread
+    
+    total = await db[Collections.TRANSACTION_ISSUES].count_documents(query)
+    
+    return {
+        "issues": issues,
+        "total": total,
+        "page": page,
+        "pages": math.ceil(total / limit)
+    }
+
+
+@app.get("/api/servicer/transaction-issues/{issue_id}/chat")
+async def get_transaction_issue_chat_servicer(
+    issue_id: str,
+    page: int = 1,
+    limit: int = 50,
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Servicer gets chat messages for transaction issue"""
+    
+    # First, get the issue
+    issue = await db[Collections.TRANSACTION_ISSUES].find_one({
+        "_id": ObjectId(issue_id)
+    })
+    
+    if not issue:
+        raise HTTPException(status_code=404, detail="Transaction issue not found")
+    
+    # Verify the servicer owns this issue by checking the booking
+    if issue.get('booking_id'):
+        booking = await db[Collections.BOOKINGS].find_one({
+            "_id": ObjectId(issue['booking_id'])
+        })
+        if not booking or str(booking.get('servicer_id')) != str(servicer['_id']):
+            raise HTTPException(status_code=403, detail="Not authorized to access this issue")
+    else:
+        # If no booking_id, check if there's a direct servicer_id field
+        if not issue.get('servicer_id') or str(issue['servicer_id']) != str(servicer['_id']):
+            raise HTTPException(status_code=403, detail="Not authorized to access this issue")
+    
+    skip = (page - 1) * limit
+    
+    messages = await db[Collections.TRANSACTION_ISSUE_MESSAGES].find(
+        {"issue_id": ObjectId(issue_id)}
+    ).sort("created_at", 1).skip(skip).limit(limit).to_list(limit)
+    
+    # Mark as read by servicer
+    await db[Collections.TRANSACTION_ISSUE_MESSAGES].update_many(
+        {
+            "issue_id": ObjectId(issue_id),
+            "sender_role": {"$ne": "servicer"},
+            "is_read_by_servicer": False
+        },
+        {"$set": {"is_read_by_servicer": True, "read_by_servicer_at": datetime.utcnow()}}
+    )
+    
+    for message in messages:
+        message['_id'] = str(message['_id'])
+        message['issue_id'] = str(message['issue_id'])
+        message['sender_id'] = str(message['sender_id'])
+        
+        sender = await db[Collections.USERS].find_one({"_id": ObjectId(message['sender_id'])})
+        if sender:
+            message['sender_name'] = sender.get('name', 'Unknown')
+            message['sender_role'] = message.get('sender_role', 'user')  # Use the role from message
+            message['sender_image'] = sender.get('profile_image_url', '')
+    
+    return {"messages": messages}
+
+
+@app.post("/api/servicer/transaction-issues/{issue_id}/chat")
+async def send_transaction_issue_message_servicer(
+    issue_id: str,
+    message_text: str = Form(...),
+    message_type: str = Form("text"),
+    attachments: Optional[List[UploadFile]] = File(None),
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Servicer sends message in transaction issue chat"""
+    
+    # First, get the issue
+    issue = await db[Collections.TRANSACTION_ISSUES].find_one({
+        "_id": ObjectId(issue_id)
+    })
+    
+    if not issue:
+        raise HTTPException(status_code=404, detail="Transaction issue not found")
+    
+    # Verify the servicer owns this issue by checking the booking
+    if issue.get('booking_id'):
+        booking = await db[Collections.BOOKINGS].find_one({
+            "_id": ObjectId(issue['booking_id'])
+        })
+        if not booking or str(booking.get('servicer_id')) != str(servicer['_id']):
+            raise HTTPException(status_code=403, detail="Not authorized to access this issue")
+    else:
+        # If no booking_id, check if there's a direct servicer_id field
+        if not issue.get('servicer_id') or str(issue['servicer_id']) != str(servicer['_id']):
+            raise HTTPException(status_code=403, detail="Not authorized to access this issue")
+    
+    # Upload attachments
+    attachment_urls = []
+    if attachments:
+        for file in attachments:
+            result = await upload_to_cloudinary(file, CloudinaryFolders.CHAT_ATTACHMENTS)
+            attachment_urls.append(result['url'])
+    
+    message = {
+        "issue_id": ObjectId(issue_id),
+        "sender_id": ObjectId(current_user['_id']),
+        "sender_role": "servicer",
+        "message_type": message_type,
+        "message_text": message_text,
+        "attachments": attachment_urls,
+        "is_read_by_admin": False,
+        "is_read_by_user": False,
+        "created_at": datetime.utcnow()
+    }
+    
+    result = await db[Collections.TRANSACTION_ISSUE_MESSAGES].insert_one(message)
+    
+    message['_id'] = str(result.inserted_id)
+    message['issue_id'] = str(message['issue_id'])
+    message['sender_id'] = str(message['sender_id'])
+    message['sender_name'] = current_user.get('name', 'Unknown')
+    message['sender_image'] = current_user.get('profile_image_url', '')
+    
+    # Notify user
+    await create_notification(
+        str(issue['user_id']),
+        NotificationTypes.MESSAGE,
+        "Servicer Message - Transaction Issue",
+        f"Servicer: {message_text[:100]}",
+        metadata={"issue_id": issue_id}
+    )
+    
+    # Notify admins
+    admins = await db[Collections.USERS].find({"role": UserRole.ADMIN}).to_list(100)
+    for admin in admins:
+        await create_notification(
+            str(admin['_id']),
+            NotificationTypes.MESSAGE,
+            "Servicer Message - Transaction Issue",
+            f"Servicer: {message_text[:100]}",
+            metadata={"issue_id": issue_id}
+        )
+    
+    await sio.emit('transaction_issue_message', message, room=f"issue-{issue_id}")
+    
+    return message
+@app.get("/api/servicer/bookings/{booking_id}/transaction-issue")
+async def get_servicer_booking_transaction_issue(
+    booking_id: str,
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Get transaction issue for a servicer's booking (if exists)"""
+    
+    try:
+        # Validate booking belongs to servicer
+        booking = await db[Collections.BOOKINGS].find_one({
+            "_id": ObjectId(booking_id),
+            "servicer_id": ObjectId(servicer['_id'])
+        })
+        
+        if not booking:
+            raise HTTPException(status_code=404, detail="Booking not found")
+        
+        # Find transaction issue for this booking
+        issue = await db[Collections.TRANSACTION_ISSUES].find_one({
+            "booking_id": ObjectId(booking_id)
+        })
+        
+        if not issue:
+            # ✅ Return null instead of 404 - cleaner logs
+            return {"issue": None}
+        
+        # Convert ObjectIds to strings
+        issue = serialize_doc(issue)
+        
+        # Count unread messages in transaction issue chat (for servicer)
+        unread_messages = await db[Collections.TRANSACTION_ISSUE_MESSAGES].count_documents({
+            "issue_id": ObjectId(issue['_id']),
+            "sender_role": {"$ne": "servicer"},
+            "is_read_by_servicer": False
+        })
+        
+        issue['unread_messages'] = unread_messages
+        
+        return {"issue": issue}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching transaction issue: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============= SOCKET.IO EVENTS FOR TRANSACTION ISSUE CHAT =============
+
+@sio.event
+async def join_transaction_issue_chat(sid, data):
+    """Join a transaction issue chat room"""
+    try:
+        issue_id = data.get('issue_id')
+        await sio.enter_room(sid, f"issue-{issue_id}")
+        await sio.emit('joined_issue_chat', {'issue_id': issue_id}, room=sid)
+        print(f"Socket {sid} joined issue chat: {issue_id}")
+    except Exception as e:
+        print(f"Error joining issue chat: {e}")
+
+
+@sio.event
+async def leave_transaction_issue_chat(sid, data):
+    """Leave a transaction issue chat room"""
+    try:
+        issue_id = data.get('issue_id')
+        await sio.leave_room(sid, f"issue-{issue_id}")
+    except Exception as e:
+        print(f"Error leaving issue chat: {e}")
+
+
+@sio.event
+async def typing_in_issue_chat(sid, data):
+    """Handle typing indicator in issue chat"""
+    try:
+        issue_id = data.get('issue_id')
+        user_id = data.get('user_id')
+        is_typing = data.get('is_typing', True)
+        
+        await sio.emit('user_typing_in_issue', {
+            'user_id': user_id,
+            'is_typing': is_typing
+        }, room=f"issue-{issue_id}")
+    except Exception as e:
+        print(f"Error in typing indicator: {e}")
+
 
 @app.get("/api/admin/payouts")
 async def get_payout_requests_admin(
@@ -8187,6 +10061,1159 @@ async def location_update(sid, data):
             room=f"user-{str(booking['user_id'])}"
         )
 
+
+
+# ============= ADMIN BOOKING ISSUES MANAGEMENT =============
+# Add after your existing admin endpoints (around line 5500-6000)
+
+@app.get("/api/admin/booking-issues")
+async def get_all_booking_issues(
+    status: Optional[str] = None,  # pending_review, in_progress, resolved, closed
+    priority: Optional[str] = None,  # high, medium, low
+    issue_type: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20,
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Get all booking issues reported by users"""
+    query = {}
+    
+    if status:
+        query["status"] = status
+    if priority:
+        query["priority"] = priority
+    if issue_type:
+        query["issue_type"] = issue_type
+    
+    skip = (page - 1) * limit
+    
+    issues = await db[Collections.BOOKING_ISSUES].find(query).sort(
+        "created_at", -1
+    ).skip(skip).limit(limit).to_list(limit)
+    
+    # Convert ObjectIds and add details
+    for issue in issues:
+        issue['_id'] = str(issue['_id'])
+        issue['booking_id'] = str(issue['booking_id'])
+        issue['user_id'] = str(issue['user_id'])
+        issue['servicer_id'] = str(issue['servicer_id'])
+        
+        # Get booking details
+        booking = await db[Collections.BOOKINGS].find_one({"_id": ObjectId(issue['booking_id'])})
+        if booking:
+            issue['booking_number'] = booking.get('booking_number')
+            issue['service_type'] = booking.get('service_type')
+        
+        # Get user details
+        user = await db[Collections.USERS].find_one({"_id": ObjectId(issue['user_id'])})
+        if user:
+            issue['user_name'] = user.get('name')
+            issue['user_email'] = user.get('email')
+            issue['user_phone'] = user.get('phone')
+        
+        # Get servicer details
+        servicer_doc = await db[Collections.SERVICERS].find_one({"_id": ObjectId(issue['servicer_id'])})
+        if servicer_doc:
+            servicer_user = await db[Collections.USERS].find_one({"_id": servicer_doc['user_id']})
+            if servicer_user:
+                issue['servicer_name'] = servicer_user.get('name')
+                issue['servicer_email'] = servicer_user.get('email')
+                issue['servicer_phone'] = servicer_user.get('phone')
+    
+    total = await db[Collections.BOOKING_ISSUES].count_documents(query)
+    
+    # Get counts by status
+    pending_count = await db[Collections.BOOKING_ISSUES].count_documents({"status": "pending_review"})
+    in_progress_count = await db[Collections.BOOKING_ISSUES].count_documents({"status": "in_progress"})
+    
+    return {
+        "issues": issues,
+        "total": total,
+        "page": page,
+        "pages": math.ceil(total / limit),
+        "stats": {
+            "pending": pending_count,
+            "in_progress": in_progress_count
+        }
+    }
+
+
+@app.get("/api/admin/booking-issues/{issue_id}")
+async def get_booking_issue_details(
+    issue_id: str,
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Get detailed information about a specific issue"""
+    issue = await db[Collections.BOOKING_ISSUES].find_one({"_id": ObjectId(issue_id)})
+    
+    if not issue:
+        raise HTTPException(status_code=404, detail="Issue not found")
+    
+    # Convert ObjectIds
+    issue['_id'] = str(issue['_id'])
+    issue['booking_id'] = str(issue['booking_id'])
+    issue['user_id'] = str(issue['user_id'])
+    issue['servicer_id'] = str(issue['servicer_id'])
+    
+    # Get full booking details
+    booking = await db[Collections.BOOKINGS].find_one({"_id": ObjectId(issue['booking_id'])})
+    if booking:
+        booking = convert_objectid_to_str(booking)
+        issue['booking_details'] = booking
+    
+    # Get user details
+    user = await db[Collections.USERS].find_one({"_id": ObjectId(issue['user_id'])})
+    if user:
+        user = convert_objectid_to_str(user)
+        user.pop('password_hash', None)
+        issue['user_details'] = user
+    
+    # Get servicer details
+    servicer_doc = await db[Collections.SERVICERS].find_one({"_id": ObjectId(issue['servicer_id'])})
+    if servicer_doc:
+        servicer_user = await db[Collections.USERS].find_one({"_id": servicer_doc['user_id']})
+        if servicer_user:
+            servicer_user = convert_objectid_to_str(servicer_user)
+            servicer_user.pop('password_hash', None)
+            issue['servicer_details'] = servicer_user
+    
+    # Get any admin responses
+    if issue.get('admin_responses'):
+        for response in issue['admin_responses']:
+            if response.get('admin_id'):
+                admin = await db[Collections.USERS].find_one({"_id": ObjectId(response['admin_id'])})
+                if admin:
+                    response['admin_name'] = admin.get('name')
+    
+    return issue
+
+
+@app.put("/api/admin/booking-issues/{issue_id}/status")
+async def update_issue_status(
+    issue_id: str,
+    status: str = Form(...),  # pending_review, in_progress, resolved, closed
+    admin_notes: Optional[str] = Form(None),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Update issue status"""
+    valid_statuses = ["pending_review", "in_progress", "resolved", "closed"]
+    if status not in valid_statuses:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    
+    issue = await db[Collections.BOOKING_ISSUES].find_one({"_id": ObjectId(issue_id)})
+    if not issue:
+        raise HTTPException(status_code=404, detail="Issue not found")
+    
+    update_data = {
+        "status": status,
+        "updated_at": datetime.utcnow()
+    }
+    
+    if status == "in_progress":
+        update_data["assigned_to"] = ObjectId(current_admin['_id'])
+        update_data["assigned_at"] = datetime.utcnow()
+    elif status == "resolved":
+        update_data["resolved_by"] = ObjectId(current_admin['_id'])
+        update_data["resolved_at"] = datetime.utcnow()
+    elif status == "closed":
+        update_data["closed_by"] = ObjectId(current_admin['_id'])
+        update_data["closed_at"] = datetime.utcnow()
+    
+    # Add admin response
+    if admin_notes:
+        admin_response = {
+            "admin_id": ObjectId(current_admin['_id']),
+            "admin_name": current_admin['name'],
+            "response_text": admin_notes,
+            "timestamp": datetime.utcnow()
+        }
+        await db[Collections.BOOKING_ISSUES].update_one(
+            {"_id": ObjectId(issue_id)},
+            {"$push": {"admin_responses": admin_response}}
+        )
+    
+    await db[Collections.BOOKING_ISSUES].update_one(
+        {"_id": ObjectId(issue_id)},
+        {"$set": update_data}
+    )
+    
+    # Send notification to user
+    await create_notification(
+        str(issue['user_id']),
+        NotificationTypes.SYSTEM,
+        f"Issue Update - {status.replace('_', ' ').title()}",
+        f"Your issue for booking #{issue.get('booking_number', 'N/A')} has been updated to: {status.replace('_', ' ')}. {admin_notes or ''}"
+    )
+    
+    # Create audit log
+    await db[Collections.AUDIT_LOGS].insert_one({
+        "admin_id": ObjectId(current_admin['_id']),
+        "action_type": "issue_status_updated",
+        "target_id": ObjectId(issue_id),
+        "target_type": "booking_issue",
+        "details": {"status": status, "notes": admin_notes},
+        "created_at": datetime.utcnow()
+    })
+    
+    return SuccessResponse(message=f"Issue status updated to {status}")
+
+
+@app.post("/api/admin/booking-issues/{issue_id}/respond")
+async def respond_to_issue(
+    issue_id: str,
+    response_text: str = Form(...),
+    notify_user: bool = Form(True),
+    notify_servicer: bool = Form(False),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Add admin response to issue"""
+    issue = await db[Collections.BOOKING_ISSUES].find_one({"_id": ObjectId(issue_id)})
+    if not issue:
+        raise HTTPException(status_code=404, detail="Issue not found")
+    
+    admin_response = {
+        "admin_id": ObjectId(current_admin['_id']),
+        "admin_name": current_admin['name'],
+        "response_text": response_text,
+        "timestamp": datetime.utcnow()
+    }
+    
+    await db[Collections.BOOKING_ISSUES].update_one(
+        {"_id": ObjectId(issue_id)},
+        {
+            "$push": {"admin_responses": admin_response},
+            "$set": {"updated_at": datetime.utcnow()}
+        }
+    )
+    
+    # Notify user
+    if notify_user:
+        await create_notification(
+            str(issue['user_id']),
+            NotificationTypes.SYSTEM,
+            "Admin Response to Your Issue",
+            f"Admin has responded to your issue: {response_text[:100]}..."
+        )
+    
+    # Notify servicer
+    if notify_servicer:
+        servicer = await db[Collections.SERVICERS].find_one({"_id": issue['servicer_id']})
+        if servicer:
+            await create_notification(
+                str(servicer['user_id']),
+                NotificationTypes.SYSTEM,
+                "Issue Response",
+                f"Admin response regarding issue: {response_text[:100]}..."
+            )
+    
+    return SuccessResponse(message="Response added successfully")
+
+
+@app.put("/api/admin/booking-issues/{issue_id}/priority")
+async def update_issue_priority(
+    issue_id: str,
+    priority: str = Form(...),  # high, medium, low
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Update issue priority level"""
+    valid_priorities = ["high", "medium", "low"]
+    if priority not in valid_priorities:
+        raise HTTPException(status_code=400, detail="Invalid priority")
+    
+    result = await db[Collections.BOOKING_ISSUES].update_one(
+        {"_id": ObjectId(issue_id)},
+        {"$set": {"priority": priority, "updated_at": datetime.utcnow()}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Issue not found")
+    
+    return SuccessResponse(message=f"Priority updated to {priority}")
+
+
+@app.get("/api/admin/booking-issues/stats")
+async def get_issues_statistics(current_admin: dict = Depends(get_current_admin)):
+    """Get issues statistics for dashboard"""
+    total_issues = await db[Collections.BOOKING_ISSUES].count_documents({})
+    
+    pending = await db[Collections.BOOKING_ISSUES].count_documents({"status": "pending_review"})
+    in_progress = await db[Collections.BOOKING_ISSUES].count_documents({"status": "in_progress"})
+    resolved = await db[Collections.BOOKING_ISSUES].count_documents({"status": "resolved"})
+    closed = await db[Collections.BOOKING_ISSUES].count_documents({"status": "closed"})
+    
+    # Count by priority
+    high_priority = await db[Collections.BOOKING_ISSUES].count_documents({
+        "priority": "high",
+        "status": {"$in": ["pending_review", "in_progress"]}
+    })
+    
+    # Count by issue type
+    pipeline = [
+        {"$group": {"_id": "$issue_type", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}}
+    ]
+    issue_types = await db[Collections.BOOKING_ISSUES].aggregate(pipeline).to_list(10)
+    
+    return {
+        "total": total_issues,
+        "by_status": {
+            "pending": pending,
+            "in_progress": in_progress,
+            "resolved": resolved,
+            "closed": closed
+        },
+        "high_priority": high_priority,
+        "by_type": issue_types
+    }
+
+@app.post("/api/public/seed-servicers", response_model=SuccessResponse)
+async def seed_demo_servicers():
+    """
+    Seed 3 demo servicers with complete profiles (PUBLIC - No Authentication Required)
+    Perfect for testing and demonstrations
+    """
+    
+    # Check if demo servicers already exist
+    existing_demo = await db[Collections.USERS].find_one({"email": "john.plumber@demo.com"})
+    if existing_demo:
+        return SuccessResponse(
+            message="Demo servicers already exist. Use clear endpoint first if you want to reseed.",
+            data={"action": "skipped", "reason": "already_exists"}
+        )
+    
+    # Get all active categories for assignment
+    all_categories = await db[Collections.SERVICE_CATEGORIES].find({"is_active": True}).to_list(100)
+    
+    if len(all_categories) < 3:
+        raise HTTPException(
+            status_code=400, 
+            detail="Need at least 3 service categories. Run /api/admin/categories/seed first."
+        )
+    
+    # Demo servicer profiles with professional images from Unsplash
+    demo_servicers = [
+        {
+            # USER DATA
+            "name": "John Martinez",
+            "email": "john.plumber@demo.com",
+            "phone": "9876543210",
+            "password": "Demo@123",
+            "role": UserRole.SERVICER,
+            "profile_image_url": "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&h=400&fit=crop",
+            "address_line1": "123 Service Street",
+            "city": "Visakhapatnam",
+            "state": "Andhra Pradesh",
+            "pincode": "530001",
+            "latitude": 17.6868,
+            "longitude": 83.2185,
+            
+            # SERVICER DATA
+            "bio": "Licensed plumber with 8+ years of experience. Expert in residential and commercial plumbing, leak detection, and pipe installations. Available 24/7 for emergency services.",
+            "experience_years": 8,
+            "service_categories": ["Plumbing", "AC Repair & Service"],  # Will be converted to ObjectIds
+            "service_radius_km": 15.0,
+            "bank_account_number": "1234567890",
+            "ifsc_code": "SBIN0001234",
+            "upi_id": "johnplumber@paytm",
+            
+            # PRICING
+            "pricing": [
+                {"category_name": "Plumbing", "fixed_price": 500, "price_per_hour": 250},
+                {"category_name": "AC Repair & Service", "fixed_price": 600, "price_per_hour": 300}
+            ]
+        },
+        {
+            # USER DATA
+            "name": "Sarah Johnson",
+            "email": "sarah.electrician@demo.com",
+            "phone": "9876543211",
+            "password": "Demo@123",
+            "role": UserRole.SERVICER,
+            "profile_image_url": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&h=400&fit=crop",
+            "address_line1": "456 Tech Avenue",
+            "city": "Visakhapatnam",
+            "state": "Andhra Pradesh",
+            "pincode": "530002",
+            "latitude": 17.7231,
+            "longitude": 83.3012,
+            
+            # SERVICER DATA
+            "bio": "Certified electrician specializing in home automation, solar installations, and electrical repairs. Safety-first approach with 100% customer satisfaction.",
+            "experience_years": 6,
+            "service_categories": ["Electrical Work", "Home Cleaning"],
+            "service_radius_km": 20.0,
+            "bank_account_number": "9876543210",
+            "ifsc_code": "HDFC0001234",
+            "upi_id": "sarahelectric@googlepay",
+            
+            # PRICING
+            "pricing": [
+                {"category_name": "Electrical Work", "fixed_price": 600, "price_per_hour": 300},
+                {"category_name": "Home Cleaning", "fixed_price": 400, "price_per_hour": 200}
+            ]
+        },
+        {
+            # USER DATA
+            "name": "Rajesh Kumar",
+            "email": "rajesh.carpenter@demo.com",
+            "phone": "9876543212",
+            "password": "Demo@123",
+            "role": UserRole.SERVICER,
+            "profile_image_url": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop",
+            "address_line1": "789 Woodwork Lane",
+            "city": "Visakhapatnam",
+            "state": "Andhra Pradesh",
+            "pincode": "530003",
+            "latitude": 17.7433,
+            "longitude": 83.2452,
+            
+            # SERVICER DATA
+            "bio": "Master carpenter with expertise in custom furniture, modular kitchens, and interior woodwork. Quality craftsmanship with 10+ years of experience.",
+            "experience_years": 10,
+            "service_categories": ["Carpentry", "Painting"],
+            "service_radius_km": 12.0,
+            "bank_account_number": "5555666677",
+            "ifsc_code": "ICIC0001234",
+            "upi_id": "rajeshcarpenter@phonepe",
+            
+            # PRICING
+            "pricing": [
+                {"category_name": "Carpentry", "fixed_price": 700, "price_per_hour": 350},
+                {"category_name": "Painting", "fixed_price": 450, "price_per_hour": 225}
+            ]
+        }
+    ]
+    
+    created_servicers = []
+    
+    for servicer_data in demo_servicers:
+        try:
+            # 1. CREATE USER ACCOUNT
+            user_dict = {
+                "name": servicer_data["name"],
+                "email": servicer_data["email"],
+                "phone": servicer_data["phone"],
+                "password_hash": hash_password(servicer_data["password"]),
+                "role": servicer_data["role"],
+                "profile_image_url": servicer_data["profile_image_url"],
+                "address_line1": servicer_data["address_line1"],
+                "city": servicer_data["city"],
+                "state": servicer_data["state"],
+                "pincode": servicer_data["pincode"],
+                "latitude": servicer_data["latitude"],
+                "longitude": servicer_data["longitude"],
+                "email_verified": True,  # Auto-verify demo accounts
+                "is_active": True,
+                "is_blocked": False,
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            }
+            
+            user_result = await db[Collections.USERS].insert_one(user_dict)
+            user_id = user_result.inserted_id
+            print(f"✅ Created user: {servicer_data['name']} - {user_id}")
+            
+            # 2. CREATE WALLET
+            wallet = {
+                "user_id": user_id,
+                "balance": 0.0,
+                "total_earned": 0.0,
+                "total_spent": 0.0,
+                "currency": "INR",
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            }
+            await db[Collections.WALLETS].insert_one(wallet)
+            print(f"  ✅ Wallet created for {servicer_data['name']}")
+            
+            # 3. CONVERT CATEGORY NAMES TO OBJECTIDS
+            category_ids = []
+            for cat_name in servicer_data["service_categories"]:
+                category = await db[Collections.SERVICE_CATEGORIES].find_one({"name": cat_name})
+                if category:
+                    category_ids.append(category['_id'])
+                    print(f"  ✅ Found category: {cat_name} - {category['_id']}")
+                else:
+                    print(f"  ⚠️ Category not found: {cat_name}")
+            
+            if not category_ids:
+                print(f"  ❌ No valid categories found for {servicer_data['name']}, skipping...")
+                continue
+            
+            # 4. CREATE SERVICER PROFILE
+            servicer_profile = {
+                "user_id": user_id,
+                "service_categories": category_ids,
+                "experience_years": servicer_data["experience_years"],
+                "bio": servicer_data["bio"],
+                "verification_status": VerificationStatus.APPROVED,  # Auto-approve demo servicers
+                "average_rating": 4.5 + (random.random() * 0.5),  # Random rating 4.5-5.0
+                "total_ratings": random.randint(15, 50),
+                "total_jobs_completed": random.randint(30, 100),
+                "service_radius_km": servicer_data["service_radius_km"],
+                "availability_status": AvailabilityStatus.AVAILABLE,
+                "bank_account_number": servicer_data["bank_account_number"],
+                "ifsc_code": servicer_data["ifsc_code"],
+                "upi_id": servicer_data["upi_id"],
+                "profile_photo_url": servicer_data["profile_image_url"],
+                "aadhaar_front_url": "https://via.placeholder.com/400x300?text=Aadhaar+Front",
+                "aadhaar_back_url": "https://via.placeholder.com/400x300?text=Aadhaar+Back",
+                "certificate_urls": [
+                    "https://via.placeholder.com/400x300?text=Certificate+1",
+                    "https://via.placeholder.com/400x300?text=Certificate+2"
+                ],
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            }
+            
+            servicer_result = await db[Collections.SERVICERS].insert_one(servicer_profile)
+            servicer_id = servicer_result.inserted_id
+            print(f"  ✅ Servicer profile created: {servicer_id}")
+            
+            # 5. CREATE PRICING FOR EACH CATEGORY
+            for pricing_item in servicer_data["pricing"]:
+                category = await db[Collections.SERVICE_CATEGORIES].find_one({"name": pricing_item["category_name"]})
+                if category:
+                    pricing_doc = {
+                        "servicer_id": servicer_id,
+                        "category_id": category['_id'],
+                        "fixed_price": pricing_item["fixed_price"],
+                        "price_per_hour": pricing_item["price_per_hour"],
+                        "additional_charges": {},
+                        "created_at": datetime.utcnow(),
+                        "updated_at": datetime.utcnow()
+                    }
+                    await db[Collections.SERVICER_PRICING].insert_one(pricing_doc)
+                    print(f"  ✅ Pricing added for {pricing_item['category_name']}")
+            
+            created_servicers.append({
+                "user_id": str(user_id),
+                "servicer_id": str(servicer_id),
+                "name": servicer_data["name"],
+                "email": servicer_data["email"],
+                "phone": servicer_data["phone"],
+                "categories": servicer_data["service_categories"],
+                "rating": round(servicer_profile["average_rating"], 2)
+            })
+            
+        except Exception as e:
+            print(f"❌ Error creating servicer {servicer_data['name']}: {e}")
+            continue
+    
+    print(f"\n✅ Successfully created {len(created_servicers)} demo servicers")
+    
+    return SuccessResponse(
+        message=f"Successfully created {len(created_servicers)} demo servicers",
+        data={
+            "created_count": len(created_servicers),
+            "servicers": created_servicers,
+            "login_credentials": {
+                "password": "Demo@123",
+                "note": "Use any of the above emails with password 'Demo@123' to login as servicer"
+            }
+        }
+    )
+
+
+@app.get("/api/admin/transaction-issues")
+async def get_transaction_issues_admin(
+    status: Optional[str] = None,
+    priority: Optional[str] = None,
+    issue_type: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20,
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Get all transaction issues with filters"""
+    query = {}
+    
+    if status:
+        query["status"] = status
+    if priority:
+        query["priority"] = priority
+    if issue_type:
+        query["issue_type"] = issue_type
+    
+    skip = (page - 1) * limit
+    
+    issues = await db[Collections.TRANSACTION_ISSUES].find(query).sort(
+        "created_at", -1
+    ).skip(skip).limit(limit).to_list(limit)
+    
+    # Convert ObjectIds and add user details
+    for issue in issues:
+        issue['_id'] = str(issue['_id'])
+        issue['user_id'] = str(issue['user_id'])
+        
+        if issue.get('transaction_id'):
+            issue['transaction_id'] = str(issue['transaction_id'])
+        if issue.get('booking_id'):
+            issue['booking_id'] = str(issue['booking_id'])
+        
+        # Get user details
+        user = await db[Collections.USERS].find_one({"_id": ObjectId(issue['user_id'])})
+        if user:
+            issue['user_name'] = user.get('name', '')
+            issue['user_email'] = user.get('email', '')
+    
+    total = await db[Collections.TRANSACTION_ISSUES].count_documents(query)
+    
+    return {
+        "issues": issues,
+        "total": total,
+        "page": page,
+        "pages": math.ceil(total / limit)
+    }
+
+
+@app.get("/api/admin/transaction-issues/{issue_id}")
+async def get_transaction_issue_details_admin(
+    issue_id: str,
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Get detailed information about a specific transaction issue"""
+    issue = await db[Collections.TRANSACTION_ISSUES].find_one({"_id": ObjectId(issue_id)})
+    
+    if not issue:
+        raise HTTPException(status_code=404, detail="Transaction issue not found")
+    
+    # Convert ObjectIds
+    issue['_id'] = str(issue['_id'])
+    issue['user_id'] = str(issue['user_id'])
+    
+    if issue.get('transaction_id'):
+        issue['transaction_id'] = str(issue['transaction_id'])
+        # Get transaction details
+        transaction = await db[Collections.TRANSACTIONS].find_one({"_id": ObjectId(issue['transaction_id'])})
+        if transaction:
+            transaction['_id'] = str(transaction['_id'])
+            transaction['user_id'] = str(transaction['user_id'])
+            if transaction.get('booking_id'):
+                transaction['booking_id'] = str(transaction['booking_id'])
+            issue['transaction_details'] = transaction
+    
+    if issue.get('booking_id'):
+        issue['booking_id'] = str(issue['booking_id'])
+        # Get booking details
+        booking = await db[Collections.BOOKINGS].find_one({"_id": ObjectId(issue['booking_id'])})
+        if booking:
+            booking['_id'] = str(booking['_id'])
+            booking['user_id'] = str(booking['user_id'])
+            booking['servicer_id'] = str(booking['servicer_id'])
+            issue['booking_details'] = booking
+    
+    # Get user details
+    user = await db[Collections.USERS].find_one({"_id": ObjectId(issue['user_id'])})
+    if user:
+        user['_id'] = str(user['_id'])
+        user.pop('password_hash', None)
+        issue['user_details'] = user
+    
+    return issue
+
+
+@app.put("/api/admin/transaction-issues/{issue_id}/status")
+async def update_transaction_issue_status(
+    issue_id: str,
+    status: str = Form(...),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Update transaction issue status"""
+    valid_statuses = ['pending_review', 'investigating', 'resolved', 'rejected']
+    
+    if status not in valid_statuses:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    
+    result = await db[Collections.TRANSACTION_ISSUES].update_one(
+        {"_id": ObjectId(issue_id)},
+        {
+            "$set": {
+                "status": status,
+                "updated_at": datetime.utcnow()
+            }
+        }
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Transaction issue not found")
+    
+    # Get issue details for notification
+    issue = await db[Collections.TRANSACTION_ISSUES].find_one({"_id": ObjectId(issue_id)})
+    
+    # Send notification to user
+    await create_notification(
+        str(issue['user_id']),
+        NotificationTypes.SYSTEM,
+        "Transaction Issue Update",
+        f"Your transaction issue status has been updated to: {status.replace('_', ' ')}"
+    )
+    
+    # Create audit log
+    await db[Collections.AUDIT_LOGS].insert_one({
+        "admin_id": ObjectId(current_admin['_id']),
+        "action_type": "transaction_issue_status_updated",
+        "target_id": ObjectId(issue_id),
+        "target_type": "transaction_issue",
+        "details": {"new_status": status},
+        "created_at": datetime.utcnow()
+    })
+    
+    return SuccessResponse(message="Issue status updated successfully")
+
+
+@app.put("/api/admin/transaction-issues/{issue_id}/resolve")
+async def resolve_transaction_issue(
+    issue_id: str,
+    resolution: str = Form(...),
+    refund_amount: Optional[float] = Form(None),
+    notes: Optional[str] = Form(None),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Resolve a transaction issue"""
+    issue = await db[Collections.TRANSACTION_ISSUES].find_one({"_id": ObjectId(issue_id)})
+    
+    if not issue:
+        raise HTTPException(status_code=404, detail="Transaction issue not found")
+    
+    # Update issue
+    update_data = {
+        "status": "resolved",
+        "resolution": resolution,
+        "admin_notes": notes,
+        "resolved_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    }
+    
+    if refund_amount:
+        update_data["refund_amount"] = refund_amount
+    
+    await db[Collections.TRANSACTION_ISSUES].update_one(
+        {"_id": ObjectId(issue_id)},
+        {"$set": update_data}
+    )
+    
+    # Handle refund if needed
+    if resolution in ['full_refund', 'partial_refund'] and refund_amount:
+        # Credit user wallet
+        await db[Collections.WALLETS].update_one(
+            {"user_id": issue['user_id']},
+            {
+                "$inc": {"balance": refund_amount},
+                "$set": {"last_transaction_at": datetime.utcnow()}
+            }
+        )
+        
+        # Create refund transaction
+        refund_transaction = {
+            "user_id": issue['user_id'],
+            "transaction_type": TransactionType.REFUND,
+            "payment_method": PaymentMethod.WALLET,
+            "amount": refund_amount,
+            "transaction_status": PaymentStatus.COMPLETED,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        
+        if issue.get('booking_id'):
+            refund_transaction['booking_id'] = issue['booking_id']
+        
+        await db[Collections.TRANSACTIONS].insert_one(refund_transaction)
+        
+        # Send notification
+        await create_notification(
+            str(issue['user_id']),
+            NotificationTypes.PAYMENT,
+            "Refund Processed",
+            f"₹{refund_amount} has been refunded to your wallet for the reported issue."
+        )
+    else:
+        # Send resolution notification
+        await create_notification(
+            str(issue['user_id']),
+            NotificationTypes.SYSTEM,
+            "Transaction Issue Resolved",
+            f"Your transaction issue has been resolved. Resolution: {resolution.replace('_', ' ')}"
+        )
+    
+    # Create audit log
+    await db[Collections.AUDIT_LOGS].insert_one({
+        "admin_id": ObjectId(current_admin['_id']),
+        "action_type": "transaction_issue_resolved",
+        "target_id": ObjectId(issue_id),
+        "target_type": "transaction_issue",
+        "details": {
+            "resolution": resolution,
+            "refund_amount": refund_amount,
+            "notes": notes
+        },
+        "created_at": datetime.utcnow()
+    })
+    
+    return SuccessResponse(
+        message="Transaction issue resolved successfully",
+        data={
+            "resolution": resolution,
+            "refund_amount": refund_amount
+        }
+    )
+
+
+@app.put("/api/admin/transaction-issues/{issue_id}/priority")
+async def update_transaction_issue_priority(
+    issue_id: str,
+    priority: str = Form(...),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Update transaction issue priority"""
+    valid_priorities = ['low', 'medium', 'high', 'urgent']
+    
+    if priority not in valid_priorities:
+        raise HTTPException(status_code=400, detail="Invalid priority")
+    
+    result = await db[Collections.TRANSACTION_ISSUES].update_one(
+        {"_id": ObjectId(issue_id)},
+        {
+            "$set": {
+                "priority": priority,
+                "updated_at": datetime.utcnow()
+            }
+        }
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Transaction issue not found")
+    
+    return SuccessResponse(message="Issue priority updated successfully")
+
+
+# ============= USER ENDPOINT TO REPORT TRANSACTION ISSUES =============
+
+# Add these endpoints to your main.py after the existing auth endpoints
+
+# ============= EMAIL VERIFICATION ENDPOINTS =============
+
+@app.post("/api/user/send-verification-email", response_model=SuccessResponse)
+async def send_verification_email(current_user: dict = Depends(get_current_user)):
+    """Send OTP to user's email for verification"""
+    
+    # Check if already verified
+    if current_user.get('email_verified'):
+        raise HTTPException(status_code=400, detail="Email is already verified")
+    
+    # Check if OTP was sent recently (rate limiting)
+    recent_otp = await db[Collections.OTPS].find_one({
+        "email": current_user['email'],
+        "purpose": "email_verification",
+        "created_at": {"$gte": datetime.utcnow() - timedelta(minutes=2)}
+    })
+    
+    if recent_otp:
+        raise HTTPException(
+            status_code=429, 
+            detail="Please wait 2 minutes before requesting another OTP"
+        )
+    
+    # Generate OTP
+    otp_code = generate_otp()
+    expires_at = datetime.utcnow() + timedelta(minutes=settings.OTP_EXPIRY_MINUTES)
+    
+    # Store OTP
+    otp_doc = {
+        "email": current_user['email'],
+        "otp_code": otp_code,
+        "purpose": "email_verification",
+        "expires_at": expires_at,
+        "verified": False,
+        "attempts": 0,
+        "created_at": datetime.utcnow()
+    }
+    await db[Collections.OTPS].insert_one(otp_doc)
+    
+    # Send OTP email
+    try:
+        await send_email(
+            current_user['email'],
+            "Verify Your Email - Service Platform",
+            f"""
+            <html>
+                <body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4;">
+                    <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <div style="text-align: center; margin-bottom: 30px;">
+                            <h1 style="color: #2563eb; margin: 0;">Email Verification</h1>
+                        </div>
+                        
+                        <p style="color: #333; font-size: 16px; margin-bottom: 20px;">
+                            Hello {current_user['name']},
+                        </p>
+                        
+                        <p style="color: #666; font-size: 14px; margin-bottom: 30px;">
+                            Please use the following OTP to verify your email address:
+                        </p>
+                        
+                        <div style="background-color: #f0f7ff; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 30px;">
+                            <h2 style="color: #2563eb; font-size: 32px; letter-spacing: 8px; margin: 0;">
+                                {otp_code}
+                            </h2>
+                        </div>
+                        
+                        <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
+                            This OTP will expire in <strong>{settings.OTP_EXPIRY_MINUTES} minutes</strong>.
+                        </p>
+                        
+                        <p style="color: #999; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+                            If you didn't request this verification, please ignore this email.
+                        </p>
+                    </div>
+                </body>
+            </html>
+            """
+        )
+        print(f"✅ Verification OTP sent to {current_user['email']}")
+    except Exception as e:
+        print(f"❌ Failed to send OTP email: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail="Failed to send verification email. Please try again later."
+        )
+    
+    return SuccessResponse(
+        message=f"Verification code sent to {current_user['email']}",
+        data={"expires_in_minutes": settings.OTP_EXPIRY_MINUTES}
+    )
+
+
+@app.post("/api/user/verify-email", response_model=SuccessResponse)
+async def verify_user_email(
+    otp_code: str = Form(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Verify email with OTP"""
+    
+    # Check if already verified
+    if current_user.get('email_verified'):
+        raise HTTPException(status_code=400, detail="Email is already verified")
+    
+    # Find OTP
+    otp_doc = await db[Collections.OTPS].find_one({
+        "email": current_user['email'],
+        "otp_code": otp_code,
+        "purpose": "email_verification",
+        "verified": False
+    })
+    
+    if not otp_doc:
+        raise HTTPException(status_code=400, detail=Messages.INVALID_OTP)
+    
+    # Check expiry
+    if datetime.utcnow() > otp_doc['expires_at']:
+        raise HTTPException(status_code=400, detail=Messages.OTP_EXPIRED)
+    
+    # Check attempts
+    if otp_doc['attempts'] >= settings.OTP_MAX_ATTEMPTS:
+        raise HTTPException(status_code=400, detail=Messages.MAX_OTP_ATTEMPTS)
+    
+    # Verify OTP
+    if otp_code != otp_doc['otp_code']:
+        # Increment attempts
+        await db[Collections.OTPS].update_one(
+            {"_id": otp_doc['_id']},
+            {"$inc": {"attempts": 1}}
+        )
+        raise HTTPException(status_code=400, detail=Messages.INVALID_OTP)
+    
+    # Mark OTP as verified
+    await db[Collections.OTPS].update_one(
+        {"_id": otp_doc['_id']},
+        {"$set": {"verified": True, "verified_at": datetime.utcnow()}}
+    )
+    
+    # Update user email verification status
+    await db[Collections.USERS].update_one(
+        {"_id": ObjectId(current_user['_id'])},
+        {
+            "$set": {
+                "email_verified": True,
+                "email_verified_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            }
+        }
+    )
+    
+    # Send notification
+    await create_notification(
+        current_user['_id'],
+        NotificationTypes.SYSTEM,
+        "Email Verified Successfully",
+        "Your email has been verified. You now have full access to all features!"
+    )
+    
+    # Send welcome email
+    try:
+        await send_email(
+            current_user['email'],
+            "Welcome to Service Platform - Email Verified!",
+            f"""
+            <html>
+                <body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4;">
+                    <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <div style="text-align: center; margin-bottom: 30px;">
+                            <h1 style="color: #10b981; margin: 0;">✓ Email Verified!</h1>
+                        </div>
+                        
+                        <p style="color: #333; font-size: 16px; margin-bottom: 20px;">
+                            Hello {current_user['name']},
+                        </p>
+                        
+                        <p style="color: #666; font-size: 14px; margin-bottom: 30px;">
+                            Congratulations! Your email has been successfully verified. You now have full access to all features of our platform.
+                        </p>
+                        
+                        <div style="background-color: #f0fdf4; padding: 20px; border-radius: 8px; border-left: 4px solid #10b981; margin-bottom: 30px;">
+                            <p style="color: #065f46; margin: 0; font-size: 14px;">
+                                <strong>What's Next?</strong><br>
+                                • Browse and book services<br>
+                                • Get instant notifications<br>
+                                • Access your complete profile<br>
+                                • Enjoy secure transactions
+                            </p>
+                        </div>
+                        
+                        <div style="text-align: center; margin-top: 30px;">
+                            <a href="newon" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+                                Explore Services
+                            </a>
+                        </div>
+                        
+                        <p style="color: #999; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; text-align: center;">
+                            Thank you for choosing our platform!
+                        </p>
+                    </div>
+                </body>
+            </html>
+            """
+        )
+    except Exception as e:
+        print(f"⚠️ Failed to send welcome email: {e}")
+    
+    return SuccessResponse(
+        message="Email verified successfully! Welcome to our platform.",
+        data={
+            "email_verified": True,
+            "verified_at": datetime.utcnow().isoformat()
+        }
+    )
+
+
+@app.get("/api/user/verification-status")
+async def get_verification_status(current_user: dict = Depends(get_current_user)):
+    """Get current email verification status"""
+    return {
+        "email": current_user['email'],
+        "email_verified": current_user.get('email_verified', False),
+        "email_verified_at": current_user.get('email_verified_at'),
+        "can_request_otp": True
+    }
+
+
+@app.post("/api/user/transaction-issues/report")
+async def report_transaction_issue(
+    issue_type: str = Form(...),
+    description: str = Form(...),
+    amount: float = Form(...),
+    transaction_id: Optional[str] = Form(None),
+    booking_id: Optional[str] = Form(None),
+    evidence_images: Optional[List[UploadFile]] = File(None),
+    current_user: dict = Depends(get_current_user)
+):
+    """Allow users to report transaction issues"""
+    
+    # Upload evidence if provided
+    evidence_urls = []
+    if evidence_images:
+        for img in evidence_images:
+            result = await upload_to_cloudinary(img, CloudinaryFolders.ISSUE_EVIDENCE)
+            evidence_urls.append(result['url'])
+    
+    # Determine priority based on issue type
+    priority = "medium"
+    if issue_type in ['payment_failed', 'duplicate_charge']:
+        priority = "high"
+    elif issue_type == 'payment_not_received':
+        priority = "urgent"
+    
+    # Create issue
+    issue = {
+        "user_id": ObjectId(current_user['_id']),
+        "issue_type": issue_type,
+        "description": description,
+        "amount": amount,
+        "evidence_urls": evidence_urls,
+        "priority": priority,
+        "status": "pending_review",
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    }
+    
+    if transaction_id:
+        issue['transaction_id'] = ObjectId(transaction_id)
+    if booking_id:
+        issue['booking_id'] = ObjectId(booking_id)
+    
+    result = await db[Collections.TRANSACTION_ISSUES].insert_one(issue)
+    
+    # Notify admins
+    admins = await db[Collections.USERS].find({"role": UserRole.ADMIN}).to_list(100)
+    for admin in admins:
+        await create_notification(
+            str(admin['_id']),
+            NotificationTypes.SYSTEM,
+            "⚠️ New Transaction Issue",
+            f"User {current_user['name']} reported a transaction issue: {issue_type.replace('_', ' ')}"
+        )
+    
+    return SuccessResponse(
+        message="Transaction issue reported successfully. Our team will review it shortly.",
+        data={
+            "issue_id": str(result.inserted_id),
+            "reference_number": f"TI{datetime.utcnow().strftime('%Y%m%d')}{str(result.inserted_id)[-6:]}"
+        }
+    )
+
+
+@app.get("/api/user/transaction-issues")
+async def get_user_transaction_issues(
+    page: int = 1,
+    limit: int = 20,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get user's transaction issues"""
+    skip = (page - 1) * limit
+    
+    issues = await db[Collections.TRANSACTION_ISSUES].find(
+        {"user_id": ObjectId(current_user['_id'])}
+    ).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    
+    for issue in issues:
+        issue['_id'] = str(issue['_id'])
+        issue['user_id'] = str(issue['user_id'])
+        if issue.get('transaction_id'):
+            issue['transaction_id'] = str(issue['transaction_id'])
+        if issue.get('booking_id'):
+            issue['booking_id'] = str(issue['booking_id'])
+    
+    total = await db[Collections.TRANSACTION_ISSUES].count_documents(
+        {"user_id": ObjectId(current_user['_id'])}
+    )
+    
+    return {
+        "issues": issues,
+        "total": total,
+        "page": page,
+        "pages": math.ceil(total / limit)
+    }
+
+
+
 # ============= ROOT ENDPOINT =============
 @app.get("/")
 async def root():
@@ -8219,6 +11246,3055 @@ async def health_check():
             }
         )
 
+
+# promo code 
+
+# ============= SERVICER AVAILABILITY SCHEDULE =============
+
+@app.post("/api/servicer/availability/schedule")
+async def set_availability_schedule(
+    schedule: dict = Form(...),  # {"monday": {"start": "09:00", "end": "17:00"}, ...}
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Set weekly availability schedule"""
+    availability = {
+        "servicer_id": ObjectId(servicer['_id']),
+        "schedule": schedule,
+        "updated_at": datetime.utcnow()
+    }
+    
+    await db[Collections.SERVICER_AVAILABILITY].update_one(
+        {"servicer_id": ObjectId(servicer['_id'])},
+        {"$set": availability},
+        upsert=True
+    )
+    
+    return SuccessResponse(message="Availability schedule updated")
+
+
+@app.get("/api/servicer/availability/schedule")
+async def get_availability_schedule(
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Get weekly availability schedule"""
+    availability = await db[Collections.SERVICER_AVAILABILITY].find_one(
+        {"servicer_id": ObjectId(servicer['_id'])}
+    )
+    
+    if not availability:
+        return {"schedule": {}}
+    
+    return {"schedule": availability.get('schedule', {})}
+# ============= USER COMPLAINT ENDPOINTS =============
+
+
+@app.post("/api/user/complaints/create")
+async def create_user_complaint(
+    # Use Form() for each field instead of Pydantic model
+    complaint_against_id: str = Form(...),
+    complaint_against_type: str = Form(...),
+    complaint_type: str = Form(...),
+    subject: str = Form(...),
+    description: str = Form(...),
+    severity: str = Form("medium"),
+    refund_requested: str = Form("false"),  # FormData sends as string
+    booking_id: Optional[str] = Form(None),
+    refund_amount: Optional[float] = Form(None),
+    evidence_images: Optional[List[UploadFile]] = File(None),
+    current_user: dict = Depends(get_current_user)
+):
+    """User files complaint against servicer"""
+    
+    # Convert string boolean to actual boolean
+    refund_requested_bool = refund_requested.lower() == "true"
+    
+    # Validate servicer exists
+    servicer = await db[Collections.SERVICERS].find_one({"_id": ObjectId(complaint_against_id)})
+    if not servicer:
+        raise HTTPException(status_code=404, detail="Servicer not found")
+    
+    # Validate booking if provided
+    if booking_id:
+        booking = await db[Collections.BOOKINGS].find_one({
+            "_id": ObjectId(booking_id),
+            "user_id": ObjectId(current_user['_id']),
+            "servicer_id": ObjectId(complaint_against_id)
+        })
+        if not booking:
+            raise HTTPException(status_code=404, detail="Booking not found or unauthorized")
+    
+    # Upload evidence
+    evidence_urls = []
+    if evidence_images:
+        for img in evidence_images:
+            result = await upload_to_cloudinary(img, CloudinaryFolders.COMPLAINT_EVIDENCE)
+            evidence_urls.append(result['url'])
+    
+    # Create complaint
+    complaint = {
+        "complaint_number": f"CMP{datetime.utcnow().strftime('%Y%m%d')}{random.randint(1000, 9999)}",
+        "filed_by": ObjectId(current_user['_id']),
+        "filed_by_type": "user",
+        "complaint_against_id": ObjectId(complaint_against_id),
+        "complaint_against_type": complaint_against_type,
+        "booking_id": ObjectId(booking_id) if booking_id else None,
+        "complaint_type": complaint_type,
+        "subject": subject,
+        "description": description,
+        "severity": severity,
+        "refund_requested": refund_requested_bool,
+        "refund_amount": refund_amount,
+        "evidence_urls": evidence_urls,
+        "status": ComplaintStatus.PENDING,
+        "priority": "high" if severity in ["high", "critical"] else "medium",
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    }
+    
+    result = await db[Collections.COMPLAINTS].insert_one(complaint)
+    
+    # Notify admins
+    admins = await db[Collections.USERS].find({"role": UserRole.ADMIN}).to_list(100)
+    for admin in admins:
+        await create_notification(
+            str(admin['_id']),
+            NotificationTypes.SYSTEM,
+            f"⚠️ New Complaint - {severity.upper()}",
+            f"User {current_user['name']} filed complaint: {subject}"
+        )
+    
+    # Notify servicer (unless fraud/safety concern)
+    if complaint_type not in [ComplaintType.FRAUD, ComplaintType.SAFETY_CONCERN]:
+        await create_notification(
+            str(servicer['user_id']),
+            NotificationTypes.SYSTEM,
+            "Complaint Filed",
+            f"A complaint has been filed regarding your service. Case #{complaint['complaint_number']}"
+        )
+    
+    return SuccessResponse(
+        message="Complaint filed successfully. Admin will review within 24 hours.",
+        data={
+            "complaint_id": str(result.inserted_id),
+            "complaint_number": complaint['complaint_number'],
+            "expected_resolution": "24-48 hours"
+        }
+    )
+
+
+def serialize_doc(doc):
+    """Recursively convert MongoDB document to JSON-serializable format"""
+    if isinstance(doc, list):
+        return [serialize_doc(item) for item in doc]
+    elif isinstance(doc, dict):
+        return {key: serialize_doc(value) for key, value in doc.items()}
+    elif isinstance(doc, ObjectId):
+        return str(doc)
+    elif isinstance(doc, datetime):
+        return doc.isoformat()
+    else:
+        return doc
+
+
+@app.get("/api/user/complaints")
+async def get_user_complaints(
+    status: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all complaints filed by user"""
+    query = {"filed_by": ObjectId(current_user['_id'])}
+    
+    if status:
+        query["status"] = status
+    
+    skip = (page - 1) * limit
+    
+    # Fetch complaints
+    complaints_cursor = db[Collections.COMPLAINTS].find(query).sort(
+        "created_at", -1
+    ).skip(skip).limit(limit)
+    
+    complaints = await complaints_cursor.to_list(limit)
+    
+    # Process each complaint
+    processed_complaints = []
+    for complaint in complaints:
+        # Serialize the entire complaint document
+        complaint_data = serialize_doc(complaint)
+        
+        # Get servicer name
+        try:
+            servicer = await db[Collections.SERVICERS].find_one(
+                {"_id": ObjectId(complaint['complaint_against_id'])}
+            )
+            if servicer:
+                servicer_user = await db[Collections.USERS].find_one({"_id": servicer['user_id']})
+                complaint_data['servicer_name'] = servicer_user.get('name') if servicer_user else 'Unknown'
+            else:
+                complaint_data['servicer_name'] = 'Unknown'
+        except Exception as e:
+            print(f"Error fetching servicer: {e}")
+            complaint_data['servicer_name'] = 'Unknown'
+        
+        processed_complaints.append(complaint_data)
+    
+    # Get total count
+    total = await db[Collections.COMPLAINTS].count_documents(query)
+    
+    return {
+        "complaints": processed_complaints,
+        "total": total,
+        "page": page,
+        "pages": math.ceil(total / limit) if limit > 0 else 0
+    }
+
+
+@app.get("/api/user/complaints/{complaint_id}")
+async def get_complaint_details(
+    complaint_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get detailed complaint information"""
+    
+    # Fetch complaint
+    complaint = await db[Collections.COMPLAINTS].find_one({
+        "_id": ObjectId(complaint_id),
+        "filed_by": ObjectId(current_user['_id'])
+    })
+    
+    if not complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+    
+    # Serialize complaint
+    complaint_data = serialize_doc(complaint)
+    
+    # Get servicer details
+    try:
+        servicer = await db[Collections.SERVICERS].find_one(
+            {"_id": ObjectId(complaint['complaint_against_id'])}
+        )
+        if servicer:
+            servicer_user = await db[Collections.USERS].find_one({"_id": servicer['user_id']})
+            complaint_data['servicer_name'] = servicer_user.get('name') if servicer_user else 'Unknown'
+            complaint_data['servicer_email'] = servicer_user.get('email') if servicer_user else None
+        else:
+            complaint_data['servicer_name'] = 'Unknown'
+            complaint_data['servicer_email'] = None
+    except Exception as e:
+        print(f"Error fetching servicer: {e}")
+        complaint_data['servicer_name'] = 'Unknown'
+        complaint_data['servicer_email'] = None
+    
+    # Get responses
+    try:
+        responses_cursor = db[Collections.COMPLAINT_RESPONSES].find(
+            {"complaint_id": ObjectId(complaint_id)}
+        ).sort("created_at", 1)
+        
+        responses = await responses_cursor.to_list(100)
+        
+        processed_responses = []
+        for response in responses:
+            # Serialize response
+            response_data = serialize_doc(response)
+            
+            # Get responder name
+            try:
+                responder = await db[Collections.USERS].find_one(
+                    {"_id": ObjectId(response['responder_id'])}
+                )
+                response_data['responder_name'] = responder.get('name') if responder else 'Admin'
+                response_data['responder_role'] = responder.get('role') if responder else 'admin'
+            except Exception as e:
+                print(f"Error fetching responder: {e}")
+                response_data['responder_name'] = 'Admin'
+                response_data['responder_role'] = 'admin'
+            
+            processed_responses.append(response_data)
+        
+        complaint_data['responses'] = processed_responses
+    except Exception as e:
+        print(f"Error fetching responses: {e}")
+        complaint_data['responses'] = []
+    
+    return complaint_data
+# ============= ADMIN COMPLAINT MANAGEMENT =============
+
+import math
+from bson import ObjectId
+from typing import Optional
+from datetime import datetime, timedelta
+
+def serialize_doc(doc):
+    """Recursively convert MongoDB document to JSON-serializable format"""
+    if isinstance(doc, list):
+        return [serialize_doc(item) for item in doc]
+    elif isinstance(doc, dict):
+        return {key: serialize_doc(value) for key, value in doc.items()}
+    elif isinstance(doc, ObjectId):
+        return str(doc)
+    elif isinstance(doc, datetime):
+        return doc.isoformat()
+    else:
+        return doc
+
+
+@app.get("/api/admin/complaints")
+async def get_all_complaints_admin(
+    status: Optional[str] = None,
+    severity: Optional[str] = None,
+    complaint_type: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20,
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Get all complaints with filters"""
+    query = {}
+    
+    if status:
+        query["status"] = status
+    if severity:
+        query["severity"] = severity
+    if complaint_type:
+        query["complaint_type"] = complaint_type
+    
+    skip = (page - 1) * limit
+    
+    complaints_cursor = db[Collections.COMPLAINTS].find(query).sort(
+        [("priority", -1), ("created_at", -1)]
+    ).skip(skip).limit(limit)
+    
+    complaints = await complaints_cursor.to_list(limit)
+    
+    # Process complaints
+    processed_complaints = []
+    for complaint in complaints:
+        complaint_data = serialize_doc(complaint)
+        
+        try:
+            # Get filer details
+            filer = await db[Collections.USERS].find_one({"_id": ObjectId(complaint['filed_by'])})
+            complaint_data['filed_by_name'] = filer.get('name') if filer else 'Unknown'
+            complaint_data['filed_by_email'] = filer.get('email') if filer else ''
+            
+            # Get complaint against details
+            if complaint['complaint_against_type'] == 'servicer':
+                servicer = await db[Collections.SERVICERS].find_one(
+                    {"_id": ObjectId(complaint['complaint_against_id'])}
+                )
+                if servicer:
+                    servicer_user = await db[Collections.USERS].find_one({"_id": servicer['user_id']})
+                    complaint_data['against_name'] = servicer_user.get('name') if servicer_user else 'Unknown'
+                    complaint_data['against_email'] = servicer_user.get('email') if servicer_user else ''
+                else:
+                    complaint_data['against_name'] = 'Unknown'
+                    complaint_data['against_email'] = ''
+            else:  # user
+                user = await db[Collections.USERS].find_one(
+                    {"_id": ObjectId(complaint['complaint_against_id'])}
+                )
+                complaint_data['against_name'] = user.get('name') if user else 'Unknown'
+                complaint_data['against_email'] = user.get('email') if user else ''
+            
+            # Get booking details if exists
+            if complaint.get('booking_id'):
+                booking = await db[Collections.BOOKINGS].find_one(
+                    {"_id": ObjectId(complaint['booking_id'])}
+                )
+                if booking:
+                    complaint_data['booking_number'] = booking.get('booking_number')
+        
+        except Exception as e:
+            print(f"Error processing complaint {complaint.get('_id')}: {e}")
+        
+        processed_complaints.append(complaint_data)
+    
+    total = await db[Collections.COMPLAINTS].count_documents(query)
+    
+    # Get stats
+    pending_count = await db[Collections.COMPLAINTS].count_documents({"status": ComplaintStatus.PENDING})
+    investigating_count = await db[Collections.COMPLAINTS].count_documents({"status": ComplaintStatus.INVESTIGATING})
+    
+    return {
+        "complaints": processed_complaints,
+        "total": total,
+        "page": page,
+        "pages": math.ceil(total / limit) if limit > 0 else 0,
+        "stats": {
+            "pending": pending_count,
+            "investigating": investigating_count
+        }
+    }
+
+
+@app.get("/api/admin/complaints/stats")
+async def get_complaints_stats_admin(current_admin: dict = Depends(get_current_admin)):
+    """Get complaint statistics"""
+    total = await db[Collections.COMPLAINTS].count_documents({})
+    pending = await db[Collections.COMPLAINTS].count_documents({"status": ComplaintStatus.PENDING})
+    investigating = await db[Collections.COMPLAINTS].count_documents({"status": ComplaintStatus.INVESTIGATING})
+    resolved = await db[Collections.COMPLAINTS].count_documents({"status": ComplaintStatus.RESOLVED})
+    
+    # By severity
+    critical = await db[Collections.COMPLAINTS].count_documents({"severity": "critical"})
+    high = await db[Collections.COMPLAINTS].count_documents({"severity": "high"})
+    
+    # By type
+    pipeline = [
+        {"$group": {"_id": "$complaint_type", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 5}
+    ]
+    
+    by_type_cursor = db[Collections.COMPLAINTS].aggregate(pipeline)
+    by_type = await by_type_cursor.to_list(5)
+    
+    # Serialize the aggregation results
+    by_type = serialize_doc(by_type)
+    
+    return {
+        "total": total,
+        "by_status": {
+            "pending": pending,
+            "investigating": investigating,
+            "resolved": resolved
+        },
+        "by_severity": {
+            "critical": critical,
+            "high": high
+        },
+        "top_complaint_types": by_type
+    }
+
+
+@app.get("/api/admin/complaints/{complaint_id}")
+async def get_complaint_details_admin(
+    complaint_id: str,
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Get detailed complaint information for admin"""
+    complaint = await db[Collections.COMPLAINTS].find_one({"_id": ObjectId(complaint_id)})
+    
+    if not complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+    
+    complaint_data = serialize_doc(complaint)
+    
+    try:
+        # Get all user details
+        filer = await db[Collections.USERS].find_one({"_id": ObjectId(complaint['filed_by'])})
+        if filer:
+            filer_data = serialize_doc(filer)
+            filer_data.pop('password_hash', None)
+            complaint_data['filed_by_details'] = filer_data
+        
+        # Get complaint against details
+        if complaint['complaint_against_type'] == 'servicer':
+            servicer = await db[Collections.SERVICERS].find_one(
+                {"_id": ObjectId(complaint['complaint_against_id'])}
+            )
+            if servicer:
+                servicer_user = await db[Collections.USERS].find_one({"_id": servicer['user_id']})
+                if servicer_user:
+                    servicer_user_data = serialize_doc(servicer_user)
+                    servicer_user_data.pop('password_hash', None)
+                    complaint_data['against_details'] = servicer_user_data
+                    complaint_data['against_servicer_data'] = serialize_doc(servicer)
+        else:
+            user = await db[Collections.USERS].find_one(
+                {"_id": ObjectId(complaint['complaint_against_id'])}
+            )
+            if user:
+                user_data = serialize_doc(user)
+                user_data.pop('password_hash', None)
+                complaint_data['against_details'] = user_data
+        
+        # Get booking details
+        if complaint.get('booking_id'):
+            booking = await db[Collections.BOOKINGS].find_one(
+                {"_id": ObjectId(complaint['booking_id'])}
+            )
+            if booking:
+                complaint_data['booking_details'] = serialize_doc(booking)
+        
+        # Get all responses
+        responses_cursor = db[Collections.COMPLAINT_RESPONSES].find(
+            {"complaint_id": ObjectId(complaint_id)}
+        ).sort("created_at", 1)
+        
+        responses = await responses_cursor.to_list(100)
+        processed_responses = []
+        
+        for response in responses:
+            response_data = serialize_doc(response)
+            responder = await db[Collections.USERS].find_one(
+                {"_id": ObjectId(response['responder_id'])}
+            )
+            response_data['responder_name'] = responder.get('name') if responder else 'Admin'
+            response_data['responder_role'] = responder.get('role') if responder else 'admin'
+            processed_responses.append(response_data)
+        
+        complaint_data['responses'] = processed_responses
+        
+        # Get previous complaints by same user
+        previous_complaints = await db[Collections.COMPLAINTS].count_documents({
+            "filed_by": ObjectId(complaint['filed_by']),
+            "_id": {"$ne": ObjectId(complaint_id)}
+        })
+        complaint_data['previous_complaints_count'] = previous_complaints
+        
+        # Get complaints against the accused
+        complaints_against = await db[Collections.COMPLAINTS].count_documents({
+            "complaint_against_id": ObjectId(complaint['complaint_against_id'])
+        })
+        complaint_data['total_complaints_against'] = complaints_against
+    
+    except Exception as e:
+        print(f"Error fetching complaint details: {e}")
+    
+    return complaint_data
+
+
+@app.put("/api/admin/complaints/{complaint_id}/status")
+async def update_complaint_status_admin(
+    complaint_id: str,
+    status: str = Form(...),
+    admin_notes: Optional[str] = Form(None),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Update complaint status"""
+    valid_statuses = [ComplaintStatus.PENDING, ComplaintStatus.INVESTIGATING, 
+                     ComplaintStatus.RESOLVED, ComplaintStatus.REJECTED, ComplaintStatus.CLOSED]
+    
+    if status not in valid_statuses:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    
+    complaint = await db[Collections.COMPLAINTS].find_one({"_id": ObjectId(complaint_id)})
+    if not complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+    
+    update_data = {
+        "status": status,
+        "updated_at": datetime.utcnow()
+    }
+    
+    if status == ComplaintStatus.INVESTIGATING:
+        update_data["assigned_to"] = ObjectId(current_admin['_id'])
+        update_data["assigned_at"] = datetime.utcnow()
+    elif status == ComplaintStatus.RESOLVED:
+        update_data["resolved_by"] = ObjectId(current_admin['_id'])
+        update_data["resolved_at"] = datetime.utcnow()
+    elif status == ComplaintStatus.CLOSED:
+        update_data["closed_by"] = ObjectId(current_admin['_id'])
+        update_data["closed_at"] = datetime.utcnow()
+    
+    await db[Collections.COMPLAINTS].update_one(
+        {"_id": ObjectId(complaint_id)},
+        {"$set": update_data}
+    )
+    
+    # Add admin response if notes provided
+    if admin_notes:
+        response = {
+            "complaint_id": ObjectId(complaint_id),
+            "responder_id": ObjectId(current_admin['_id']),
+            "responder_type": "admin",
+            "response_text": admin_notes,
+            "response_type": "status_update",
+            "created_at": datetime.utcnow()
+        }
+        await db[Collections.COMPLAINT_RESPONSES].insert_one(response)
+    
+    # Notify complainant
+    await create_notification(
+        str(complaint['filed_by']),
+        NotificationTypes.SYSTEM,
+        f"Complaint Update - {status.title()}",
+        f"Your complaint #{complaint['complaint_number']} status: {status}. {admin_notes or ''}"
+    )
+    
+    # Create audit log
+    await db[Collections.AUDIT_LOGS].insert_one({
+        "admin_id": ObjectId(current_admin['_id']),
+        "action_type": "complaint_status_updated",
+        "target_id": ObjectId(complaint_id),
+        "target_type": "complaint",
+        "details": {"status": status, "notes": admin_notes},
+        "created_at": datetime.utcnow()
+    })
+    
+    return SuccessResponse(message=f"Complaint status updated to {status}")
+
+
+@app.post("/api/admin/complaints/{complaint_id}/respond")
+async def respond_to_complaint_admin(
+    complaint_id: str,
+    response_text: str = Form(...),
+    response_type: str = Form("message"),
+    notify_both_parties: bool = Form(True),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Add admin response to complaint"""
+    complaint = await db[Collections.COMPLAINTS].find_one({"_id": ObjectId(complaint_id)})
+    if not complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+    
+    response = {
+        "complaint_id": ObjectId(complaint_id),
+        "responder_id": ObjectId(current_admin['_id']),
+        "responder_type": "admin",
+        "response_text": response_text,
+        "response_type": response_type,
+        "created_at": datetime.utcnow()
+    }
+    
+    await db[Collections.COMPLAINT_RESPONSES].insert_one(response)
+    
+    await db[Collections.COMPLAINTS].update_one(
+        {"_id": ObjectId(complaint_id)},
+        {"$set": {"updated_at": datetime.utcnow()}}
+    )
+    
+    # Notify complainant
+    await create_notification(
+        str(complaint['filed_by']),
+        NotificationTypes.SYSTEM,
+        "Admin Response to Your Complaint",
+        f"Admin responded: {response_text[:100]}..."
+    )
+    
+    # Notify accused if both parties
+    if notify_both_parties:
+        if complaint['complaint_against_type'] == 'servicer':
+            servicer = await db[Collections.SERVICERS].find_one(
+                {"_id": complaint['complaint_against_id']}
+            )
+            if servicer:
+                await create_notification(
+                    str(servicer['user_id']),
+                    NotificationTypes.SYSTEM,
+                    "Complaint Update",
+                    f"Admin update on complaint: {response_text[:100]}..."
+                )
+        else:
+            await create_notification(
+                str(complaint['complaint_against_id']),
+                NotificationTypes.SYSTEM,
+                "Complaint Update",
+                f"Admin update on complaint: {response_text[:100]}..."
+            )
+    
+    return SuccessResponse(message="Response added successfully")
+
+
+
+@app.post("/api/admin/complaints/{complaint_id}/resolve")
+async def resolve_complaint_admin(
+    complaint_id: str,
+    resolution: str = Form(...),
+    action_taken: str = Form(...),
+    refund_approved: bool = Form(False),
+    refund_amount: Optional[float] = Form(None),
+    ban_user: bool = Form(False),
+    ban_duration_days: Optional[int] = Form(None),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Resolve complaint with actions"""
+    complaint = await db[Collections.COMPLAINTS].find_one({"_id": ObjectId(complaint_id)})
+    if not complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+    
+    # Update complaint
+    update_data = {
+        "status": ComplaintStatus.RESOLVED,
+        "resolution": resolution,
+        "action_taken": action_taken,
+        "resolved_by": ObjectId(current_admin['_id']),
+        "resolved_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    }
+    
+    await db[Collections.COMPLAINTS].update_one(
+        {"_id": ObjectId(complaint_id)},
+        {"$set": update_data}
+    )
+    
+    # Handle refund if approved
+    if refund_approved and refund_amount and refund_amount > 0:
+        # Credit user wallet
+        await db[Collections.WALLETS].update_one(
+            {"user_id": complaint['filed_by']},
+            {
+                "$inc": {"balance": refund_amount},
+                "$set": {"last_transaction_at": datetime.utcnow()}
+            },
+            upsert=True
+        )
+        
+        # Create refund transaction
+        refund_txn = {
+            "user_id": complaint['filed_by'],
+            "transaction_type": TransactionType.REFUND,
+            "payment_method": PaymentMethod.WALLET,
+            "amount": refund_amount,
+            "transaction_status": PaymentStatus.COMPLETED,
+            "metadata": {
+                "complaint_id": complaint_id,
+                "complaint_number": complaint.get('complaint_number', 'N/A'),
+                "reason": "Complaint resolution"
+            },
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        
+        if complaint.get('booking_id'):
+            refund_txn['booking_id'] = complaint['booking_id']
+        
+        await db[Collections.TRANSACTIONS].insert_one(refund_txn)
+        
+        # Notify about refund
+        await create_notification(
+            str(complaint['filed_by']),
+            NotificationTypes.PAYMENT,
+            "Refund Processed",
+            f"₹{refund_amount} refunded to your wallet for complaint #{complaint.get('complaint_number', 'N/A')}"
+        )
+    
+    # ✅ UPDATED: Handle ban/suspension with both flags
+    if ban_user:
+        ban_until = None
+        if ban_duration_days:
+            ban_until = datetime.utcnow() + timedelta(days=ban_duration_days)
+        
+        # Add to blacklist
+        blacklist_entry = {
+            "user_id": complaint['complaint_against_id'],
+            "user_type": complaint['complaint_against_type'],
+            "banned_by": ObjectId(current_admin['_id']),
+            "reason": f"Complaint resolution: {complaint.get('complaint_type', 'violation')}",
+            "complaint_id": ObjectId(complaint_id),
+            "ban_until": ban_until,
+            "is_permanent": ban_duration_days is None,
+            "created_at": datetime.utcnow()
+        }
+        await db[Collections.BLACKLIST].insert_one(blacklist_entry)
+        
+        # ✅ UPDATED: Block AND suspend user account with both flags
+        await db[Collections.USERS].update_one(
+            {"_id": complaint['complaint_against_id']},
+            {
+                "$set": {
+                    "is_blocked": True,
+                    "is_suspended": True,  # ✅ ADDED
+                    "blocked_reason": f"Complaint: {complaint.get('complaint_type', 'violation').replace('_', ' ')}",
+                    "blocked_until": ban_until,
+                    "suspended_at": datetime.utcnow()  # ✅ ADDED
+                }
+            }
+        )
+        
+        # Notify banned user
+        ban_message = f"Your account has been {'permanently ' if not ban_duration_days else ''}suspended"
+        if ban_duration_days:
+            ban_message += f" for {ban_duration_days} days"
+        ban_message += f". Reason: {complaint.get('complaint_type', 'policy violation').replace('_', ' ')}"
+        
+        await create_notification(
+            str(complaint['complaint_against_id']),
+            NotificationTypes.SYSTEM,
+            "Account Suspended",
+            ban_message
+        )
+    
+    # Notify complainant about resolution
+    resolution_message = f"Your complaint #{complaint.get('complaint_number', 'N/A')} has been resolved. "
+    if refund_approved and refund_amount:
+        resolution_message += f"Refund of ₹{refund_amount} processed. "
+    resolution_message += f"Action taken: {action_taken}"
+    
+    await create_notification(
+        str(complaint['filed_by']),
+        NotificationTypes.SYSTEM,
+        "Complaint Resolved",
+        resolution_message
+    )
+    
+    # Notify servicer about resolution
+    if complaint['complaint_against_type'] == 'servicer':
+        servicer = await db[Collections.SERVICERS].find_one(
+            {"_id": complaint['complaint_against_id']}
+        )
+        if servicer:
+            servicer_message = f"Complaint #{complaint.get('complaint_number', 'N/A')} has been resolved. "
+            servicer_message += f"Resolution: {resolution[:100]}..."
+            if ban_user:
+                servicer_message += " Your account has been suspended."
+            
+            await create_notification(
+                str(servicer['user_id']),
+                NotificationTypes.SYSTEM,
+                "Complaint Resolution",
+                servicer_message
+            )
+    
+    # Create audit log
+    await db[Collections.AUDIT_LOGS].insert_one({
+        "admin_id": ObjectId(current_admin['_id']),
+        "action_type": "complaint_resolved",
+        "target_id": ObjectId(complaint_id),
+        "target_type": "complaint",
+        "details": {
+            "resolution": resolution,
+            "action_taken": action_taken,
+            "refund_amount": refund_amount if refund_approved else 0,
+            "user_banned": ban_user,
+            "ban_duration": ban_duration_days
+        },
+        "created_at": datetime.utcnow()
+    })
+    
+    return SuccessResponse(
+        message="Complaint resolved successfully",
+        data={
+            "resolution": resolution,
+            "refund_processed": refund_approved,
+            "refund_amount": refund_amount if refund_approved else 0,
+            "user_banned": ban_user
+        }
+    )
+
+
+@app.post("/api/admin/servicers/{servicer_id}/suspend")
+async def suspend_servicer_admin(
+    servicer_id: str,
+    reason: str = Form(...),
+    duration_days: Optional[int] = Form(None),
+    notify_user: bool = Form(True),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Suspend a servicer account"""
+    # Get servicer
+    servicer = await db[Collections.SERVICERS].find_one({"_id": ObjectId(servicer_id)})
+    if not servicer:
+        raise HTTPException(status_code=404, detail="Servicer not found")
+    
+    # Calculate ban until date
+    ban_until = None
+    if duration_days:
+        ban_until = datetime.utcnow() + timedelta(days=duration_days)
+    
+    # Add to blacklist
+    blacklist_entry = {
+        "user_id": servicer['user_id'],
+        "user_type": "servicer",
+        "banned_by": ObjectId(current_admin['_id']),
+        "reason": reason,
+        "ban_until": ban_until,
+        "is_permanent": duration_days is None,
+        "created_at": datetime.utcnow()
+    }
+    await db[Collections.BLACKLIST].insert_one(blacklist_entry)
+    
+    # Update user account with both flags
+    await db[Collections.USERS].update_one(
+        {"_id": servicer['user_id']},
+        {
+            "$set": {
+                "is_blocked": True,
+                "is_suspended": True,
+                "blocked_reason": reason,
+                "blocked_until": ban_until,
+                "suspended_at": datetime.utcnow()
+            }
+        }
+    )
+    
+    # Update servicer status
+    await db[Collections.SERVICERS].update_one(
+        {"_id": ObjectId(servicer_id)},
+        {
+            "$set": {
+                "is_suspended": True,
+                "suspended_at": datetime.utcnow(),
+                "suspended_until": ban_until,
+                "suspension_reason": reason
+            }
+        }
+    )
+    
+    # Cancel pending bookings
+    pending_bookings = await db[Collections.BOOKINGS].find({
+        "servicer_id": ObjectId(servicer_id),
+        "booking_status": {"$in": [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.SCHEDULED]}
+    }).to_list(100)
+    
+    for booking in pending_bookings:
+        # Cancel booking
+        await db[Collections.BOOKINGS].update_one(
+            {"_id": booking['_id']},
+            {
+                "$set": {
+                    "booking_status": BookingStatus.CANCELLED,
+                    "cancelled_by": "admin",
+                    "cancellation_reason": f"Servicer suspended: {reason}",
+                    "cancelled_at": datetime.utcnow()
+                }
+            }
+        )
+        
+        # Refund user
+        if booking.get('total_amount', 0) > 0:
+            await db[Collections.WALLETS].update_one(
+                {"user_id": booking['user_id']},
+                {
+                    "$inc": {"balance": booking['total_amount']},
+                    "$set": {"last_transaction_at": datetime.utcnow()}
+                },
+                upsert=True
+            )
+            
+            # Create refund transaction
+            await db[Collections.TRANSACTIONS].insert_one({
+                "user_id": booking['user_id'],
+                "booking_id": booking['_id'],
+                "transaction_type": TransactionType.REFUND,
+                "payment_method": PaymentMethod.WALLET,
+                "amount": booking['total_amount'],
+                "transaction_status": PaymentStatus.COMPLETED,
+                "metadata": {
+                    "reason": "Servicer suspended",
+                    "booking_number": booking.get('booking_number', 'N/A')
+                },
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            })
+            
+            # Notify user about refund
+            await create_notification(
+                str(booking['user_id']),
+                NotificationTypes.BOOKING,
+                "Booking Cancelled - Refund Issued",
+                f"Booking #{booking.get('booking_number', 'N/A')} cancelled due to servicer suspension. ₹{booking['total_amount']} refunded to your wallet."
+            )
+    
+    # Notify servicer if requested
+    if notify_user:
+        ban_message = f"Your servicer account has been {'permanently ' if not duration_days else ''}suspended"
+        if duration_days:
+            ban_message += f" for {duration_days} days"
+        ban_message += f". Reason: {reason}"
+        
+        await create_notification(
+            str(servicer['user_id']),
+            NotificationTypes.SYSTEM,
+            "Account Suspended",
+            ban_message
+        )
+    
+    # Create audit log
+    await db[Collections.AUDIT_LOGS].insert_one({
+        "admin_id": ObjectId(current_admin['_id']),
+        "action_type": "servicer_suspended",
+        "target_id": ObjectId(servicer_id),
+        "target_type": "servicer",
+        "details": {
+            "reason": reason,
+            "duration_days": duration_days,
+            "is_permanent": duration_days is None,
+            "cancelled_bookings": len(pending_bookings)
+        },
+        "created_at": datetime.utcnow()
+    })
+    
+    return SuccessResponse(
+        message=f"Servicer suspended {'permanently' if not duration_days else f'for {duration_days} days'}",
+        data={
+            "servicer_id": servicer_id,
+            "suspended_until": ban_until.isoformat() if ban_until else None,
+            "is_permanent": duration_days is None,
+            "cancelled_bookings": len(pending_bookings)
+        }
+    )
+
+
+@app.post("/api/admin/servicers/{servicer_id}/unsuspend")
+async def unsuspend_servicer_admin(
+    servicer_id: str,
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Remove suspension from a servicer account"""
+    # Get servicer
+    servicer = await db[Collections.SERVICERS].find_one({"_id": ObjectId(servicer_id)})
+    if not servicer:
+        raise HTTPException(status_code=404, detail="Servicer not found")
+    
+    # Remove from blacklist
+    await db[Collections.BLACKLIST].delete_many({"user_id": servicer['user_id']})
+    
+    # Update user account
+    await db[Collections.USERS].update_one(
+        {"_id": servicer['user_id']},
+        {
+            "$set": {
+                "is_blocked": False,
+                "is_suspended": False,
+                "blocked_reason": None,
+                "blocked_until": None,
+                "suspended_at": None
+            }
+        }
+    )
+    
+    # Update servicer status
+    await db[Collections.SERVICERS].update_one(
+        {"_id": ObjectId(servicer_id)},
+        {
+            "$set": {
+                "is_suspended": False,
+                "suspended_at": None,
+                "suspended_until": None,
+                "suspension_reason": None
+            }
+        }
+    )
+    
+    # Notify servicer
+    await create_notification(
+        str(servicer['user_id']),
+        NotificationTypes.SYSTEM,
+        "Account Restored",
+        "Your servicer account suspension has been lifted. You can now accept bookings again."
+    )
+    
+    # Create audit log
+    await db[Collections.AUDIT_LOGS].insert_one({
+        "admin_id": ObjectId(current_admin['_id']),
+        "action_type": "servicer_unsuspended",
+        "target_id": ObjectId(servicer_id),
+        "target_type": "servicer",
+        "details": {"action": "suspension_removed"},
+        "created_at": datetime.utcnow()
+    })
+    
+    return SuccessResponse(message="Servicer suspension removed successfully")
+# ==========================================
+# NEW: DIRECT SUSPEND USER ENDPOINT
+# ==========================================
+
+@app.post("/api/admin/users/{user_id}/suspend")
+async def suspend_user_admin(
+    user_id: str,
+    reason: str = Form(...),
+    duration_days: Optional[int] = Form(None),
+    notify_user: bool = Form(True),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Suspend a user account directly (without complaint)"""
+    
+    user = await db[Collections.USERS].find_one({"_id": ObjectId(user_id)})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if user.get('is_blocked') or user.get('is_suspended'):
+        raise HTTPException(status_code=400, detail="User is already suspended")
+    
+    # Calculate suspension end date
+    suspended_until = None
+    if duration_days:
+        suspended_until = datetime.utcnow() + timedelta(days=duration_days)
+    
+    # Add to blacklist
+    blacklist_entry = {
+        "user_id": ObjectId(user_id),
+        "user_type": user.get('role', 'user'),
+        "banned_by": ObjectId(current_admin['_id']),
+        "reason": reason,
+        "ban_until": suspended_until,
+        "is_permanent": duration_days is None,
+        "created_at": datetime.utcnow()
+    }
+    await db[Collections.BLACKLIST].insert_one(blacklist_entry)
+    
+    # ✅ Suspend user with both flags
+    await db[Collections.USERS].update_one(
+        {"_id": ObjectId(user_id)},
+        {
+            "$set": {
+                "is_blocked": True,
+                "is_suspended": True,
+                "blocked_reason": reason,
+                "blocked_until": suspended_until,
+                "suspended_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            }
+        }
+    )
+    
+    # Notify user
+    if notify_user:
+        suspension_message = f"Your account has been {'permanently ' if not duration_days else ''}suspended. "
+        if duration_days:
+            suspension_message += f"Duration: {duration_days} days. "
+        suspension_message += f"Reason: {reason}"
+        
+        await create_notification(
+            user_id,
+            NotificationTypes.SYSTEM,
+            "Account Suspended",
+            suspension_message
+        )
+    
+    # Create audit log
+    await db[Collections.AUDIT_LOGS].insert_one({
+        "admin_id": ObjectId(current_admin['_id']),
+        "action_type": "user_suspended",
+        "target_id": ObjectId(user_id),
+        "target_type": "user",
+        "details": {
+            "reason": reason,
+            "duration_days": duration_days,
+            "suspended_until": suspended_until.isoformat() if suspended_until else None
+        },
+        "created_at": datetime.utcnow()
+    })
+    
+    return SuccessResponse(
+        message="User suspended successfully",
+        data={
+            "user_id": user_id,
+            "suspended_until": suspended_until.isoformat() if suspended_until else "permanent",
+            "reason": reason
+        }
+    )
+
+
+# ==========================================
+# NEW: UNSUSPEND USER ENDPOINT
+# ==========================================
+
+@app.post("/api/admin/users/{user_id}/unsuspend")
+async def unsuspend_user_admin(
+    user_id: str,
+    reason: str = Form(...),
+    notify_user: bool = Form(True),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Remove suspension from a user account"""
+    
+    user = await db[Collections.USERS].find_one({"_id": ObjectId(user_id)})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if not user.get('is_blocked') and not user.get('is_suspended'):
+        raise HTTPException(status_code=400, detail="User is not suspended")
+    
+    # ✅ Remove both suspension flags
+    await db[Collections.USERS].update_one(
+        {"_id": ObjectId(user_id)},
+        {
+            "$set": {
+                "is_blocked": False,
+                "is_suspended": False,
+                "updated_at": datetime.utcnow()
+            },
+            "$unset": {
+                "blocked_reason": "",
+                "blocked_until": "",
+                "suspended_at": ""
+            }
+        }
+    )
+    
+    # Remove from blacklist
+    await db[Collections.BLACKLIST].delete_many({
+        "user_id": ObjectId(user_id)
+    })
+    
+    # Notify user
+    if notify_user:
+        await create_notification(
+            user_id,
+            NotificationTypes.SYSTEM,
+            "Account Reactivated",
+            f"Your account suspension has been lifted. Reason: {reason}"
+        )
+    
+    # Create audit log
+    await db[Collections.AUDIT_LOGS].insert_one({
+        "admin_id": ObjectId(current_admin['_id']),
+        "action_type": "user_unsuspended",
+        "target_id": ObjectId(user_id),
+        "target_type": "user",
+        "details": {
+            "reason": reason
+        },
+        "created_at": datetime.utcnow()
+    })
+    
+    return SuccessResponse(
+        message="User suspension removed successfully",
+        data={
+            "user_id": user_id,
+            "reason": reason
+        }
+    )
+
+
+# ==========================================
+# NEW: ISSUE WARNING TO SERVICER
+# ==========================================
+
+@app.post("/api/admin/servicers/{servicer_id}/warn")
+async def issue_warning_to_servicer(
+    servicer_id: str,
+    warning_type: str = Form(...),
+    severity: str = Form(...),
+    description: str = Form(...),
+    booking_id: Optional[str] = Form(None),
+    auto_suspend_after_warnings: int = Form(3),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Issue a warning to a servicer"""
+    
+    servicer = await db[Collections.SERVICERS].find_one({"_id": ObjectId(servicer_id)})
+    if not servicer:
+        raise HTTPException(status_code=404, detail="Servicer not found")
+    
+    # Create warning
+    warning = {
+        "servicer_id": ObjectId(servicer_id),
+        "warning_type": warning_type,
+        "severity": severity,
+        "description": description,
+        "issued_by": ObjectId(current_admin['_id']),
+        "acknowledged": False,
+        "created_at": datetime.utcnow()
+    }
+    
+    if booking_id:
+        warning["booking_id"] = ObjectId(booking_id)
+    
+    result = await db[Collections.SERVICER_WARNINGS].insert_one(warning)
+    
+    # Check total unacknowledged warnings
+    warning_count = await db[Collections.SERVICER_WARNINGS].count_documents({
+        "servicer_id": ObjectId(servicer_id),
+        "acknowledged": {"$ne": True}
+    })
+    
+    # ✅ Auto-suspend if warning threshold exceeded
+    if warning_count >= auto_suspend_after_warnings:
+        await db[Collections.USERS].update_one(
+            {"_id": servicer['user_id']},
+            {
+                "$set": {
+                    "is_blocked": True,
+                    "is_suspended": True,
+                    "blocked_reason": f"Exceeded warning limit ({warning_count} warnings)",
+                    "blocked_until": datetime.utcnow() + timedelta(days=30),
+                    "suspended_at": datetime.utcnow(),
+                    "updated_at": datetime.utcnow()
+                }
+            }
+        )
+        
+        await create_notification(
+            str(servicer['user_id']),
+            NotificationTypes.SYSTEM,
+            "Account Suspended - Warning Limit Exceeded",
+            f"Your account has been suspended for 30 days due to {warning_count} unacknowledged warnings."
+        )
+    else:
+        # Just notify about the warning
+        await create_notification(
+            str(servicer['user_id']),
+            NotificationTypes.SYSTEM,
+            f"Warning Issued - {severity.upper()}",
+            f"{description}. You have {warning_count} active warning(s)."
+        )
+    
+    # Create audit log
+    await db[Collections.AUDIT_LOGS].insert_one({
+        "admin_id": ObjectId(current_admin['_id']),
+        "action_type": "warning_issued",
+        "target_id": ObjectId(servicer_id),
+        "target_type": "servicer",
+        "details": {
+            "warning_type": warning_type,
+            "severity": severity,
+            "description": description,
+            "total_warnings": warning_count
+        },
+        "created_at": datetime.utcnow()
+    })
+    
+    return SuccessResponse(
+        message=f"Warning issued successfully. Total warnings: {warning_count}",
+        data={
+            "warning_id": str(result.inserted_id),
+            "total_warnings": warning_count,
+            "auto_suspended": warning_count >= auto_suspend_after_warnings
+        }
+    )
+
+
+# ==========================================
+# NEW: CHECK AND LIFT EXPIRED SUSPENSIONS (CRON JOB)
+# ==========================================
+
+@app.post("/api/admin/system/lift-expired-suspensions")
+async def lift_expired_suspensions(
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Automatically lift suspensions that have expired (run as cron job)"""
+    
+    now = datetime.utcnow()
+    
+    # Find users with expired suspensions
+    expired_suspensions = await db[Collections.USERS].find({
+        "is_suspended": True,
+        "blocked_until": {"$lte": now, "$ne": None}
+    }).to_list(1000)
+    
+    lifted_count = 0
+    for user in expired_suspensions:
+        # ✅ Remove both flags
+        await db[Collections.USERS].update_one(
+            {"_id": user['_id']},
+            {
+                "$set": {
+                    "is_blocked": False,
+                    "is_suspended": False,
+                    "updated_at": datetime.utcnow()
+                },
+                "$unset": {
+                    "blocked_reason": "",
+                    "blocked_until": "",
+                    "suspended_at": ""
+                }
+            }
+        )
+        
+        # Remove from blacklist
+        await db[Collections.BLACKLIST].delete_many({
+            "user_id": user['_id'],
+            "ban_until": {"$lte": now}
+        })
+        
+        # Notify user
+        await create_notification(
+            str(user['_id']),
+            NotificationTypes.SYSTEM,
+            "Suspension Lifted",
+            "Your temporary suspension has expired. Your account is now active."
+        )
+        
+        lifted_count += 1
+    
+    return SuccessResponse(
+        message=f"Lifted {lifted_count} expired suspension(s)",
+        data={
+            "lifted_count": lifted_count,
+            "checked_at": now.isoformat()
+        }
+    )
+
+
+# ==========================================
+# NEW: GET SUSPENDED USERS LIST
+# ==========================================
+
+@app.get("/api/admin/users/suspended")
+async def get_suspended_users(
+    page: int = 1,
+    limit: int = 20,
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Get list of all suspended users"""
+    
+    skip = (page - 1) * limit
+    
+    # Find suspended users
+    users_cursor = db[Collections.USERS].find({
+        "$or": [
+            {"is_suspended": True},
+            {"is_blocked": True}
+        ]
+    }).sort("suspended_at", -1).skip(skip).limit(limit)
+    
+    users = await users_cursor.to_list(limit)
+    
+    # Process users
+    processed_users = []
+    for user in users:
+        user_data = serialize_doc(user)
+        user_data.pop('password_hash', None)
+        
+        # Get suspension details from blacklist
+        blacklist = await db[Collections.BLACKLIST].find_one({
+            "user_id": user['_id']
+        })
+        
+        if blacklist:
+            user_data['blacklist_details'] = serialize_doc(blacklist)
+        
+        processed_users.append(user_data)
+    
+    total = await db[Collections.USERS].count_documents({
+        "$or": [
+            {"is_suspended": True},
+            {"is_blocked": True}
+        ]
+    })
+    
+    return {
+        "users": processed_users,
+        "total": total,
+        "page": page,
+        "pages": math.ceil(total / limit) if limit > 0 else 0
+    }
+
+@app.get("/api/admin/blacklist")
+async def get_blacklist_admin(
+    page: int = 1,
+    limit: int = 20,
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Get all blacklisted users"""
+    skip = (page - 1) * limit
+    
+    blacklist = await db[Collections.BLACKLIST].find({}).sort(
+        "created_at", -1
+    ).skip(skip).limit(limit).to_list(limit)
+    
+    processed_blacklist = []
+    for entry in blacklist:
+        # Get user details
+        user = await db[Collections.USERS].find_one({"_id": ObjectId(entry['user_id'])})
+        if user:
+            entry['user_name'] = user.get('name', 'Unknown User')
+            entry['user_email'] = user.get('email', 'N/A')
+            entry['user_phone'] = user.get('phone', 'N/A')
+            entry['user_type'] = user.get('user_type', 'user')  # Add user_type
+        else:
+            # Handle case where user is deleted
+            entry['user_name'] = 'Deleted User'
+            entry['user_email'] = 'N/A'
+            entry['user_phone'] = 'N/A'
+            entry['user_type'] = 'unknown'
+        
+        # Check if ban expired
+        if entry.get('ban_until'):
+            ban_until = entry['ban_until']
+            # Convert string to datetime if needed
+            if isinstance(ban_until, str):
+                try:
+                    ban_until = datetime.fromisoformat(ban_until.replace('Z', '+00:00'))
+                except ValueError:
+                    ban_until = None
+            
+            if ban_until and datetime.utcnow() > ban_until:
+                entry['ban_expired'] = True
+            else:
+                entry['ban_expired'] = False
+        
+        # Add is_permanent flag if not present
+        if 'is_permanent' not in entry:
+            entry['is_permanent'] = entry.get('ban_until') is None
+        
+        # Serialize the entry (converts ObjectId and datetime to JSON-safe formats)
+        processed_blacklist.append(serialize_doc(entry))
+    
+    total = await db[Collections.BLACKLIST].count_documents({})
+    
+    return {
+        "blacklist": processed_blacklist,
+        "total": total,
+        "page": page,
+        "pages": math.ceil(total / limit)
+    }
+
+@app.delete("/api/admin/blacklist/{user_id}/remove")
+async def remove_from_blacklist_admin(
+    user_id: str,
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Remove user from blacklist and unblock account"""
+    # Remove from blacklist
+    result = await db[Collections.BLACKLIST].delete_one({"user_id": ObjectId(user_id)})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="User not found in blacklist")
+    
+    # Unblock user
+    await db[Collections.USERS].update_one(
+        {"_id": ObjectId(user_id)},
+        {
+            "$set": {
+                "is_blocked": False,
+                "blocked_reason": None,
+                "blocked_until": None
+            }
+        }
+    )
+    
+    # Notify user
+    await create_notification(
+        user_id,
+        NotificationTypes.SYSTEM,
+        "Account Restored",
+        "Your account has been restored and you can now access all features."
+    )
+    
+    # Audit log
+    await db[Collections.AUDIT_LOGS].insert_one({
+        "admin_id": ObjectId(current_admin['_id']),
+        "action_type": "user_unblocked",
+        "target_id": ObjectId(user_id),
+        "target_type": "user",
+        "details": {"action": "removed_from_blacklist"},
+        "created_at": datetime.utcnow()
+    })
+    
+    return SuccessResponse(message="User removed from blacklist and account restored")
+# Add these to your main.py after the complaint endpoints
+
+# ============= AUTOMATED REFUND PROCESSING =============
+
+async def process_automatic_refund(
+    user_id: str,
+    amount: float,
+    reason: str,
+    booking_id: Optional[str] = None,
+    complaint_id: Optional[str] = None
+):
+    """Process automatic refund to user wallet"""
+    try:
+        # Credit user wallet
+        await db[Collections.WALLETS].update_one(
+            {"user_id": ObjectId(user_id)},
+            {
+                "$inc": {"balance": amount},
+                "$set": {
+                    "last_transaction_at": datetime.utcnow(),
+                    "updated_at": datetime.utcnow()
+                }
+            }
+        )
+        
+        # Create refund transaction
+        refund_txn = {
+            "user_id": ObjectId(user_id),
+            "transaction_type": TransactionType.REFUND,
+            "payment_method": PaymentMethod.WALLET,
+            "amount": amount,
+            "transaction_status": PaymentStatus.COMPLETED,
+            "metadata": {
+                "reason": reason,
+                "processed_by": "system_auto",
+                "complaint_id": complaint_id,
+                "booking_id": booking_id
+            },
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        
+        if booking_id:
+            refund_txn['booking_id'] = ObjectId(booking_id)
+        
+        result = await db[Collections.TRANSACTIONS].insert_one(refund_txn)
+        
+        # Send notification
+        await create_notification(
+            user_id,
+            NotificationTypes.PAYMENT,
+            "Automatic Refund Processed",
+            f"₹{amount} has been automatically refunded to your wallet. Reason: {reason}"
+        )
+        
+        print(f"✅ Auto-refund processed: ₹{amount} to user {user_id}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Auto-refund failed: {e}")
+        return False
+
+
+@app.post("/api/admin/refunds/process-bulk")
+async def process_bulk_refunds(
+    refund_list: List[dict] = Form(...),  # [{"user_id": "...", "amount": 500, "reason": "..."}]
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Process multiple refunds at once"""
+    processed = []
+    failed = []
+    
+    for refund in refund_list:
+        try:
+            user_id = refund.get('user_id')
+            amount = refund.get('amount')
+            reason = refund.get('reason', 'Bulk refund processing')
+            booking_id = refund.get('booking_id')
+            
+            success = await process_automatic_refund(
+                user_id=user_id,
+                amount=amount,
+                reason=reason,
+                booking_id=booking_id
+            )
+            
+            if success:
+                processed.append({
+                    "user_id": user_id,
+                    "amount": amount,
+                    "status": "success"
+                })
+            else:
+                failed.append({
+                    "user_id": user_id,
+                    "amount": amount,
+                    "status": "failed",
+                    "error": "Processing error"
+                })
+                
+        except Exception as e:
+            failed.append({
+                "user_id": refund.get('user_id'),
+                "amount": refund.get('amount'),
+                "status": "failed",
+                "error": str(e)
+            })
+    
+    # Create audit log
+    await db[Collections.AUDIT_LOGS].insert_one({
+        "admin_id": ObjectId(current_admin['_id']),
+        "action_type": "bulk_refunds_processed",
+        "target_type": "refund",
+        "details": {
+            "total": len(refund_list),
+            "processed": len(processed),
+            "failed": len(failed)
+        },
+        "created_at": datetime.utcnow()
+    })
+    
+    return {
+        "message": f"Processed {len(processed)} refunds, {len(failed)} failed",
+        "processed": processed,
+        "failed": failed
+    }
+
+
+# ============= SCHEDULED REFUND CHECKS (Background Task) =============
+
+async def check_pending_refunds():
+    """Background task to check for refunds that should be processed automatically"""
+    try:
+        # Find cancelled bookings with completed payments that need refunds
+        cancelled_bookings = await db[Collections.BOOKINGS].find({
+            "booking_status": BookingStatus.CANCELLED,
+            "payment_status": PaymentStatus.COMPLETED,
+            "refund_processed": {"$ne": True},
+            "payment_method": {"$in": [PaymentMethod.STRIPE, PaymentMethod.WALLET]}
+        }).to_list(100)
+        
+        for booking in cancelled_bookings:
+            # Check cancellation policy
+            booking_date = datetime.fromisoformat(booking['booking_date'])
+            hours_before = (booking_date - datetime.utcnow()).total_seconds() / 3600
+            
+            refund_percentage = 0
+            if hours_before >= 24:
+                refund_percentage = 100  # Full refund
+            elif hours_before >= 12:
+                refund_percentage = 50   # 50% refund
+            # else: No refund if less than 12 hours
+            
+            if refund_percentage > 0:
+                refund_amount = booking['total_amount'] * (refund_percentage / 100)
+                
+                success = await process_automatic_refund(
+                    user_id=str(booking['user_id']),
+                    amount=refund_amount,
+                    reason=f"{refund_percentage}% refund for cancelled booking",
+                    booking_id=str(booking['_id'])
+                )
+                
+                if success:
+                    await db[Collections.BOOKINGS].update_one(
+                        {"_id": booking['_id']},
+                        {
+                            "$set": {
+                                "refund_processed": True,
+                                "refund_amount": refund_amount,
+                                "refund_percentage": refund_percentage,
+                                "refunded_at": datetime.utcnow()
+                            }
+                        }
+                    )
+        
+    except Exception as e:
+        print(f"❌ Refund check error: {e}")
+
+
+# ============= BAN/SUSPENSION MANAGEMENT =============
+
+@app.post("/api/admin/users/{user_id}/suspend")
+async def suspend_user(
+    user_id: str,
+    reason: str = Form(...),
+    duration_days: Optional[int] = Form(None),  # None = permanent
+    ban_type: str = Form("temporary"),  # temporary, permanent
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Suspend/ban a user account"""
+    user = await db[Collections.USERS].find_one({"_id": ObjectId(user_id)})
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if user['role'] == UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Cannot suspend admin accounts")
+    
+    ban_until = None
+    is_permanent = ban_type == "permanent"
+    
+    if not is_permanent and duration_days:
+        ban_until = datetime.utcnow() + timedelta(days=duration_days)
+    
+    # Add to blacklist
+    blacklist_entry = {
+        "user_id": ObjectId(user_id),
+        "user_type": user['role'],
+        "banned_by": ObjectId(current_admin['_id']),
+        "reason": reason,
+        "ban_until": ban_until,
+        "is_permanent": is_permanent,
+        "created_at": datetime.utcnow()
+    }
+    await db[Collections.BLACKLIST].insert_one(blacklist_entry)
+    
+    # Update user account
+    await db[Collections.USERS].update_one(
+        {"_id": ObjectId(user_id)},
+        {
+            "$set": {
+                "is_blocked": True,
+                "blocked_reason": reason,
+                "blocked_until": ban_until,
+                "blocked_at": datetime.utcnow(),
+                "blocked_by": ObjectId(current_admin['_id'])
+            }
+        }
+    )
+    
+    # Cancel all active bookings
+    await db[Collections.BOOKINGS].update_many(
+        {
+            "$or": [
+                {"user_id": ObjectId(user_id)},
+                {"servicer_id": ObjectId(user_id)}
+            ],
+            "booking_status": {"$in": [BookingStatus.PENDING, BookingStatus.ACCEPTED]}
+        },
+        {
+            "$set": {
+                "booking_status": BookingStatus.CANCELLED,
+                "cancellation_reason": "User account suspended",
+                "cancelled_by": ObjectId(current_admin['_id']),
+                "cancelled_at": datetime.utcnow()
+            }
+        }
+    )
+    
+    # Notify user
+    ban_message = f"Your account has been {'permanently ' if is_permanent else ''}suspended"
+    if duration_days:
+        ban_message += f" for {duration_days} days"
+    ban_message += f". Reason: {reason}. Contact support if you believe this is an error."
+    
+    await create_notification(
+        user_id,
+        NotificationTypes.SYSTEM,
+        "Account Suspended",
+        ban_message
+    )
+    
+    # Send email
+    await send_email(
+        user['email'],
+        "Account Suspended",
+        f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; padding: 20px;">
+                <h2 style="color: #dc2626;">Account Suspended</h2>
+                <p>Your account has been {'permanently ' if is_permanent else ''}suspended.</p>
+                <p><strong>Reason:</strong> {reason}</p>
+                {f'<p><strong>Duration:</strong> {duration_days} days</p>' if duration_days else ''}
+                <p>If you believe this is an error, please contact our support team.</p>
+            </body>
+        </html>
+        """
+    )
+    
+    # Create audit log
+    await db[Collections.AUDIT_LOGS].insert_one({
+        "admin_id": ObjectId(current_admin['_id']),
+        "action_type": "user_suspended",
+        "target_id": ObjectId(user_id),
+        "target_type": "user",
+        "details": {
+            "reason": reason,
+            "duration_days": duration_days,
+            "is_permanent": is_permanent,
+            "user_name": user['name'],
+            "user_email": user['email']
+        },
+        "created_at": datetime.utcnow()
+    })
+    
+    return SuccessResponse(
+        message=f"User {'permanently banned' if is_permanent else f'suspended for {duration_days} days'}",
+        data={
+            "user_id": user_id,
+            "ban_type": ban_type,
+            "duration_days": duration_days,
+            "ban_until": ban_until.isoformat() if ban_until else None
+        }
+    )
+
+
+@app.post("/api/admin/users/{user_id}/unsuspend")
+async def unsuspend_user(
+    user_id: str,
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Remove suspension from user account"""
+    # Remove from blacklist
+    result = await db[Collections.BLACKLIST].delete_many({"user_id": ObjectId(user_id)})
+    
+    # Unblock user
+    await db[Collections.USERS].update_one(
+        {"_id": ObjectId(user_id)},
+        {
+            "$set": {
+                "is_blocked": False,
+                "blocked_reason": None,
+                "blocked_until": None,
+                "blocked_at": None,
+                "blocked_by": None
+            }
+        }
+    )
+    
+    # Notify user
+    await create_notification(
+        user_id,
+        NotificationTypes.SYSTEM,
+        "Account Restored",
+        "Your account suspension has been lifted. You now have full access to all features."
+    )
+    
+    # Send email
+    user = await db[Collections.USERS].find_one({"_id": ObjectId(user_id)})
+    if user:
+        await send_email(
+            user['email'],
+            "Account Restored",
+            f"""
+            <html>
+                <body style="font-family: Arial, sans-serif; padding: 20px;">
+                    <h2 style="color: #10b981;">Account Restored</h2>
+                    <p>Hello {user['name']},</p>
+                    <p>Your account suspension has been lifted and you now have full access to all features.</p>
+                    <p>Thank you for your patience.</p>
+                </body>
+            </html>
+            """
+        )
+    
+    # Create audit log
+    await db[Collections.AUDIT_LOGS].insert_one({
+        "admin_id": ObjectId(current_admin['_id']),
+        "action_type": "user_unsuspended",
+        "target_id": ObjectId(user_id),
+        "target_type": "user",
+        "details": {"action": "suspension_removed"},
+        "created_at": datetime.utcnow()
+    })
+    
+    return SuccessResponse(message="User account restored successfully")
+
+
+@app.get("/api/admin/users/{user_id}/suspension-history")
+async def get_user_suspension_history(
+    user_id: str,
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Get user's suspension/ban history"""
+    
+    # Get current blacklist status
+    current_ban = await db[Collections.BLACKLIST].find_one({"user_id": ObjectId(user_id)})
+    
+    # Get audit logs for this user
+    suspension_logs = await db[Collections.AUDIT_LOGS].find({
+        "target_id": ObjectId(user_id),
+        "action_type": {"$in": ["user_suspended", "user_unsuspended", "user_blocked", "user_unblocked"]}
+    }).sort("created_at", -1).to_list(50)
+    
+    for log in suspension_logs:
+        log = convert_objectid_to_str(log)
+        
+        # Get admin name
+        admin = await db[Collections.USERS].find_one({"_id": ObjectId(log['admin_id'])})
+        log['admin_name'] = admin.get('name') if admin else 'System'
+    
+    return {
+        "current_status": {
+            "is_banned": current_ban is not None,
+            "ban_details": convert_objectid_to_str(current_ban) if current_ban else None
+        },
+        "history": suspension_logs
+    }
+
+
+# ============= AUTOMATIC BAN CHECK (Background Task) =============
+
+async def check_expired_bans():
+    """Background task to automatically unban users when ban expires"""
+    try:
+        # Find expired temporary bans
+        expired_bans = await db[Collections.BLACKLIST].find({
+            "ban_until": {"$lte": datetime.utcnow()},
+            "is_permanent": False
+        }).to_list(100)
+        
+        for ban in expired_bans:
+            # Remove from blacklist
+            await db[Collections.BLACKLIST].delete_one({"_id": ban['_id']})
+            
+            # Unblock user
+            await db[Collections.USERS].update_one(
+                {"_id": ban['user_id']},
+                {
+                    "$set": {
+                        "is_blocked": False,
+                        "blocked_reason": None,
+                        "blocked_until": None
+                    }
+                }
+            )
+            
+            # Notify user
+            await create_notification(
+                str(ban['user_id']),
+                NotificationTypes.SYSTEM,
+                "Suspension Expired",
+                "Your account suspension has expired. You now have full access again."
+            )
+            
+            print(f"✅ Auto-unbanned user: {ban['user_id']}")
+            
+    except Exception as e:
+        print(f"❌ Ban check error: {e}")
+
+
+# ============= SCHEDULER FOR BACKGROUND TASKS =============
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+
+scheduler = AsyncIOScheduler()
+
+# Run refund checks every hour
+scheduler.add_job(
+    check_pending_refunds,
+    IntervalTrigger(hours=1),
+    id='refund_check',
+    name='Check pending refunds',
+    replace_existing=True
+)
+
+# Run ban expiry checks every 6 hours
+scheduler.add_job(
+    check_expired_bans,
+    IntervalTrigger(hours=6),
+    id='ban_check',
+    name='Check expired bans',
+    replace_existing=True
+)
+
+
+# ============= SERVICER REFUND MANAGEMENT ENDPOINTS =============
+# ============= SERVICER REFUND MANAGEMENT ENDPOINTS (FIXED) =============
+
+@app.get("/api/servicer/refunds")
+async def get_servicer_refunds(
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Get all refunds - both pending (need action) and completed"""
+    
+    # ✅ 1. PENDING REFUNDS - Servicer needs to process these
+    # These are cancelled bookings where:
+    # - Payment was completed
+    # - Servicer hasn't processed refund yet
+    # - Requires servicer action (within 48 hours)
+    
+    pending_refunds_cursor = db[Collections.BOOKINGS].find({
+        "servicer_id": ObjectId(servicer['_id']),
+        "booking_status": BookingStatus.CANCELLED,
+        "payment_status": PaymentStatus.COMPLETED,
+        "requires_servicer_refund": True,  # ✅ This flag is set when user cancels
+        "refund_processed": False,  # Not processed yet
+        "deadline_passed": False  # Deadline not passed (user can't report yet)
+    }).sort("cancelled_at", 1)  # Oldest first
+    
+    pending_refunds = []
+    async for booking in pending_refunds_cursor:
+        user = await db[Collections.USERS].find_one({"_id": booking['user_id']})
+        
+        # Calculate time remaining
+        deadline = booking.get('servicer_refund_deadline')
+        hours_remaining = 0
+        if deadline:
+            hours_remaining = max(0, (deadline - datetime.utcnow()).total_seconds() / 3600)
+        
+        pending_refunds.append({
+            "booking_id": str(booking['_id']),
+            "booking_number": booking['booking_number'],
+            "user_id": str(booking['user_id']),
+            "user_name": user.get('name') if user else 'Unknown',
+            "user_email": user.get('email') if user else '',
+            "user_phone": user.get('phone') if user else '',
+            "total_amount": booking['total_amount'],
+            "refund_amount": booking.get('expected_refund_amount', 0),
+            "refund_percentage": booking.get('refund_percentage', 0),
+            "cancellation_reason": booking.get('cancellation_reason', ''),
+            "cancelled_at": booking.get('cancelled_at'),
+            "cancelled_by_user": True,  # User cancelled
+            "payment_method": booking['payment_method'],
+            "deadline": deadline.isoformat() if deadline else None,
+            "hours_remaining": int(hours_remaining),
+            "requires_action": True,
+            "urgency": "high" if hours_remaining < 24 else "medium"
+        })
+    
+    # ✅ 2. OVERDUE REFUNDS - Servicer missed deadline
+    overdue_refunds_cursor = db[Collections.BOOKINGS].find({
+        "servicer_id": ObjectId(servicer['_id']),
+        "booking_status": BookingStatus.CANCELLED,
+        "payment_status": PaymentStatus.COMPLETED,
+        "requires_servicer_refund": True,
+        "refund_processed": False,
+        "deadline_passed": True  # ⚠️ Deadline passed!
+    }).sort("servicer_refund_deadline", 1)
+    
+    overdue_refunds = []
+    async for booking in overdue_refunds_cursor:
+        user = await db[Collections.USERS].find_one({"_id": booking['user_id']})
+        
+        deadline = booking.get('servicer_refund_deadline')
+        hours_overdue = 0
+        if deadline:
+            hours_overdue = (datetime.utcnow() - deadline).total_seconds() / 3600
+        
+        overdue_refunds.append({
+            "booking_id": str(booking['_id']),
+            "booking_number": booking['booking_number'],
+            "user_id": str(booking['user_id']),
+            "user_name": user.get('name') if user else 'Unknown',
+            "user_email": user.get('email') if user else '',
+            "user_phone": user.get('phone') if user else '',
+            "total_amount": booking['total_amount'],
+            "refund_amount": booking.get('expected_refund_amount', 0),
+            "refund_percentage": booking.get('refund_percentage', 0),
+            "cancellation_reason": booking.get('cancellation_reason', ''),
+            "cancelled_at": booking.get('cancelled_at'),
+            "deadline": deadline.isoformat() if deadline else None,
+            "hours_overdue": int(hours_overdue),
+            "issue_reported": booking.get('issue_reported_by_user', False),
+            "payment_method": booking['payment_method'],
+            "requires_urgent_action": True,
+            "urgency": "critical"
+        })
+    
+    # ✅ 3. COMPLETED REFUNDS - Already processed
+    completed_refunds_cursor = db[Collections.BOOKINGS].find({
+        "servicer_id": ObjectId(servicer['_id']),
+        "booking_status": BookingStatus.CANCELLED,
+        "refund_processed": True  # ✅ Refunded
+    }).sort("refunded_at", -1).limit(50)
+    
+    completed_refunds = []
+    async for booking in completed_refunds_cursor:
+        user = await db[Collections.USERS].find_one({"_id": booking['user_id']})
+        
+        completed_refunds.append({
+            "booking_id": str(booking['_id']),
+            "booking_number": booking['booking_number'],
+            "user_id": str(booking['user_id']),
+            "user_name": user.get('name') if user else 'Unknown',
+            "user_email": user.get('email') if user else '',
+            "user_phone": user.get('phone') if user else '',
+            "refund_amount": booking.get('refund_amount', 0),
+            "refund_percentage": booking.get('refund_percentage', 0),
+            "processed_at": booking.get('refunded_at'),
+            "cancellation_reason": booking.get('cancellation_reason', ''),
+            "cancelled_at": booking.get('cancelled_at'),
+            "cancelled_by_user": str(booking.get('cancelled_by')) == str(booking['user_id']),
+            "payment_method": booking.get('payment_method', 'N/A'),
+            "refund_method": "manual"
+        })
+    
+    # Calculate stats
+    total_pending = len(pending_refunds) + len(overdue_refunds)
+    pending_amount = sum(r['refund_amount'] for r in pending_refunds)
+    overdue_amount = sum(r['refund_amount'] for r in overdue_refunds)
+    total_refunded = sum(r['refund_amount'] for r in completed_refunds)
+    
+    print(f"📊 Servicer {servicer['_id']} refunds:")
+    print(f"   - Pending: {len(pending_refunds)}")
+    print(f"   - Overdue: {len(overdue_refunds)}")
+    print(f"   - Completed: {len(completed_refunds)}")
+    
+    return {
+        "pending_refunds": pending_refunds,
+        "overdue_refunds": overdue_refunds,
+        "completed_refunds": completed_refunds,
+        "stats": {
+            "total_pending": total_pending,
+            "total_pending_amount": pending_amount,
+            "total_overdue": len(overdue_refunds),
+            "total_overdue_amount": overdue_amount,
+            "total_completed": len(completed_refunds),
+            "total_refunded_amount": total_refunded
+        }
+    }
+
+
+# ✅ PROCESS REFUND ENDPOINT - Already exists but let's verify it works
+@app.post("/api/servicer/bookings/{booking_id}/process-refund")
+async def servicer_process_refund(
+    booking_id: str,
+    refund_amount: float = Form(...),
+    reason: Optional[str] = Form(None),
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Servicer processes refund for cancelled booking"""
+    
+    booking = await db[Collections.BOOKINGS].find_one({
+        "_id": ObjectId(booking_id),
+        "servicer_id": ObjectId(servicer['_id']),
+        "booking_status": BookingStatus.CANCELLED
+    })
+    
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    if booking.get('refund_processed'):
+        raise HTTPException(status_code=400, detail="Refund already processed")
+    
+    # Validate refund amount
+    expected_amount = booking.get('expected_refund_amount', 0)
+    if refund_amount != expected_amount:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Refund amount must be exactly ₹{expected_amount} ({booking.get('refund_percentage')}%)"
+        )
+    
+    # Process refund to user wallet
+    await db[Collections.WALLETS].update_one(
+        {"user_id": booking['user_id']},
+        {
+            "$inc": {"balance": refund_amount},
+            "$set": {"last_transaction_at": datetime.utcnow()}
+        }
+    )
+    
+    # Create refund transaction
+    refund_txn = {
+        "user_id": booking['user_id'],
+        "booking_id": ObjectId(booking_id),
+        "transaction_type": TransactionType.REFUND,
+        "payment_method": PaymentMethod.WALLET,
+        "amount": refund_amount,
+        "transaction_status": PaymentStatus.COMPLETED,
+        "metadata": {
+            "refund_percentage": booking.get('refund_percentage'),
+            "reason": reason or "User cancellation refund",
+            "processed_by": "servicer"
+        },
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    }
+    await db[Collections.TRANSACTIONS].insert_one(refund_txn)
+    
+    # Mark booking as refunded
+    await db[Collections.BOOKINGS].update_one(
+        {"_id": ObjectId(booking_id)},
+        {
+            "$set": {
+                "refund_processed": True,
+                "refund_amount": refund_amount,
+                "refunded_at": datetime.utcnow(),
+                "refund_processed_by": "servicer",
+                "refund_notes": reason
+            }
+        }
+    )
+    
+    # Send notification to user
+    await create_notification(
+        str(booking['user_id']),
+        NotificationTypes.PAYMENT,
+        "✅ Refund Received",
+        f"₹{refund_amount} refunded to your wallet for booking #{booking['booking_number']}"
+    )
+    
+    # Send confirmation to servicer
+    await create_notification(
+        str(servicer['user_id']),
+        NotificationTypes.SYSTEM,
+        "✅ Refund Processed",
+        f"You successfully processed refund of ₹{refund_amount} for #{booking['booking_number']}"
+    )
+    
+    print(f"✅ Servicer {servicer['_id']} processed refund: ₹{refund_amount} for booking {booking_id}")
+    
+    return SuccessResponse(
+        message="Refund processed successfully",
+        data={
+            "refund_amount": refund_amount,
+            "processed_at": datetime.utcnow().isoformat(),
+            "user_notified": True
+        }
+    )
+
+# Around line 3500 - After booking endpoints
+
+
+@app.post("/api/user/bookings/{booking_id}/report-refund-delay")
+async def report_refund_delay(
+    booking_id: str,
+    issue_description: str = Form(...),
+    evidence_images: Optional[List[UploadFile]] = File(None),
+    current_user: dict = Depends(get_current_user)
+):
+    """User reports servicer for not processing refund within deadline"""
+    
+    booking = await db[Collections.BOOKINGS].find_one({
+        "_id": ObjectId(booking_id),
+        "user_id": ObjectId(current_user['_id']),
+        "booking_status": BookingStatus.CANCELLED,
+        "requires_servicer_refund": True,
+        "refund_processed": False
+    })
+    
+    if not booking:
+        raise HTTPException(
+            status_code=404, 
+            detail="Booking not found or refund already processed"
+        )
+    
+    # Check if deadline passed
+    deadline = booking.get('servicer_refund_deadline')
+    if deadline and datetime.utcnow() < deadline:
+        hours_remaining = (deadline - datetime.utcnow()).total_seconds() / 3600
+        raise HTTPException(
+            status_code=400,
+            detail=f"Servicer still has {int(hours_remaining)} hours remaining. You can report after the deadline."
+        )
+    
+    # Check if already reported
+    if booking.get('issue_reported_by_user'):
+        raise HTTPException(
+            status_code=400,
+            detail="Issue already reported to admin"
+        )
+    
+    # Upload evidence
+    evidence_urls = []
+    if evidence_images:
+        for img in evidence_images:
+            result = await upload_to_cloudinary(img, CloudinaryFolders.ISSUE_EVIDENCE)
+            evidence_urls.append(result['url'])
+    
+    # Create booking issue
+    issue = {
+        "booking_id": ObjectId(booking_id),
+        "user_id": ObjectId(current_user['_id']),
+        "servicer_id": booking['servicer_id'],
+        "issue_type": "refund_not_processed",
+        "description": f"⏰ SERVICER MISSED REFUND DEADLINE\n\nBooking: #{booking['booking_number']}\nDeadline: {deadline.strftime('%Y-%m-%d %H:%M')}\nUser Report: {issue_description}",
+        "evidence_urls": evidence_urls,
+        "expected_refund_amount": booking.get('expected_refund_amount', 0),
+        "refund_percentage": booking.get('refund_percentage', 0),
+        "original_deadline": deadline,
+        "hours_overdue": int((datetime.utcnow() - deadline).total_seconds() / 3600),
+        "status": "pending_review",
+        "priority": "urgent",
+        "requires_admin_action": True,
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    }
+    
+    result = await db[Collections.BOOKING_ISSUES].insert_one(issue)
+    issue_id = str(result.inserted_id)
+    
+    # Mark booking as issue reported
+    await db[Collections.BOOKINGS].update_one(
+        {"_id": ObjectId(booking_id)},
+        {
+            "$set": {
+                "issue_reported_by_user": True,
+                "issue_reported_at": datetime.utcnow(),
+                "reported_issue_id": ObjectId(issue_id)
+            }
+        }
+    )
+    
+    # Notify all admins (HIGH PRIORITY)
+    admins = await db[Collections.USERS].find({"role": UserRole.ADMIN}).to_list(100)
+    for admin in admins:
+        await create_notification(
+            str(admin['_id']),
+            NotificationTypes.SYSTEM,
+            "🚨 URGENT: Servicer Missed Refund Deadline",
+            f"Servicer failed to refund ₹{booking.get('expected_refund_amount', 0)} for booking #{booking['booking_number']} within 48 hours. Immediate action required."
+        )
+        
+        # Send urgent email to admin
+        await send_email(
+            admin['email'],
+            "🚨 URGENT: Servicer Refund Violation",
+            f"""
+            <html>
+                <body style="font-family: Arial, sans-serif; padding: 20px;">
+                    <div style="background-color: #fee2e2; padding: 20px; border-left: 4px solid #dc2626;">
+                        <h2 style="color: #dc2626;">⚠️ Servicer Missed Refund Deadline</h2>
+                        <p><strong>Booking:</strong> #{booking['booking_number']}</p>
+                        <p><strong>Refund Amount:</strong> ₹{booking.get('expected_refund_amount', 0)}</p>
+                        <p><strong>Servicer:</strong> {booking.get('servicer_name', 'Unknown')}</p>
+                        <p><strong>Hours Overdue:</strong> {int((datetime.utcnow() - deadline).total_seconds() / 3600)}</p>
+                    </div>
+                    <p style="margin-top: 20px;">User has reported this delay. Please review in admin panel and take action.</p>
+                    <a href="http://localhost:5173/admin/issues" style="display: inline-block; background-color: #dc2626; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 10px;">
+                        Review in Admin Panel
+                    </a>
+                </body>
+            </html>
+            """
+        )
+    
+    # Notify servicer (warning)
+    servicer = await db[Collections.SERVICERS].find_one({"_id": booking['servicer_id']})
+    if servicer:
+        await create_notification(
+            str(servicer['user_id']),
+            NotificationTypes.SYSTEM,
+            "🚨 VIOLATION: Issue Reported to Admin",
+            f"User reported refund delay for #{booking['booking_number']}. Admin review in progress. This may affect your account standing."
+        )
+    
+    return SuccessResponse(
+        message="Issue reported to admin successfully. They will process the refund and take necessary action against the servicer.",
+        data={
+            "issue_id": issue_id,
+            "reference_number": f"REF{datetime.utcnow().strftime('%Y%m%d')}{issue_id[-6:]}",
+            "admin_action": "pending"
+        }
+    )
+
+@app.post("/api/servicer/bookings/{booking_id}/report-refund-issue")
+async def report_refund_issue(
+    booking_id: str,
+    issue_type: str = Form(...),  # payment_failed, dispute, technical_issue
+    description: str = Form(...),
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Servicer reports issue with refund - escalates to admin"""
+    
+    booking = await db[Collections.BOOKINGS].find_one({
+        "_id": ObjectId(booking_id),
+        "servicer_id": ObjectId(servicer['_id'])
+    })
+    
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    # Create transaction issue
+    issue = {
+        "user_id": booking['user_id'],
+        "servicer_id": ObjectId(servicer['_id']),
+        "booking_id": ObjectId(booking_id),
+        "issue_type": issue_type,
+        "description": f"[SERVICER REPORTED] {description}",
+        "amount": booking['total_amount'],
+        "priority": "high",
+        "status": "pending_review",
+        "reported_by": "servicer",
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    }
+    
+    result = await db[Collections.TRANSACTION_ISSUES].insert_one(issue)
+    
+    # Mark booking as having issue
+    await db[Collections.BOOKINGS].update_one(
+        {"_id": ObjectId(booking_id)},
+        {"$set": {"refund_issue_reported": True}}
+    )
+    
+    # Notify admins
+    admins = await db[Collections.USERS].find({"role": UserRole.ADMIN}).to_list(100)
+    for admin in admins:
+        await create_notification(
+            str(admin['_id']),
+            NotificationTypes.SYSTEM,
+            "⚠️ Servicer: Refund Issue",
+            f"Servicer unable to process refund for #{booking['booking_number']}"
+        )
+    
+    # Notify user
+    await create_notification(
+        str(booking['user_id']),
+        NotificationTypes.SYSTEM,
+        "Refund Issue Reported",
+        f"Issue reported with refund processing. Admin will review shortly."
+    )
+    
+    return SuccessResponse(
+        message="Issue reported to admin. They will handle the refund.",
+        data={
+            "issue_id": str(result.inserted_id),
+            "reference": f"TI{datetime.utcnow().strftime('%Y%m%d')}{str(result.inserted_id)[-6:]}"
+        }
+    )
+
+
+@app.post("/api/admin/booking-issues/{issue_id}/process-delayed-refund")
+async def process_delayed_refund(
+    issue_id: str,
+    action: str = Form(...),  # refund_and_warn, refund_and_suspend, refund_only
+    suspension_days: Optional[int] = Form(None),
+    admin_notes: str = Form(...),
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Admin processes refund for servicer who missed deadline"""
+    
+    issue = await db[Collections.BOOKING_ISSUES].find_one({"_id": ObjectId(issue_id)})
+    if not issue:
+        raise HTTPException(status_code=404, detail="Issue not found")
+    
+    booking = await db[Collections.BOOKINGS].find_one({"_id": issue['booking_id']})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    refund_amount = issue.get('expected_refund_amount', 0)
+    
+    # Process refund automatically
+    success = await process_automatic_refund(
+        user_id=str(booking['user_id']),
+        amount=refund_amount,
+        reason=f"Admin processed - Servicer missed deadline",
+        booking_id=str(booking['_id'])
+    )
+    
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to process refund")
+    
+    # Mark booking as refunded
+    await db[Collections.BOOKINGS].update_one(
+        {"_id": booking['_id']},
+        {
+            "$set": {
+                "refund_processed": True,
+                "refund_amount": refund_amount,
+                "refunded_at": datetime.utcnow(),
+                "refund_processed_by": "admin",
+                "admin_intervention": True
+            }
+        }
+    )
+    
+    # Update issue status
+    await db[Collections.BOOKING_ISSUES].update_one(
+        {"_id": ObjectId(issue_id)},
+        {
+            "$set": {
+                "status": "resolved",
+                "admin_action_taken": action,
+                "resolved_by": ObjectId(current_admin['_id']),
+                "resolved_at": datetime.utcnow(),
+                "resolution_notes": admin_notes
+            }
+        }
+    )
+    
+    # Take action against servicer
+    servicer = await db[Collections.SERVICERS].find_one({"_id": issue['servicer_id']})
+    servicer_user = await db[Collections.USERS].find_one({"_id": servicer['user_id']})
+    
+    if action == "refund_and_suspend" and suspension_days:
+        # Suspend servicer account
+        ban_until = datetime.utcnow() + timedelta(days=suspension_days)
+        
+        await db[Collections.USERS].update_one(
+            {"_id": servicer['user_id']},
+            {
+                "$set": {
+                    "is_blocked": True,
+                    "blocked_reason": f"Missed refund deadline for booking #{booking['booking_number']}",
+                    "blocked_until": ban_until,
+                    "blocked_by": ObjectId(current_admin['_id'])
+                }
+            }
+        )
+        
+        # Add to blacklist
+        await db[Collections.BLACKLIST].insert_one({
+            "user_id": servicer['user_id'],
+            "user_type": "servicer",
+            "banned_by": ObjectId(current_admin['_id']),
+            "reason": f"Refund deadline violation - Booking #{booking['booking_number']}",
+            "ban_until": ban_until,
+            "is_permanent": False,
+            "created_at": datetime.utcnow()
+        })
+        
+        # Notify servicer
+        await create_notification(
+            str(servicer['user_id']),
+            NotificationTypes.SYSTEM,
+            f"⛔ Account Suspended - {suspension_days} Days",
+            f"Your account has been suspended for {suspension_days} days due to missed refund deadline. Reason: {admin_notes}"
+        )
+        
+    elif action == "refund_and_warn":
+        # Record warning
+        await db[Collections.SERVICER_WARNINGS].insert_one({
+            "servicer_id": servicer['_id'],
+            "warning_type": "refund_deadline_missed",
+            "booking_id": booking['_id'],
+            "issued_by": ObjectId(current_admin['_id']),
+            "severity": "high",
+            "description": admin_notes,
+            "created_at": datetime.utcnow()
+        })
+        
+        # Notify servicer
+        await create_notification(
+            str(servicer['user_id']),
+            NotificationTypes.SYSTEM,
+            "⚠️ Official Warning Issued",
+            f"You have received an official warning for missing refund deadline. Repeated violations will result in suspension."
+        )
+    
+    # Notify user
+    await create_notification(
+        str(booking['user_id']),
+        NotificationTypes.PAYMENT,
+        "✅ Refund Processed by Admin",
+        f"₹{refund_amount} has been refunded to your wallet. Admin took action against the servicer for the delay."
+    )
+    
+    # Create audit log
+    await db[Collections.AUDIT_LOGS].insert_one({
+        "admin_id": ObjectId(current_admin['_id']),
+        "action_type": "delayed_refund_processed",
+        "target_id": ObjectId(issue_id),
+        "target_type": "booking_issue",
+        "details": {
+            "booking_id": str(booking['_id']),
+            "servicer_id": str(servicer['_id']),
+            "refund_amount": refund_amount,
+            "action_taken": action,
+            "suspension_days": suspension_days,
+            "notes": admin_notes
+        },
+        "created_at": datetime.utcnow()
+    })
+    
+    return SuccessResponse(
+        message=f"Refund processed and servicer {action.replace('_', ' ')}",
+        data={
+            "refund_amount": refund_amount,
+            "action_taken": action,
+            "suspension_days": suspension_days
+        }
+    
+    
+    
+    )
+
+import math
+from bson import ObjectId
+from typing import Optional
+from datetime import datetime
+
+def serialize_doc(doc):
+    """Recursively convert MongoDB document to JSON-serializable format"""
+    if isinstance(doc, list):
+        return [serialize_doc(item) for item in doc]
+    elif isinstance(doc, dict):
+        return {key: serialize_doc(value) for key, value in doc.items()}
+    elif isinstance(doc, ObjectId):
+        return str(doc)
+    elif isinstance(doc, datetime):
+        return doc.isoformat()
+    else:
+        return doc
+
+
+@app.get("/api/servicer/account/status")
+async def get_servicer_account_status(
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Get servicer's complete account status including blocks, warnings, complaints"""
+    
+    user = await db[Collections.USERS].find_one({"_id": ObjectId(current_user['_id'])})
+    
+    # Check if currently blocked
+    is_blocked = user.get('is_blocked', False)
+    blocked_reason = user.get('blocked_reason')
+    blocked_until = user.get('blocked_until')
+    
+    # Count active warnings
+    warning_count = await db[Collections.SERVICER_WARNINGS].count_documents({
+        "servicer_id": ObjectId(servicer['_id']),
+        "acknowledged": {"$ne": True}
+    })
+    
+    # Count complaints against servicer
+    complaint_count = await db[Collections.COMPLAINTS].count_documents({
+        "complaint_against_id": ObjectId(servicer['_id']),
+        "complaint_against_type": "servicer"
+    })
+    
+    # Get pending issues
+    pending_issues = await db[Collections.BOOKING_ISSUES].count_documents({
+        "servicer_id": ObjectId(servicer['_id']),
+        "status": {"$in": ["pending_review", "investigating"]}
+    })
+    
+    return {
+        "is_blocked": is_blocked,
+        "blocked_reason": blocked_reason,
+        "blocked_until": blocked_until.isoformat() if blocked_until else None,
+        "has_warnings": warning_count > 0,
+        "warning_count": warning_count,
+        "complaint_count": complaint_count,
+        "pending_issues": pending_issues,
+        "account_health": "critical" if is_blocked else "warning" if warning_count > 0 else "good",
+        "verification_status": servicer.get('verification_status'),
+        "average_rating": servicer.get('average_rating', 0),
+        "total_jobs_completed": servicer.get('total_jobs_completed', 0)
+    }
+
+
+@app.get("/api/servicer/complaints/against-me")
+async def get_complaints_against_servicer(
+    status: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20,
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Get all complaints filed against this servicer"""
+    
+    query = {
+        "complaint_against_id": ObjectId(servicer['_id']),
+        "complaint_against_type": "servicer"
+    }
+    
+    if status:
+        query["status"] = status
+    
+    skip = (page - 1) * limit
+    
+    complaints_cursor = db[Collections.COMPLAINTS].find(query).sort(
+        "created_at", -1
+    ).skip(skip).limit(limit)
+    
+    complaints = await complaints_cursor.to_list(limit)
+    
+    # Process complaints
+    processed_complaints = []
+    for complaint in complaints:
+        complaint_data = serialize_doc(complaint)
+        
+        try:
+            # Get complainant name
+            complainant = await db[Collections.USERS].find_one(
+                {"_id": ObjectId(complaint['filed_by'])}
+            )
+            complaint_data['filed_by_name'] = complainant.get('name') if complainant else 'User'
+            complaint_data['filed_by_email'] = complainant.get('email', '')[0:3] + '***' if complainant else ''
+            
+            # Get booking number if exists
+            if complaint.get('booking_id'):
+                booking = await db[Collections.BOOKINGS].find_one(
+                    {"_id": ObjectId(complaint['booking_id'])}
+                )
+                complaint_data['booking_number'] = booking.get('booking_number') if booking else None
+                complaint_data['booking_service'] = booking.get('service_type') if booking else None
+            
+            # Get all responses (admin and servicer)
+            responses_cursor = db[Collections.COMPLAINT_RESPONSES].find({
+                "complaint_id": ObjectId(complaint['_id'])
+            }).sort("created_at", 1)
+            
+            responses = await responses_cursor.to_list(100)
+            processed_responses = []
+            
+            for response in responses:
+                response_data = serialize_doc(response)
+                responder = await db[Collections.USERS].find_one(
+                    {"_id": ObjectId(response['responder_id'])}
+                )
+                response_data['responder_name'] = responder.get('name') if responder else 'Admin'
+                response_data['responder_role'] = responder.get('role') if responder else 'admin'
+                processed_responses.append(response_data)
+            
+            complaint_data['responses'] = processed_responses
+            
+            # Check if servicer has responded
+            complaint_data['servicer_has_responded'] = any(
+                r.get('responder_type') == 'servicer' for r in processed_responses
+            )
+            
+            # Get resolution details if resolved
+            if complaint.get('status') == 'resolved':
+                complaint_data['resolution_summary'] = {
+                    'resolution': complaint.get('resolution', ''),
+                    'action_taken': complaint.get('action_taken', ''),
+                    'resolved_at': complaint.get('resolved_at')
+                }
+        
+        except Exception as e:
+            print(f"Error processing complaint {complaint.get('_id')}: {e}")
+        
+        processed_complaints.append(complaint_data)
+    
+    total = await db[Collections.COMPLAINTS].count_documents(query)
+    
+    # Get stats by status
+    pending = await db[Collections.COMPLAINTS].count_documents({
+        **query, 
+        "status": ComplaintStatus.PENDING
+    })
+    investigating = await db[Collections.COMPLAINTS].count_documents({
+        **query, 
+        "status": ComplaintStatus.INVESTIGATING
+    })
+    resolved = await db[Collections.COMPLAINTS].count_documents({
+        **query, 
+        "status": ComplaintStatus.RESOLVED
+    })
+    
+    return {
+        "complaints": processed_complaints,
+        "total": total,
+        "page": page,
+        "pages": math.ceil(total / limit) if limit > 0 else 0,
+        "stats": {
+            "pending": pending,
+            "investigating": investigating,
+            "resolved": resolved
+        }
+    }
+
+
+@app.get("/api/servicer/complaint/{complaint_id}")
+async def get_complaint_details_servicer(
+    complaint_id: str,
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Get detailed information about a specific complaint"""
+    
+    complaint = await db[Collections.COMPLAINTS].find_one({
+        "_id": ObjectId(complaint_id),
+        "complaint_against_id": ObjectId(servicer['_id'])
+    })
+    
+    if not complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+    
+    complaint_data = serialize_doc(complaint)
+    
+    try:
+        # Get complainant details (limited info for privacy)
+        complainant = await db[Collections.USERS].find_one(
+            {"_id": ObjectId(complaint['filed_by'])}
+        )
+        complaint_data['filed_by_details'] = {
+            "name": complainant.get('name') if complainant else 'User',
+            "email": complainant.get('email', '')[0:3] + '***@***' if complainant else ''
+        }
+        
+        # Get booking details
+        if complaint.get('booking_id'):
+            booking = await db[Collections.BOOKINGS].find_one(
+                {"_id": ObjectId(complaint['booking_id'])}
+            )
+            if booking:
+                complaint_data['booking_details'] = serialize_doc(booking)
+        
+        # Get all responses with full details
+        responses_cursor = db[Collections.COMPLAINT_RESPONSES].find({
+            "complaint_id": ObjectId(complaint_id)
+        }).sort("created_at", 1)
+        
+        responses = await responses_cursor.to_list(100)
+        processed_responses = []
+        
+        for response in responses:
+            response_data = serialize_doc(response)
+            responder = await db[Collections.USERS].find_one(
+                {"_id": ObjectId(response['responder_id'])}
+            )
+            response_data['responder_name'] = responder.get('name') if responder else 'Admin'
+            response_data['responder_role'] = responder.get('role') if responder else 'admin'
+            processed_responses.append(response_data)
+        
+        complaint_data['responses'] = processed_responses
+        
+        # Admin resolution details (if resolved)
+        if complaint.get('status') == 'resolved':
+            resolved_by_id = complaint.get('resolved_by')
+            if resolved_by_id:
+                admin = await db[Collections.USERS].find_one(
+                    {"_id": ObjectId(resolved_by_id)}
+                )
+                complaint_data['resolved_by_name'] = admin.get('name') if admin else 'Admin'
+            
+            complaint_data['resolution_details'] = {
+                'resolution': complaint.get('resolution', ''),
+                'action_taken': complaint.get('action_taken', ''),
+                'resolved_at': complaint.get('resolved_at'),
+                'resolved_by': complaint_data.get('resolved_by_name', 'Admin')
+            }
+    
+    except Exception as e:
+        print(f"Error fetching complaint details: {e}")
+    
+    return complaint_data
+
+
+@app.post("/api/servicer/complaint/{complaint_id}/respond")
+async def respond_to_complaint_servicer(
+    complaint_id: str,
+    response_text: str = Form(...),
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Allow servicer to respond to complaint (visible to admin)"""
+    
+    complaint = await db[Collections.COMPLAINTS].find_one({
+        "_id": ObjectId(complaint_id),
+        "complaint_against_id": ObjectId(servicer['_id'])
+    })
+    
+    if not complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+    
+    # Check if already resolved
+    if complaint.get('status') in ['resolved', 'closed']:
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot respond to a resolved or closed complaint"
+        )
+    
+    # Create response
+    response = {
+        "complaint_id": ObjectId(complaint_id),
+        "responder_id": ObjectId(current_user['_id']),
+        "responder_type": "servicer",
+        "response_text": response_text,
+        "response_type": "defense",
+        "created_at": datetime.utcnow()
+    }
+    
+    await db[Collections.COMPLAINT_RESPONSES].insert_one(response)
+    
+    # Update complaint
+    await db[Collections.COMPLAINTS].update_one(
+        {"_id": ObjectId(complaint_id)},
+        {
+            "$set": {
+                "servicer_responded": True,
+                "servicer_response_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            }
+        }
+    )
+    
+    # Notify admins
+    admins = await db[Collections.USERS].find({"role": UserRole.ADMIN}).to_list(100)
+    for admin in admins:
+        await create_notification(
+            str(admin['_id']),
+            NotificationTypes.SYSTEM,
+            "Servicer Response to Complaint",
+            f"Servicer responded to complaint #{complaint.get('complaint_number', 'N/A')}"
+        )
+    
+    # Notify the user who filed the complaint
+    await create_notification(
+        str(complaint['filed_by']),
+        NotificationTypes.SYSTEM,
+        "Servicer Responded to Your Complaint",
+        f"The servicer has provided their response to complaint #{complaint.get('complaint_number', 'N/A')}"
+    )
+    
+    return SuccessResponse(
+        message="Your response has been submitted and will be reviewed by admin",
+        data={
+            "complaint_id": complaint_id,
+            "response_submitted_at": datetime.utcnow().isoformat()
+        }
+    )
+
+
+@app.get("/api/servicer/warnings")
+async def get_servicer_warnings(
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Get all warnings issued to this servicer"""
+    
+    warnings_cursor = db[Collections.SERVICER_WARNINGS].find({
+        "servicer_id": ObjectId(servicer['_id'])
+    }).sort("created_at", -1)
+    
+    warnings = await warnings_cursor.to_list(100)
+    
+    processed_warnings = []
+    for warning in warnings:
+        warning_data = serialize_doc(warning)
+        
+        try:
+            # Get admin who issued warning
+            if warning.get('issued_by'):
+                admin = await db[Collections.USERS].find_one(
+                    {"_id": ObjectId(warning['issued_by'])}
+                )
+                warning_data['issued_by_name'] = admin.get('name') if admin else 'Admin'
+            
+            # Get booking details if exists
+            if warning.get('booking_id'):
+                booking = await db[Collections.BOOKINGS].find_one(
+                    {"_id": ObjectId(warning['booking_id'])}
+                )
+                warning_data['booking_number'] = booking.get('booking_number') if booking else None
+        
+        except Exception as e:
+            print(f"Error processing warning: {e}")
+        
+        processed_warnings.append(warning_data)
+    
+    return {
+        "warnings": processed_warnings,
+        "total": len(processed_warnings),
+        "unacknowledged": len([w for w in processed_warnings if not w.get('acknowledged')])
+    }
+
+
+@app.post("/api/servicer/warnings/{warning_id}/acknowledge")
+async def acknowledge_warning(
+    warning_id: str,
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Acknowledge that servicer has read the warning"""
+    
+    result = await db[Collections.SERVICER_WARNINGS].update_one(
+        {
+            "_id": ObjectId(warning_id),
+            "servicer_id": ObjectId(servicer['_id'])
+        },
+        {
+            "$set": {
+                "acknowledged": True,
+                "acknowledged_at": datetime.utcnow()
+            }
+        }
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Warning not found")
+    
+    return SuccessResponse(message="Warning acknowledged")
+
+
+@app.get("/api/servicer/suspension-history")
+async def get_suspension_history(
+    current_user: dict = Depends(get_current_user),
+    servicer: dict = Depends(get_current_servicer)
+):
+    """Get history of suspensions and account actions"""
+    
+    # Get audit logs related to this servicer
+    history_cursor = db[Collections.AUDIT_LOGS].find({
+        "target_id": ObjectId(current_user['_id']),
+        "target_type": "user",
+        "action_type": {"$in": [
+            "user_suspended",
+            "user_unsuspended",
+            "user_blocked",
+            "user_unblocked",
+            "servicer_verified",
+            "servicer_rejected",
+            "complaint_resolved"
+        ]}
+    }).sort("created_at", -1)
+    
+    history = await history_cursor.to_list(100)
+    
+    processed_history = []
+    for record in history:
+        record_data = serialize_doc(record)
+        
+        try:
+            # Get admin name
+            if record.get('admin_id'):
+                admin = await db[Collections.USERS].find_one(
+                    {"_id": ObjectId(record['admin_id'])}
+                )
+                record_data['admin_name'] = admin.get('name') if admin else 'Admin'
+        
+        except Exception as e:
+            print(f"Error processing history record: {e}")
+        
+        processed_history.append(record_data)
+    
+    return {
+        "history": processed_history,
+        "total": len(processed_history)
+    }
+
+
+# Add to your startup event in main.py
+@app.on_event("startup")
+async def start_scheduler():
+    """Start background task scheduler"""
+    scheduler.start()
+    print("✅ Background task scheduler started")
+
+@app.on_event("shutdown")
+async def shutdown_scheduler():
+    """Stop background task scheduler"""
+    scheduler.shutdown()
+    print("🛑 Background task scheduler stopped")
 # ============= RUN APPLICATION =============
 if __name__ == "__main__":
     import uvicorn
