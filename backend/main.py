@@ -7525,6 +7525,15 @@ async def get_servicer_profile(
 
 @app.put("/api/servicer/profile")
 async def update_servicer_profile(
+    # User fields (personal info)
+    name: Optional[str] = Form(None),
+    phone: Optional[str] = Form(None),
+    address_line1: Optional[str] = Form(None),
+    address_line2: Optional[str] = Form(None),
+    city: Optional[str] = Form(None),
+    state: Optional[str] = Form(None),
+    pincode: Optional[str] = Form(None),
+    # Servicer fields (professional info)
     bio: Optional[str] = Form(None),
     experience_years: Optional[int] = Form(None),
     service_radius_km: Optional[float] = Form(None),
@@ -7532,37 +7541,121 @@ async def update_servicer_profile(
     current_user: dict = Depends(get_current_user),
     servicer: dict = Depends(get_current_servicer)
 ):
-    """Update professional details"""
-    update_data = {"updated_at": datetime.utcnow()}
+    """Update both personal and professional details"""
     
-    if bio:
-        update_data['bio'] = bio
-    if experience_years is not None:
-        update_data['experience_years'] = experience_years
-    if service_radius_km is not None:
-        update_data['service_radius_km'] = service_radius_km
+    # ===== UPDATE USER TABLE (Personal Info) =====
+    user_update_data = {"updated_at": datetime.utcnow()}
     
-    if profile_photo:
-        # ✅ Only allow images for profile photos
-        result = await upload_to_cloudinary(
-            profile_photo, 
-            CloudinaryFolders.PROFILES,
-            allowed_types=['image/*']  # Only images
-        )
-        update_data['profile_photo_url'] = result['url']
-        
-        # Also update user profile image
+    if name:
+        user_update_data['name'] = name
+    if phone:
+        user_update_data['phone'] = phone
+    if address_line1 is not None:
+        user_update_data['address_line1'] = address_line1
+    if address_line2 is not None:
+        user_update_data['address_line2'] = address_line2
+    if city:
+        user_update_data['city'] = city
+    if state:
+        user_update_data['state'] = state
+    if pincode:
+        user_update_data['pincode'] = pincode
+    
+    # Update user table if there are any user fields to update
+    if len(user_update_data) > 1:  # More than just updated_at
         await db[Collections.USERS].update_one(
             {"_id": ObjectId(current_user['_id'])},
-            {"$set": {"profile_image_url": result['url'], "updated_at": datetime.utcnow()}}
+            {"$set": user_update_data}
         )
+        print(f"✅ Updated user with name: {name}")
     
+    # ===== UPDATE SERVICER TABLE (Professional Info) =====
+    servicer_update_data = {"updated_at": datetime.utcnow()}
+    
+    if bio is not None:
+        servicer_update_data['bio'] = bio
+    if experience_years is not None:
+        servicer_update_data['experience_years'] = experience_years
+    if service_radius_km is not None:
+        servicer_update_data['service_radius_km'] = service_radius_km
+    
+    # Handle profile photo
+    if profile_photo:
+        try:
+            result = await upload_to_cloudinary(
+                profile_photo, 
+                CloudinaryFolders.PROFILES,
+                allowed_types=['image/*']
+            )
+            servicer_update_data['profile_photo_url'] = result['url']
+            
+            # Also update user profile image for consistency
+            await db[Collections.USERS].update_one(
+                {"_id": ObjectId(current_user['_id'])},
+                {"$set": {"profile_image_url": result['url'], "updated_at": datetime.utcnow()}}
+            )
+            print(f"✅ Updated profile photo")
+        except Exception as e:
+            print(f"❌ Photo upload error: {str(e)}")
+    
+    # Update servicer table
     await db[Collections.SERVICERS].update_one(
         {"_id": ObjectId(servicer['_id'])},
-        {"$set": update_data}
+        {"$set": servicer_update_data}
     )
+    print(f"✅ Updated servicer profile")
     
-    return SuccessResponse(message=Messages.UPDATED)
+    # ===== FETCH AND RETURN UPDATED DATA =====
+    # Get fresh servicer data
+    updated_servicer = await db[Collections.SERVICERS].find_one({
+        "_id": ObjectId(servicer['_id'])
+    })
+    
+    # Get fresh user data
+    updated_user = await db[Collections.USERS].find_one({
+        "_id": ObjectId(current_user['_id'])
+    })
+    
+    # Build response
+    response_data = {
+        '_id': str(updated_servicer['_id']),
+        'user_id': str(updated_servicer['user_id']),
+        'service_categories': [str(cat) if isinstance(cat, ObjectId) else cat for cat in updated_servicer.get('service_categories', [])],
+        'experience_years': updated_servicer.get('experience_years', 0),
+        'verification_status': updated_servicer.get('verification_status'),
+        'average_rating': float(updated_servicer.get('average_rating', 0.0)),
+        'total_ratings': updated_servicer.get('total_ratings', 0),
+        'total_jobs_completed': updated_servicer.get('total_jobs_completed', 0),
+        'service_radius_km': float(updated_servicer.get('service_radius_km', 10.0)),
+        'availability_status': updated_servicer.get('availability_status', 'offline'),
+        'bio': updated_servicer.get('bio', ''),
+        'profile_photo_url': updated_servicer.get('profile_photo_url', ''),
+        'bank_account_number': updated_servicer.get('bank_account_number', ''),
+        'ifsc_code': updated_servicer.get('ifsc_code', ''),
+        'upi_id': updated_servicer.get('upi_id', ''),
+        'created_at': updated_servicer.get('created_at'),
+        'updated_at': updated_servicer.get('updated_at'),
+        'user_details': {
+            '_id': str(updated_user['_id']),
+            'name': updated_user['name'],  # ✅ UPDATED NAME
+            'email': updated_user['email'],
+            'phone': updated_user.get('phone', ''),
+            'address_line1': updated_user.get('address_line1', ''),
+            'address_line2': updated_user.get('address_line2', ''),
+            'city': updated_user.get('city', ''),
+            'state': updated_user.get('state', ''),
+            'pincode': updated_user.get('pincode', ''),
+            'profile_image_url': updated_user.get('profile_image_url', ''),
+            'role': updated_user.get('role', 'servicer'),
+            'created_at': updated_user.get('created_at'),
+            'is_blocked': updated_user.get('is_blocked', False)
+        }
+    }
+    
+    print(f"✅ Returning profile with updated name: {response_data['user_details']['name']}")
+    
+    return response_data
+
 
 @app.put("/api/servicer/bank-details")
 async def update_bank_details(
@@ -7578,7 +7671,7 @@ async def update_bank_details(
     if bank_account_number:
         update_data['bank_account_number'] = bank_account_number
     if ifsc_code:
-        update_data['ifsc_code'] = ifsc_code
+        update_data['ifsc_code'] = ifsc_code.upper()
     if upi_id:
         update_data['upi_id'] = upi_id
     
@@ -7588,8 +7681,6 @@ async def update_bank_details(
     )
     
     return SuccessResponse(message="Bank details updated successfully")
-
-
 # ============= ADD THESE SERVICER NOTIFICATION ENDPOINTS =============
 # Add after your other servicer endpoints (around line 4000-5000)
 
