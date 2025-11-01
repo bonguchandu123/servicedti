@@ -5,7 +5,7 @@ import { Elements, CardElement, useStripe, useElements } from '@stripe/react-str
 import { useAuth } from '../../context/AuthContext';
 
 // Initialize Stripe with your public key
-const stripePromise = loadStripe('pk_test_51SJdOADyfn2AGB54dkWGJq3a2CxR1h4bapOeD9jbEsi80JfXHxR76sK3ugsbC2b8vihPA3vcSoXATdOmEQEVijnc00zTMZE8pR');
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
 // Card Element styling
 const CARD_ELEMENT_OPTIONS = {
