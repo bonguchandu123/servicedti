@@ -228,11 +228,12 @@ const ServicerEarningsPayouts = () => {
     setRefreshing(false);
   };
 
-  const requestPayout = async () => {
+const requestPayout = async () => {
     const amount = parseFloat(payoutAmount);
+    const minPayout = 100; // Should match backend MIN_PAYOUT_AMOUNT
     
-    if (!amount || amount < 100) {
-      alert('Minimum payout amount is ₹100');
+    if (!amount || amount < minPayout) {
+      alert(`Minimum payout amount is ₹${minPayout}`);
       return;
     }
 
@@ -256,25 +257,33 @@ const ServicerEarningsPayouts = () => {
     try {
       setRequesting(true);
       const token = localStorage.getItem('token');
-      const formData = new FormData();
-      formData.append('amount_requested', amount);
-      formData.append('payout_method', payoutMethod);
+      
+      // Create JSON payload instead of FormData
+      const payload = {
+        amount_requested: amount,
+        payout_method: payoutMethod
+      };
       
       if (payoutMethod === 'bank_transfer') {
-        formData.append('bank_account_number', bankDetails.account_number);
-        formData.append('ifsc_code', bankDetails.ifsc_code);
-        formData.append('account_holder_name', bankDetails.account_holder_name);
+        payload.bank_account_number = bankDetails.account_number;
+        payload.ifsc_code = bankDetails.ifsc_code;
+        payload.account_holder_name = bankDetails.account_holder_name;
       } else {
-        formData.append('upi_id', upiId);
+        payload.upi_id = upiId;
       }
+
+      console.log('🔍 Sending payout request:', payload);
 
       const response = await fetch(`${API_BASE_URL}/servicer/payout`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         },
-        body: formData
+        body: JSON.stringify(payload)
       });
+      
+      console.log('📡 Response status:', response.status);
 
       if (response.ok) {
         alert('Payout request submitted successfully! It will be processed within 24-48 hours.');

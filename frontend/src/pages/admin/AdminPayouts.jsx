@@ -51,6 +51,7 @@ const AdminLayoutsSkeleton = () => {
     </div>
   )
 }
+
 const AdminPayouts = () => {
   const [payouts, setPayouts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -59,6 +60,7 @@ const AdminPayouts = () => {
   const [showModal, setShowModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
+  
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('pending');
@@ -167,17 +169,20 @@ const AdminPayouts = () => {
     return DollarSign;
   };
 
+  const getPaymentMethodDisplay = (method) => {
+    if (!method) return 'Not specified';
+    return method.replace('_', ' ');
+  };
+
   const filteredPayouts = payouts.filter(payout =>
-    payout.servicer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    payout.servicer_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    payout.servicer_phone.includes(searchTerm) ||
-    payout.amount_requested.toString().includes(searchTerm)
+    (payout.servicer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (payout.servicer_email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (payout.servicer_phone || '').includes(searchTerm) ||
+    (payout.amount_requested || 0).toString().includes(searchTerm)
   );
 
   if (loading && payouts.length === 0) {
-    return (
-      <AdminLayoutsSkeleton/>
-    );
+    return <AdminLayoutsSkeleton/>;
   }
 
   return (
@@ -279,41 +284,41 @@ const AdminPayouts = () => {
         ) : (
           <div className="grid gap-4">
             {filteredPayouts.map((payout) => {
-              const PaymentIcon = getPaymentMethodIcon(payout.payment_method);
+              const PaymentIcon = getPaymentMethodIcon(payout.payout_method);
               return (
                 <div key={payout._id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
                   <div className="flex items-start justify-between flex-wrap gap-4">
                     <div className="flex items-start gap-4 flex-1 min-w-0">
                       <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
-                        {payout.servicer_name.charAt(0).toUpperCase()}
+                        {(payout.servicer_name || 'U').charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-xl font-semibold text-gray-900 mb-1">{payout.servicer_name}</h3>
+                        <h3 className="text-xl font-semibold text-gray-900 mb-1">{payout.servicer_name || 'Unknown'}</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm mb-3">
                           <div className="flex items-center gap-2 text-gray-600">
                             <User className="w-4 h-4" />
-                            <span className="truncate">{payout.servicer_email}</span>
+                            <span className="truncate">{payout.servicer_email || 'N/A'}</span>
                           </div>
                           <div className="flex items-center gap-2 text-gray-600">
                             <CreditCard className="w-4 h-4" />
-                            <span>{payout.servicer_phone}</span>
+                            <span>{payout.servicer_phone || 'N/A'}</span>
                           </div>
                           <div className="flex items-center gap-2 text-gray-600">
                             <PaymentIcon className="w-4 h-4" />
-                            <span className="capitalize">{payout.payment_method.replace('_', ' ')}</span>
+                            <span className="capitalize">{getPaymentMethodDisplay(payout.payout_method)}</span>
                           </div>
                           <div className="flex items-center gap-2 text-gray-600">
                             <Calendar className="w-4 h-4" />
-                            <span>{new Date(payout.created_at).toLocaleDateString()}</span>
+                            <span>{payout.created_at ? new Date(payout.created_at).toLocaleDateString() : 'N/A'}</span>
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-3">
                           <div className="bg-blue-50 px-3 py-1 rounded-full">
-                            <span className="text-blue-800 text-sm font-semibold">₹{payout.amount_requested.toLocaleString('en-IN')}</span>
+                            <span className="text-blue-800 text-sm font-semibold">₹{(payout.amount_requested || 0).toLocaleString('en-IN')}</span>
                           </div>
                           <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(payout.status)}`}>
                             {getStatusIcon(payout.status)}
-                            {payout.status.charAt(0).toUpperCase() + payout.status.slice(1)}
+                            {(payout.status || 'unknown').charAt(0).toUpperCase() + (payout.status || 'unknown').slice(1)}
                           </span>
                         </div>
                       </div>
@@ -374,21 +379,21 @@ const AdminPayouts = () => {
                   <div className="bg-gray-50 rounded-lg p-4 space-y-2">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                        {selectedPayout.servicer_name.charAt(0).toUpperCase()}
+                        {(selectedPayout.servicer_name || 'U').charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <p className="font-semibold text-gray-900">{selectedPayout.servicer_name}</p>
-                        <p className="text-sm text-gray-500">Servicer ID: {selectedPayout.servicer_id}</p>
+                        <p className="font-semibold text-gray-900">{selectedPayout.servicer_name || 'Unknown'}</p>
+                        <p className="text-sm text-gray-500">Servicer ID: {selectedPayout.servicer_id || 'N/A'}</p>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-sm pt-3 border-t border-gray-200">
                       <div>
                         <p className="text-gray-500">Email</p>
-                        <p className="text-gray-900 font-medium">{selectedPayout.servicer_email}</p>
+                        <p className="text-gray-900 font-medium">{selectedPayout.servicer_email || 'N/A'}</p>
                       </div>
                       <div>
                         <p className="text-gray-500">Phone</p>
-                        <p className="text-gray-900 font-medium">{selectedPayout.servicer_phone}</p>
+                        <p className="text-gray-900 font-medium">{selectedPayout.servicer_phone || 'N/A'}</p>
                       </div>
                     </div>
                   </div>
@@ -399,7 +404,7 @@ const AdminPayouts = () => {
                   <h3 className="text-lg font-semibold text-gray-900 mb-3">Payout Amount</h3>
                   <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
                     <p className="text-gray-600 text-sm mb-2">Amount Requested</p>
-                    <p className="text-4xl font-bold text-green-600">₹{selectedPayout.amount_requested.toLocaleString('en-IN')}</p>
+                    <p className="text-4xl font-bold text-green-600">₹{(selectedPayout.amount_requested || 0).toLocaleString('en-IN')}</p>
                   </div>
                 </div>
 
@@ -410,12 +415,12 @@ const AdminPayouts = () => {
                     <div className="flex items-center justify-between">
                       <span className="text-gray-700">Payment Method:</span>
                       <div className="flex items-center gap-2">
-                        {React.createElement(getPaymentMethodIcon(selectedPayout.payment_method), { className: "w-4 h-4" })}
-                        <span className="font-medium text-gray-900 capitalize">{selectedPayout.payment_method.replace('_', ' ')}</span>
+                        {React.createElement(getPaymentMethodIcon(selectedPayout.payout_method), { className: "w-4 h-4" })}
+                        <span className="font-medium text-gray-900 capitalize">{getPaymentMethodDisplay(selectedPayout.payout_method)}</span>
                       </div>
                     </div>
 
-                    {selectedPayout.payment_method === 'bank_transfer' && (
+                    {selectedPayout.payout_method === 'bank_transfer' && (
                       <>
                         {selectedPayout.bank_account_number && (
                           <div className="flex justify-between">
@@ -429,10 +434,16 @@ const AdminPayouts = () => {
                             <span className="font-medium text-gray-900">{selectedPayout.ifsc_code}</span>
                           </div>
                         )}
+                        {selectedPayout.account_holder_name && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-700">Account Holder:</span>
+                            <span className="font-medium text-gray-900">{selectedPayout.account_holder_name}</span>
+                          </div>
+                        )}
                       </>
                     )}
 
-                    {selectedPayout.payment_method === 'upi' && selectedPayout.upi_id && (
+                    {selectedPayout.payout_method === 'upi' && selectedPayout.upi_id && (
                       <div className="flex justify-between">
                         <span className="text-gray-700">UPI ID:</span>
                         <span className="font-medium text-gray-900">{selectedPayout.upi_id}</span>
@@ -443,7 +454,7 @@ const AdminPayouts = () => {
                       <span className="text-gray-700">Status:</span>
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(selectedPayout.status)}`}>
                         {getStatusIcon(selectedPayout.status)}
-                        {selectedPayout.status.charAt(0).toUpperCase() + selectedPayout.status.slice(1)}
+                        {(selectedPayout.status || 'unknown').charAt(0).toUpperCase() + (selectedPayout.status || 'unknown').slice(1)}
                       </span>
                     </div>
                   </div>
@@ -458,7 +469,7 @@ const AdminPayouts = () => {
                   <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-700">Requested:</span>
-                      <span className="text-gray-900">{new Date(selectedPayout.created_at).toLocaleString()}</span>
+                      <span className="text-gray-900">{selectedPayout.created_at ? new Date(selectedPayout.created_at).toLocaleString() : 'N/A'}</span>
                     </div>
                     {selectedPayout.processed_at && (
                       <div className="flex justify-between">
@@ -477,7 +488,7 @@ const AdminPayouts = () => {
                       <div>
                         <p className="text-sm font-medium text-yellow-900 mb-1">Important</p>
                         <p className="text-sm text-yellow-800">
-                          Once approved, the payout will be processed and ₹{selectedPayout.amount_requested.toLocaleString('en-IN')} will be transferred to the servicer's account. This action cannot be undone.
+                          Once approved, the payout will be processed and ₹{(selectedPayout.amount_requested || 0).toLocaleString('en-IN')} will be transferred to the servicer's account. This action cannot be undone.
                         </p>
                       </div>
                     </div>
@@ -494,7 +505,7 @@ const AdminPayouts = () => {
                     className="w-full flex items-center justify-center gap-2 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                   >
                     <CheckCircle className="w-5 h-5" />
-                    {actionLoading ? 'Processing...' : `Approve Payout of ₹${selectedPayout.amount_requested.toLocaleString('en-IN')}`}
+                    {actionLoading ? 'Processing...' : `Approve Payout of ₹${(selectedPayout.amount_requested || 0).toLocaleString('en-IN')}`}
                   </button>
                 </div>
               )}
