@@ -9,21 +9,16 @@ import {
   FileText,
   Calendar,
   User,
-  MessageSquare,
   ArrowLeft,
-  Info,
   Ban,
   Eye,
   Activity,
-  Send,
   Star,
   TrendingUp,
   Award,
   Filter,
   Search,
-  Download,
-  RefreshCw,
-  Aperture
+  RefreshCw
 } from 'lucide-react';
 
 const ServicerAccountStatus = ({ onNavigate }) => {
@@ -33,13 +28,10 @@ const ServicerAccountStatus = ({ onNavigate }) => {
   const [suspensionHistory, setSuspensionHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
-  const [selectedComplaint, setSelectedComplaint] = useState(null);
-  const [responseText, setResponseText] = useState('');
-  const [submittingResponse, setSubmittingResponse] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [acknowledging, setAcknowledging] = useState(null);
-  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   useEffect(() => {
     fetchAllData();
@@ -116,44 +108,6 @@ const ServicerAccountStatus = ({ onNavigate }) => {
     }
   };
 
-  const handleRespondToComplaint = async (complaintId) => {
-    if (!responseText.trim()) {
-      alert('Please enter a response');
-      return;
-    }
-
-    setSubmittingResponse(true);
-    try {
-      const token = localStorage.getItem('token');
-      const formData = new FormData();
-      formData.append('response_text', responseText);
-
-      const response = await fetch(
-        `${API_BASE_URL}/servicer/complaint/${complaintId}/respond`,
-        {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` },
-          body: formData
-        }
-      );
-
-      if (response.ok) {
-        alert('Response submitted successfully');
-        setResponseText('');
-        await fetchComplaints();
-        setSelectedComplaint(null);
-      } else {
-        const error = await response.json();
-        alert(error.detail || 'Failed to submit response');
-      }
-    } catch (error) {
-      console.error('Failed to submit response:', error);
-      alert('Failed to submit response');
-    } finally {
-      setSubmittingResponse(false);
-    }
-  };
-
   const handleAcknowledgeWarning = async (warningId) => {
     setAcknowledging(warningId);
     try {
@@ -188,7 +142,10 @@ const ServicerAccountStatus = ({ onNavigate }) => {
     const hasResponded = complaint.servicer_has_responded || false;
     
     return (
-      <div className="bg-white rounded-lg border shadow-sm p-5 hover:shadow-md transition-all">
+      <div 
+        onClick={() => onNavigate && onNavigate(`/servicer/complaint/${complaint._id}`)}
+        className="bg-white rounded-lg border shadow-sm p-5 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer"
+      >
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-2">
@@ -252,13 +209,10 @@ const ServicerAccountStatus = ({ onNavigate }) => {
           </div>
         )}
 
-        <button
-          onClick={() => setSelectedComplaint(complaint)}
-          className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
-        >
-          <Eye className="w-4 h-4" />
-          View & Respond
-        </button>
+        <div className="flex items-center justify-between pt-3 border-t">
+          <span className="text-sm text-gray-600">Click to view details</span>
+          <Eye className="w-5 h-5 text-blue-600" />
+        </div>
       </div>
     );
   };
@@ -352,7 +306,7 @@ const ServicerAccountStatus = ({ onNavigate }) => {
         {/* Header */}
         <div className="mb-8">
           <button
-            onClick={() => onNavigate('/servicer/dashboard')}
+            onClick={() => onNavigate && onNavigate('/servicer/dashboard')}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -460,7 +414,10 @@ const ServicerAccountStatus = ({ onNavigate }) => {
         {/* Stats Overview */}
         {accountStatus && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white rounded-xl p-6 border shadow-sm hover:shadow-md transition-shadow">
+            <div 
+              onClick={() => setActiveTab('complaints')}
+              className="bg-white rounded-xl p-6 border shadow-sm hover:shadow-md hover:border-blue-300 transition-all cursor-pointer"
+            >
               <div className="flex items-center justify-between mb-4">
                 <div className="p-3 bg-blue-100 rounded-lg">
                   <AlertCircle className="w-6 h-6 text-blue-600" />
@@ -477,7 +434,10 @@ const ServicerAccountStatus = ({ onNavigate }) => {
               <p className="text-3xl font-bold text-gray-900">{complaints.length}</p>
             </div>
 
-            <div className="bg-white rounded-xl p-6 border shadow-sm hover:shadow-md transition-shadow">
+            <div 
+              onClick={() => setActiveTab('warnings')}
+              className="bg-white rounded-xl p-6 border shadow-sm hover:shadow-md hover:border-blue-300 transition-all cursor-pointer"
+            >
               <div className="flex items-center justify-between mb-4">
                 <div className="p-3 bg-orange-100 rounded-lg">
                   <AlertTriangle className="w-6 h-6 text-orange-600" />
@@ -564,7 +524,11 @@ const ServicerAccountStatus = ({ onNavigate }) => {
                   </h3>
                   <div className="space-y-3">
                     {complaints.slice(0, 3).map(complaint => (
-                      <div key={complaint._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div 
+                        key={complaint._id} 
+                        onClick={() => onNavigate && onNavigate(`/servicer/complaint/${complaint._id}`)}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
+                      >
                         <div>
                           <p className="font-medium text-sm">Complaint #{complaint.complaint_number}</p>
                           <p className="text-xs text-gray-600">{new Date(complaint.created_at).toLocaleDateString()}</p>
@@ -742,274 +706,6 @@ const ServicerAccountStatus = ({ onNavigate }) => {
           )}
         </div>
       </div>
-
-      {/* Complaint Details Modal */}
-      {selectedComplaint && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-            {/* Modal Header */}
-            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between z-10">
-              <div>
-                <h3 className="text-2xl font-bold text-gray-900">
-                  Complaint Details
-                </h3>
-                <p className="text-sm text-gray-600">#{selectedComplaint.complaint_number}</p>
-              </div>
-              <button
-                onClick={() => {
-                  setSelectedComplaint(null);
-                  setResponseText('');
-                }}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <XCircle className="w-6 h-6 text-gray-600" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-6">
-              {/* Status Banner */}
-              <div className={`rounded-lg p-4 ${
-                selectedComplaint.status === 'resolved' 
-                  ? 'bg-green-50 border border-green-200'
-                  : selectedComplaint.status === 'investigating'
-                  ? 'bg-blue-50 border border-blue-200'
-                  : 'bg-yellow-50 border border-yellow-200'
-              }`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className={`px-3 py-1 rounded-full text-sm font-bold ${
-                      selectedComplaint.status === 'resolved' 
-                        ? 'bg-green-200 text-green-900'
-                        : selectedComplaint.status === 'investigating'
-                        ? 'bg-blue-200 text-blue-900'
-                        : 'bg-yellow-200 text-yellow-900'
-                    }`}>
-                      {selectedComplaint.status?.toUpperCase()}
-                    </span>
-                    <span className={`px-3 py-1 rounded-full text-sm font-bold ${
-                      selectedComplaint.severity === 'critical' ? 'bg-red-200 text-red-900' :
-                      selectedComplaint.severity === 'high' ? 'bg-orange-200 text-orange-900' :
-                      'bg-yellow-200 text-yellow-900'
-                    }`}>
-                      {selectedComplaint.severity?.toUpperCase()} SEVERITY
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-600">
-                    Filed: {new Date(selectedComplaint.created_at).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-
-              {/* Complaint Info Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                    <User className="w-4 h-4" />
-                    Filed By
-                  </p>
-                  <p className="font-semibold text-gray-900">{selectedComplaint.filed_by_name}</p>
-                  <p className="text-sm text-gray-600">{selectedComplaint.filed_by_email}</p>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4" />
-                    Complaint Type
-                  </p>
-                  <p className="font-semibold text-gray-900">
-                    {selectedComplaint.complaint_type?.replace('_', ' ').toUpperCase()}
-                  </p>
-                </div>
-
-                {selectedComplaint.booking_number && (
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                      <FileText className="w-4 h-4" />
-                      Related Booking
-                    </p>
-                    <p className="font-semibold text-gray-900">#{selectedComplaint.booking_number}</p>
-                    {selectedComplaint.booking_service && (
-                      <p className="text-sm text-gray-600">{selectedComplaint.booking_service}</p>
-                    )}
-                  </div>
-                )}
-
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                    <Calendar className="w-4 h-4" />
-                    Last Updated
-                  </p>
-                  <p className="font-semibold text-gray-900">
-                    {new Date(selectedComplaint.updated_at || selectedComplaint.created_at).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-
-              {/* Subject */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-600 font-semibold mb-2">Subject:</p>
-                <p className="text-gray-900 font-medium text-lg">{selectedComplaint.subject}</p>
-              </div>
-
-              {/* Description */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-sm text-gray-600 font-semibold mb-2">Description:</p>
-                <p className="text-gray-900 whitespace-pre-wrap">{selectedComplaint.description}</p>
-              </div>
-
-              {/* Evidence */}
-              {selectedComplaint.evidence_urls && selectedComplaint.evidence_urls.length > 0 && (
-                <div>
-                  <p className="text-sm text-gray-600 font-semibold mb-3 flex items-center gap-2">
-                    <FileText className="w-4 h-4" />
-                    Evidence Provided ({selectedComplaint.evidence_urls.length})
-                  </p>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {selectedComplaint.evidence_urls.map((url, index) => (
-                      <div key={index} className="relative group">
-                        <img
-                          src={url}
-                          alt={`Evidence ${index + 1}`}
-                          className="rounded-lg border-2 border-gray-200 w-full h-32 object-cover hover:border-blue-400 transition-colors cursor-pointer"
-                          onClick={() => window.open(url, '_blank')}
-                        />
-                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 rounded-lg transition-all flex items-center justify-center">
-                          <Eye className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Responses Thread */}
-              {selectedComplaint.responses && selectedComplaint.responses.length > 0 && (
-                <div>
-                  <p className="text-sm text-gray-600 font-semibold mb-3 flex items-center gap-2">
-                    <MessageSquare className="w-4 h-4" />
-                    Response Thread ({selectedComplaint.responses.length})
-                  </p>
-                  <div className="space-y-3">
-                    {selectedComplaint.responses.map((response, index) => (
-                      <div
-                        key={index}
-                        className={`rounded-lg p-4 border-2 ${
-                          response.responder_type === 'admin'
-                            ? 'bg-blue-50 border-blue-200'
-                            : 'bg-purple-50 border-purple-200'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-1 rounded text-xs font-bold ${
-                              response.responder_type === 'admin'
-                                ? 'bg-blue-200 text-blue-900'
-                                : 'bg-purple-200 text-purple-900'
-                            }`}>
-                              {response.responder_type === 'admin' ? 'ADMIN' : 'YOU'}
-                            </span>
-                            <span className="font-semibold text-gray-900">
-                              {response.responder_name}
-                            </span>
-                          </div>
-                          <span className="text-xs text-gray-500">
-                            {new Date(response.created_at).toLocaleString()}
-                          </span>
-                        </div>
-                        <p className="text-gray-900">{response.response_text}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Resolution Details */}
-              {selectedComplaint.status === 'resolved' && selectedComplaint.resolution_summary && (
-                <div className="bg-green-50 border-2 border-green-300 rounded-lg p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <CheckCircle className="w-6 h-6 text-green-600" />
-                    <h4 className="font-bold text-green-900 text-lg">Resolution</h4>
-                  </div>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-sm text-green-700 font-semibold mb-1">Resolution:</p>
-                      <p className="text-green-900">{selectedComplaint.resolution_summary.resolution}</p>
-                    </div>
-                    {selectedComplaint.resolution_summary.action_taken && (
-                      <div>
-                        <p className="text-sm text-green-700 font-semibold mb-1">Action Taken:</p>
-                        <p className="text-green-900">{selectedComplaint.resolution_summary.action_taken}</p>
-                      </div>
-                    )}
-                    <p className="text-sm text-green-700">
-                      Resolved on: {new Date(selectedComplaint.resolution_summary.resolved_at).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Response Form */}
-              {selectedComplaint.status !== 'resolved' && selectedComplaint.status !== 'closed' && (
-                <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 rounded-lg p-5">
-                  <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
-                    <MessageSquare className="w-5 h-5 text-purple-600" />
-                    Submit Your Response
-                  </h4>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Provide your explanation or defense. This will be visible to the complainant and admin.
-                  </p>
-                  <textarea
-                    value={responseText}
-                    onChange={(e) => setResponseText(e.target.value)}
-                    placeholder="Type your response here..."
-                    rows={5}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none"
-                  />
-                  <div className="flex gap-3 mt-4">
-                    <button
-                      onClick={() => handleRespondToComplaint(selectedComplaint._id)}
-                      disabled={submittingResponse || !responseText.trim()}
-                      className="flex-1 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {submittingResponse ? (
-                        <>
-                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                          Submitting...
-                        </>
-                      ) : (
-                        <>
-                          <Send className="w-5 h-5" />
-                          Submit Response
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={() => setResponseText('')}
-                      disabled={submittingResponse}
-                      className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-semibold transition-colors disabled:opacity-50"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="sticky bottom-0 bg-gray-50 border-t px-6 py-4">
-              <button
-                onClick={() => {
-                  setSelectedComplaint(null);
-                  setResponseText('');
-                }}
-                className="w-full px-4 py-3 bg-gray-700 hover:bg-gray-800 text-white rounded-lg font-semibold transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

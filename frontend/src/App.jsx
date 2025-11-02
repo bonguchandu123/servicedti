@@ -483,7 +483,7 @@ import MyComplaints from './pages/user/MyComplaints';
 import CreateComplaint from './pages/user/CreateComplaint';
 import ServicerComplaints from './pages/servicer/MyComplaints';
 import RefundManagement from './pages/servicer/RefundManagement';
-import ServicerAccountStatus from './pages/servicer/ServicerAccountStatus';
+import ServicerAccountStatus from './pages/servicer/ServicerAccountStatus/ServicerAccountStatus';
 import ServicerTransactionIssues from './components/ServicerTransactionIssues';
 import UserTransactionIssueChat from './components/UserTransactionIssueChat';
 import TransactionIssueChat from './components/TransactionIssueChat';
@@ -500,6 +500,9 @@ import SuspendServicerPage from './pages/admin/AdminComplaints/SuspendServicer';
 import UnsuspendUserPage from './pages/admin/AdminBlackList/UnsuspendUser';
 import BanUserPage from './pages/admin/AdminBlackList/BanUser';
 import ViewServicerDocDetails from './pages/admin/VerifyService/ViewServicerDocDetails';
+import ServicerComplaintDetails from './pages/servicer/ServicerAccountStatus/ServicerComplaintDetails';
+import ServicerDocumentsViewer from './pages/admin/VerifyService/ServicerDocumentsViewer';
+import SignupDocumentUpload from './pages/auth/SignupDocumentUpload';
 
 const AppContent = () => {
   const { user, loading, logout } = useAuth();
@@ -598,6 +601,12 @@ const AppContent = () => {
     if (currentPath === '/reset-password') return <ResetPassword onNavigate={navigateTo} />;
     if (currentPath === '/admin/login') return <AdminLogin onNavigate={navigateTo} />;
 
+    if (currentPath === '/signup/upload-documents') {
+  return <SignupDocumentUpload
+    onNavigate={navigateTo}
+    onSkip={() => navigateTo('/verify-email')}
+  />;
+}
     // Protected Routes
     if (!user) {
       return <Login onNavigate={navigateTo} />;
@@ -690,7 +699,7 @@ const AppContent = () => {
     if (user.role === 'servicer') {
       switch (currentPath) {
         case '/servicer/dashboard':
-          return <ServicerDashboard />;
+          return <ServicerDashboard onNavigate={navigateTo}/>;
         case '/servicer/upload-documents':
           return <ServicerUploadDocuments />;
         case '/servicer/requests':
@@ -706,11 +715,11 @@ const AppContent = () => {
         case '/servicer/notifications':
           return <ServicerNotifications />;
         case '/servicer/mycomplaints':
-          return <ServicerComplaints />;
+          return <ServicerComplaints  />;
         case '/servicer/refunds':
           return <RefundManagement onNavigate={navigateTo} />;
         case '/servicer/status':
-          return <ServicerAccountStatus />;
+          return <ServicerAccountStatus onNavigate={navigateTo}/>;
         
         // ✅ UPDATED: Transaction Issue Chat Route
         case '/servicer/chat': {
@@ -743,11 +752,24 @@ const AppContent = () => {
         return <BookingDetails bookingId={requestId} onNavigate={navigateTo} />;
       }
 
+       const complaintMatch = currentPath.match(/^\/servicer\/complaint\/([^\/]+)$/);
+  if (complaintMatch) {
+    const complaintId = complaintMatch[1];
+    return <ServicerComplaintDetails complaintId={complaintId} onNavigate={navigateTo} />;
+  }
+
+
       return <ServicerDashboard />;
     }
 
     // Admin Routes
    if (user.role === 'admin') {
+
+     const servicerDocumentsMatch = currentPath.match(/^\/admin\/verify-servicers\/([^\/]+)\/documents$/);
+  if (servicerDocumentsMatch) {
+    const servicerId = servicerDocumentsMatch[1];
+    return <ServicerDocumentsViewer servicerId={servicerId} onNavigate={navigateTo} />;
+  }
 
      // ✅ NEW: Servicer Verification Details Route (add this near the top)
   const servicerVerificationMatch = currentPath.match(/^\/admin\/verify-servicers\/([^\/]+)\/details$/);
@@ -829,7 +851,7 @@ if (unsuspendMatch) {
   // ✅ Then handle static routes
   switch (currentPath) {
     case '/admin/dashboard':
-      return <AdminDashboard />;
+      return <AdminDashboard  onNavigate={navigateTo}/>;
     case '/admin/verify-servicers':
       return <VerifyServicers onNavigate={navigateTo}/>;
     case '/admin/users':
@@ -863,7 +885,7 @@ if (unsuspendMatch) {
     }
     
     default:
-      return <AdminDashboard />;
+      return <AdminDashboard onNavigate={navigateTo} />;
   }
 }
 
