@@ -89,7 +89,7 @@ const ServicerDashboardSkeletonLoader = () => {
   );
 };
 
-const ServicerDashboard = () => {
+const ServicerDashboard = ({ onNavigate }) => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [availabilityStatus, setAvailabilityStatus] = useState('available');
@@ -149,7 +149,8 @@ const ServicerDashboard = () => {
       icon: AlertCircle,
       color: 'bg-orange-500',
       textColor: 'text-orange-600',
-      bgColor: 'bg-orange-50'
+      bgColor: 'bg-orange-50',
+      navigateTo: '/servicer/requests'
     },
     {
       title: "Today's Bookings",
@@ -157,7 +158,8 @@ const ServicerDashboard = () => {
       icon: Calendar,
       color: 'bg-blue-500',
       textColor: 'text-blue-600',
-      bgColor: 'bg-blue-50'
+      bgColor: 'bg-blue-50',
+      navigateTo: '/servicer/active-services'
     },
     {
       title: 'Wallet Balance',
@@ -165,7 +167,8 @@ const ServicerDashboard = () => {
       icon: DollarSign,
       color: 'bg-green-500',
       textColor: 'text-green-600',
-      bgColor: 'bg-green-50'
+      bgColor: 'bg-green-50',
+      navigateTo: '/servicer/earnings'
     },
     {
       title: 'Average Rating',
@@ -173,7 +176,8 @@ const ServicerDashboard = () => {
       icon: Star,
       color: 'bg-yellow-500',
       textColor: 'text-yellow-600',
-      bgColor: 'bg-yellow-50'
+      bgColor: 'bg-yellow-50',
+      navigateTo: '/servicer/reviews'
     },
     {
       title: 'Total Jobs',
@@ -181,7 +185,8 @@ const ServicerDashboard = () => {
       icon: CheckCircle,
       color: 'bg-purple-500',
       textColor: 'text-purple-600',
-      bgColor: 'bg-purple-50'
+      bgColor: 'bg-purple-50',
+      navigateTo: '/servicer/active-services'
     },
     {
       title: 'Total Ratings',
@@ -189,7 +194,8 @@ const ServicerDashboard = () => {
       icon: TrendingUp,
       color: 'bg-indigo-500',
       textColor: 'text-indigo-600',
-      bgColor: 'bg-indigo-50'
+      bgColor: 'bg-indigo-50',
+      navigateTo: '/servicer/reviews'
     }
   ];
 
@@ -238,12 +244,16 @@ const ServicerDashboard = () => {
           </div>
         </div>
 
-        {/* Stats Grid */}
+        {/* Stats Grid - ALL CLICKABLE */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {stats.map((stat, index) => {
             const Icon = stat.icon;
             return (
-              <div key={index} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+              <div 
+                key={index} 
+                onClick={() => onNavigate && onNavigate(stat.navigateTo)}
+                className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer"
+              >
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600 font-medium">{stat.title}</p>
@@ -259,7 +269,7 @@ const ServicerDashboard = () => {
         </div>
 
         {/* Today's Bookings */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-gray-900">Today's Schedule</h2>
             <span className="text-sm text-gray-600">
@@ -308,12 +318,18 @@ const ServicerDashboard = () => {
 
                     <div className="flex flex-col gap-2">
                       {booking.booking_status === 'accepted' && (
-                        <button className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors">
+                        <button 
+                          onClick={() => onNavigate && onNavigate(`/servicer/requests/${booking._id}`)}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                        >
                           Start Service
                         </button>
                       )}
                       {booking.booking_status === 'in_progress' && (
-                        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+                        <button 
+                          onClick={() => onNavigate && onNavigate(`/servicer/requests/${booking._id}`)}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                        >
                           View Details
                         </button>
                       )}
@@ -330,9 +346,12 @@ const ServicerDashboard = () => {
           )}
         </div>
 
-        {/* Quick Actions */}
+        {/* Quick Actions - ALL CLICKABLE */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-          <button className="bg-white border-2 border-blue-600 text-blue-600 rounded-xl p-6 hover:bg-blue-50 transition-colors">
+          <button 
+            onClick={() => onNavigate && onNavigate('/servicer/requests')}
+            className="bg-white border-2 border-blue-600 text-blue-600 rounded-xl p-6 hover:bg-blue-50 transition-colors"
+          >
             <AlertCircle className="w-8 h-8 mb-3" />
             <h3 className="font-semibold text-lg">View Requests</h3>
             <p className="text-sm text-gray-600 mt-1">
@@ -340,7 +359,10 @@ const ServicerDashboard = () => {
             </p>
           </button>
 
-          <button className="bg-white border-2 border-green-600 text-green-600 rounded-xl p-6 hover:bg-green-50 transition-colors">
+          <button 
+            onClick={() => onNavigate && onNavigate('/servicer/earnings')}
+            className="bg-white border-2 border-green-600 text-green-600 rounded-xl p-6 hover:bg-green-50 transition-colors"
+          >
             <DollarSign className="w-8 h-8 mb-3" />
             <h3 className="font-semibold text-lg">Request Payout</h3>
             <p className="text-sm text-gray-600 mt-1">
@@ -348,7 +370,10 @@ const ServicerDashboard = () => {
             </p>
           </button>
 
-          <button className="bg-white border-2 border-purple-600 text-purple-600 rounded-xl p-6 hover:bg-purple-50 transition-colors">
+          <button 
+            onClick={() => onNavigate && onNavigate('/servicer/reviews')}
+            className="bg-white border-2 border-purple-600 text-purple-600 rounded-xl p-6 hover:bg-purple-50 transition-colors"
+          >
             <Star className="w-8 h-8 mb-3" />
             <h3 className="font-semibold text-lg">View Reviews</h3>
             <p className="text-sm text-gray-600 mt-1">

@@ -145,9 +145,9 @@ const UserDashboard = ({ onNavigate }) => {
             <p className="text-gray-600 mt-2">Welcome back! Here's your overview</p>
           </div>
           
-          {/* Notifications Button */}
+          {/* Notifications Button - CLICKABLE */}
           <button
-            onClick={() => onNavigate('/user/notifications')}
+            onClick={() => onNavigate && onNavigate('/user/notifications')}
             className="relative flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-all"
           >
             <Bell className="w-5 h-5 text-gray-700" />
@@ -160,9 +160,13 @@ const UserDashboard = ({ onNavigate }) => {
           </button>
         </div>
 
-        {/* Stats Cards */}
+        {/* Stats Cards - ALL CLICKABLE */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
+          {/* Active Bookings Card - CLICKABLE */}
+          <div 
+            onClick={() => onNavigate && onNavigate('/user/bookings')}
+            className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer"
+          >
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600 mb-1">Active Bookings</p>
@@ -180,7 +184,11 @@ const UserDashboard = ({ onNavigate }) => {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
+          {/* Favorites Card - CLICKABLE */}
+          <div 
+            onClick={() => onNavigate && onNavigate('/user/favorites')}
+            className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer"
+          >
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600 mb-1">Favorites</p>
@@ -197,7 +205,11 @@ const UserDashboard = ({ onNavigate }) => {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
+          {/* Wallet Balance Card - CLICKABLE */}
+          <div 
+            onClick={() => onNavigate && onNavigate('/user/wallet')}
+            className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer"
+          >
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600 mb-1">Wallet Balance</p>
@@ -211,7 +223,10 @@ const UserDashboard = ({ onNavigate }) => {
             </div>
             <div className="mt-4">
               <button 
-                onClick={() => onNavigate('/user/wallet')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onNavigate && onNavigate('/user/wallet');
+                }}
                 className="text-sm text-blue-600 hover:text-blue-700 font-medium"
               >
                 Add Money
@@ -219,9 +234,10 @@ const UserDashboard = ({ onNavigate }) => {
             </div>
           </div>
 
+          {/* Notifications Card - CLICKABLE */}
           <button
-            onClick={() => onNavigate('/user/notifications')}
-            className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow text-left group"
+            onClick={() => onNavigate && onNavigate('/user/notifications')}
+            className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md hover:border-blue-300 transition-all text-left group cursor-pointer"
           >
             <div className="flex items-center justify-between">
               <div>
@@ -242,12 +258,12 @@ const UserDashboard = ({ onNavigate }) => {
         </div>
 
         {/* Recent Bookings */}
-        <div className="bg-white rounded-lg border border-gray-200">
+        <div className="bg-white rounded-lg border border-gray-200 mb-8">
           <div className="p-6 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-gray-900">Recent Bookings</h2>
               <button 
-                onClick={() => onNavigate('/user/bookings')}
+                onClick={() => onNavigate && onNavigate('/user/bookings')}
                 className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
               >
                 View All
@@ -262,8 +278,8 @@ const UserDashboard = ({ onNavigate }) => {
                 {dashboardData.recent_bookings.map((booking) => (
                   <div
                     key={booking._id}
-                    onClick={() => onNavigate(`/user/bookings/${booking._id}`)}
-                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition cursor-pointer"
+                    onClick={() => onNavigate && onNavigate(`/user/bookings/${booking._id}`)}
+                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 hover:shadow-sm transition cursor-pointer"
                   >
                     <div className="flex items-center space-x-4">
                       <div className={`p-3 rounded-lg ${
@@ -317,7 +333,7 @@ const UserDashboard = ({ onNavigate }) => {
                   Start booking services to see them here
                 </p>
                 <button 
-                  onClick={() => onNavigate('/user/search')}
+                  onClick={() => onNavigate && onNavigate('/user/search')}
                   className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   Browse Services
@@ -327,10 +343,10 @@ const UserDashboard = ({ onNavigate }) => {
           </div>
         </div>
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+        {/* Quick Actions - ALL CLICKABLE */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <button 
-            onClick={() => onNavigate('/user/search')}
+            onClick={() => onNavigate && onNavigate('/user/search')}
             className="bg-white rounded-lg border border-gray-200 p-6 hover:border-blue-300 hover:shadow-md transition text-left group"
           >
             <div className="flex items-center justify-between">
@@ -348,7 +364,7 @@ const UserDashboard = ({ onNavigate }) => {
           </button>
 
           <button 
-            onClick={() => onNavigate('/user/favorites')}
+            onClick={() => onNavigate && onNavigate('/user/favorites')}
             className="bg-white rounded-lg border border-gray-200 p-6 hover:border-blue-300 hover:shadow-md transition text-left group"
           >
             <div className="flex items-center justify-between">
@@ -366,7 +382,7 @@ const UserDashboard = ({ onNavigate }) => {
           </button>
 
           <button 
-            onClick={() => onNavigate('/user/wallet')}
+            onClick={() => onNavigate && onNavigate('/user/wallet')}
             className="bg-white rounded-lg border border-gray-200 p-6 hover:border-blue-300 hover:shadow-md transition text-left group"
           >
             <div className="flex items-center justify-between">

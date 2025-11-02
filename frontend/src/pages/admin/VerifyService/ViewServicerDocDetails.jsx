@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Shield, CheckCircle, XCircle, User, Phone, Mail, MapPin, FileText, AlertCircle, Image, Loader } from 'lucide-react';
+import { ArrowLeft, Shield, CheckCircle, XCircle, User, Phone, Mail, MapPin, FileText, AlertCircle, Loader, Eye } from 'lucide-react';
 
 const ViewServicerDocDetails = ({ servicerId, onNavigate }) => {
   const [servicer, setServicer] = useState(null);
@@ -88,6 +88,15 @@ const ViewServicerDocDetails = ({ servicerId, onNavigate }) => {
     }
   };
 
+  const getTotalDocuments = () => {
+    let count = 0;
+    if (servicer?.aadhaar_front_url) count++;
+    if (servicer?.aadhaar_back_url) count++;
+    if (servicer?.certificate_urls) count += servicer.certificate_urls.length;
+    if (servicer?.vehicle_document_urls) count += servicer.vehicle_document_urls.length;
+    return count;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-6">
@@ -142,12 +151,23 @@ const ViewServicerDocDetails = ({ servicerId, onNavigate }) => {
             <ArrowLeft className="w-5 h-5" />
             Back to Verifications
           </button>
-          <div className="flex items-center gap-3">
-            <Shield className="w-8 h-8 text-blue-600" />
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Servicer Verification</h1>
-              <p className="text-gray-600 mt-1">Review documents and approve or reject servicer</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Shield className="w-8 h-8 text-blue-600" />
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Servicer Verification</h1>
+                <p className="text-gray-600 mt-1">Review documents and approve or reject servicer</p>
+              </div>
             </div>
+            
+            {/* View Documents Button */}
+            <button
+              onClick={() => onNavigate(`/admin/verify-servicers/${servicerId}/documents`)}
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold shadow-sm"
+            >
+              <Eye className="w-5 h-5" />
+              View Documents ({getTotalDocuments()})
+            </button>
           </div>
         </div>
 
@@ -229,107 +249,41 @@ const ViewServicerDocDetails = ({ servicerId, onNavigate }) => {
               </div>
             </div>
 
-            {/* Uploaded Documents */}
+            {/* Documents Summary */}
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
                 <FileText className="w-5 h-5 text-purple-600" />
-                Uploaded Documents
+                Documents Summary
               </h3>
-              
-              {/* Aadhaar Cards */}
-              <div className="mb-4">
-                <p className="text-sm font-medium text-gray-700 mb-3">Identity Proof (Aadhaar Card)</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {servicer.aadhaar_front_url && (
-                    <div className="border-2 border-gray-200 rounded-lg p-4 hover:border-blue-400 transition-colors">
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="font-medium text-gray-900">Aadhaar Card - Front</p>
-                        <FileText className="w-5 h-5 text-blue-600" />
-                      </div>
-                      <a
-                        href={servicer.aadhaar_front_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium hover:underline"
-                      >
-                        <Image className="w-4 h-4" />
-                        View Document →
-                      </a>
-                    </div>
-                  )}
-                  {servicer.aadhaar_back_url && (
-                    <div className="border-2 border-gray-200 rounded-lg p-4 hover:border-blue-400 transition-colors">
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="font-medium text-gray-900">Aadhaar Card - Back</p>
-                        <FileText className="w-5 h-5 text-blue-600" />
-                      </div>
-                      <a
-                        href={servicer.aadhaar_back_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium hover:underline"
-                      >
-                        <Image className="w-4 h-4" />
-                        View Document →
-                      </a>
-                    </div>
-                  )}
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6 border-2 border-blue-200">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div className="bg-white rounded-lg p-4 shadow-sm">
+                    <p className="text-xs text-gray-500 mb-1">Identity Documents</p>
+                    <p className="text-2xl font-bold text-blue-600">
+                      {(servicer.aadhaar_front_url ? 1 : 0) + (servicer.aadhaar_back_url ? 1 : 0)}
+                    </p>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 shadow-sm">
+                    <p className="text-xs text-gray-500 mb-1">Certificates</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      {servicer.certificate_urls?.length || 0}
+                    </p>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 shadow-sm">
+                    <p className="text-xs text-gray-500 mb-1">Vehicle Docs</p>
+                    <p className="text-2xl font-bold text-purple-600">
+                      {servicer.vehicle_document_urls?.length || 0}
+                    </p>
+                  </div>
                 </div>
+                <button
+                  onClick={() => onNavigate(`/admin/verify-servicers/${servicerId}/documents`)}
+                  className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+                >
+                  <Eye className="w-5 h-5" />
+                  View All Documents in Gallery
+                </button>
               </div>
-
-              {/* Professional Certificates */}
-              {servicer.certificate_urls && servicer.certificate_urls.length > 0 && (
-                <div className="mb-4">
-                  <p className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-                    Professional Certificates
-                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                      {servicer.certificate_urls.length} uploaded
-                    </span>
-                  </p>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                    {servicer.certificate_urls.map((url, index) => (
-                      <a
-                        key={index}
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="border-2 border-gray-200 rounded-lg p-4 text-center hover:bg-green-50 hover:border-green-400 transition-colors"
-                      >
-                        <FileText className="w-8 h-8 text-green-600 mx-auto mb-2" />
-                        <p className="text-sm font-medium text-gray-900">Certificate {index + 1}</p>
-                        <p className="text-xs text-blue-600 mt-1">View →</p>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Vehicle Documents */}
-              {servicer.vehicle_document_urls && servicer.vehicle_document_urls.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-                    Vehicle Documents
-                    <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
-                      {servicer.vehicle_document_urls.length} uploaded
-                    </span>
-                  </p>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                    {servicer.vehicle_document_urls.map((url, index) => (
-                      <a
-                        key={index}
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="border-2 border-gray-200 rounded-lg p-4 text-center hover:bg-purple-50 hover:border-purple-400 transition-colors"
-                      >
-                        <FileText className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-                        <p className="text-sm font-medium text-gray-900">Vehicle Doc {index + 1}</p>
-                        <p className="text-xs text-blue-600 mt-1">View →</p>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Rejection Reason */}
