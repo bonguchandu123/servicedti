@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, AlertTriangle, Flag, Clock, XCircle, AlertCircle,
-  User, Briefcase, MessageSquare, Send, Image as ImageIcon,
+  User, Briefcase, MessageSquare, Send, Image,
   Loader, CheckCircle, Receipt
 } from 'lucide-react';
 
@@ -35,9 +35,11 @@ const ViewIssueDetails = ({ issueId, onNavigate }) => {
       if (!response.ok) throw new Error('Failed to fetch issue details');
 
       const data = await response.json();
+      console.log('📋 Issue Data:', data);
       setIssue(data);
       setNewStatus(data.status);
     } catch (err) {
+      console.error('Error fetching issue:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -199,6 +201,19 @@ const ViewIssueDetails = ({ issueId, onNavigate }) => {
   const priorityColor = getPriorityColor(issue.priority);
   const IssueTypeIcon = getIssueTypeIcon(issue.issue_type);
 
+  // Get user and servicer data with fallbacks
+  const userData = {
+    name: issue.user_name || issue.user_details?.name || 'N/A',
+    email: issue.user_email || issue.user_details?.email || 'N/A',
+    phone: issue.user_phone || issue.user_details?.phone || 'N/A'
+  };
+
+  const servicerData = {
+    name: issue.servicer_name || issue.servicer_details?.name || issue.booking_details?.servicer_name || 'N/A',
+    email: issue.servicer_email || issue.servicer_details?.email || issue.booking_details?.servicer_email || 'N/A',
+    phone: issue.servicer_phone || issue.servicer_details?.phone || issue.booking_details?.servicer_phone || 'N/A'
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-5xl mx-auto">
@@ -211,6 +226,7 @@ const ViewIssueDetails = ({ issueId, onNavigate }) => {
           Back to Issues
         </button>
 
+       
         {/* Header */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
           <div className="flex items-center justify-between flex-wrap gap-4">
@@ -271,7 +287,7 @@ const ViewIssueDetails = ({ issueId, onNavigate }) => {
           <div className="bg-white rounded-xl p-6 border border-gray-200 mb-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-3 bg-blue-50 rounded-xl">
-                <ImageIcon className="w-6 h-6 text-blue-600" />
+                <Image className="w-6 h-6 text-blue-600" />
               </div>
               <h3 className="text-xl font-semibold text-gray-900">
                 Evidence ({issue.evidence_urls.length})
@@ -315,7 +331,7 @@ const ViewIssueDetails = ({ issueId, onNavigate }) => {
               </div>
               <div className="bg-gray-50 rounded-lg p-4">
                 <p className="text-sm text-gray-600 mb-1">Amount</p>
-                <p className="font-semibold text-gray-900">₹{issue.booking_details.total_amount.toLocaleString('en-IN')}</p>
+                <p className="font-semibold text-gray-900">₹{issue.booking_details.total_amount?.toLocaleString('en-IN') || 'N/A'}</p>
               </div>
             </div>
           </div>
@@ -333,15 +349,15 @@ const ViewIssueDetails = ({ issueId, onNavigate }) => {
             <div className="space-y-3">
               <div>
                 <p className="text-sm text-gray-600 mb-1">Name</p>
-                <p className="font-semibold text-gray-900">{issue.user_name}</p>
+                <p className="font-semibold text-gray-900">{userData.name}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600 mb-1">Email</p>
-                <p className="text-sm text-gray-900">{issue.user_email}</p>
+                <p className="text-sm text-gray-900 break-all">{userData.email}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600 mb-1">Phone</p>
-                <p className="text-sm text-gray-900">{issue.user_phone}</p>
+                <p className="text-sm text-gray-900">{userData.phone}</p>
               </div>
             </div>
           </div>
@@ -356,15 +372,15 @@ const ViewIssueDetails = ({ issueId, onNavigate }) => {
             <div className="space-y-3">
               <div>
                 <p className="text-sm text-gray-600 mb-1">Name</p>
-                <p className="font-semibold text-gray-900">{issue.servicer_name || 'N/A'}</p>
+                <p className="font-semibold text-gray-900">{servicerData.name}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600 mb-1">Email</p>
-                <p className="text-sm text-gray-900">{issue.servicer_email || 'N/A'}</p>
+                <p className="text-sm text-gray-900 break-all">{servicerData.email}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600 mb-1">Phone</p>
-                <p className="text-sm text-gray-900">{issue.servicer_phone || 'N/A'}</p>
+                <p className="text-sm text-gray-900">{servicerData.phone}</p>
               </div>
             </div>
           </div>

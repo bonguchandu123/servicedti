@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, DollarSign, Star, TrendingUp, Award, Filter, Search, Download, Eye, MapPin, CheckCircle, XCircle, AlertCircle, Aperture } from 'lucide-react';
+import { Calendar, Clock, DollarSign, Star, TrendingUp, Award, Filter, Search, Download, Eye, MapPin, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 
 const BookingHistorySkeletonLoader = () => {
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header Skeleton */}
       <div className="bg-white border-b-2 border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-pulse">
-          {/* Title Section */}
           <div className="flex items-center space-x-3 mb-8">
             <div className="w-12 h-12 bg-gray-200 rounded-xl"></div>
             <div>
@@ -16,7 +14,6 @@ const BookingHistorySkeletonLoader = () => {
             </div>
           </div>
 
-          {/* Stats Cards Skeleton */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="bg-white border-2 border-gray-200 rounded-xl p-6">
@@ -31,18 +28,6 @@ const BookingHistorySkeletonLoader = () => {
             ))}
           </div>
 
-          {/* Favorite Service Skeleton */}
-          <div className="bg-gray-100 border-2 border-gray-200 rounded-xl p-4 mb-6">
-            <div className="flex items-center">
-              <div className="w-10 h-10 bg-gray-200 rounded-lg mr-3"></div>
-              <div className="flex-1">
-                <div className="h-4 w-32 bg-gray-200 rounded mb-2"></div>
-                <div className="h-5 w-40 bg-gray-200 rounded"></div>
-              </div>
-            </div>
-          </div>
-
-          {/* Search and Filter Skeleton */}
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 h-12 bg-gray-200 rounded-lg"></div>
             <div className="h-12 w-40 bg-gray-200 rounded-lg"></div>
@@ -51,55 +36,23 @@ const BookingHistorySkeletonLoader = () => {
         </div>
       </div>
 
-      {/* Content Skeleton */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-4 animate-pulse">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-white rounded-xl border-2 border-gray-200 overflow-hidden">
-              <div className="p-6">
-                {/* Header Skeleton */}
-                <div className="flex items-start justify-between mb-6">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <div className="h-6 w-40 bg-gray-200 rounded"></div>
-                      <div className="h-6 w-24 bg-gray-200 rounded-full"></div>
-                    </div>
-                    <div className="h-4 w-32 bg-gray-200 rounded"></div>
-                  </div>
-                  <div className="text-right">
-                    <div className="h-8 w-24 bg-gray-200 rounded mb-2"></div>
-                    <div className="h-4 w-20 bg-gray-200 rounded"></div>
+            <div key={i} className="bg-white rounded-xl border-2 border-gray-200 p-6">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <div className="lg:col-span-8 space-y-4">
+                  <div className="h-6 w-40 bg-gray-200 rounded"></div>
+                  <div className="h-4 w-32 bg-gray-200 rounded"></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="h-16 bg-gray-200 rounded-lg"></div>
+                    <div className="h-16 bg-gray-200 rounded-lg"></div>
                   </div>
                 </div>
-
-                {/* Servicer Info Skeleton */}
-                <div className="flex items-center space-x-3 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                  <div className="w-12 h-12 rounded-full bg-gray-200"></div>
-                  <div className="flex-1">
-                    <div className="h-5 w-32 bg-gray-200 rounded mb-2"></div>
-                    <div className="h-4 w-28 bg-gray-200 rounded"></div>
-                  </div>
-                  <div className="h-4 w-16 bg-gray-200 rounded"></div>
-                </div>
-
-                {/* Booking Details Skeleton */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  {[1, 2, 3].map((j) => (
-                    <div key={j} className="flex items-center p-3 bg-gray-50 rounded-lg">
-                      <div className="w-5 h-5 bg-gray-200 rounded mr-3"></div>
-                      <div className="flex-1">
-                        <div className="h-3 w-12 bg-gray-200 rounded mb-2"></div>
-                        <div className="h-4 w-20 bg-gray-200 rounded"></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Action Buttons Skeleton */}
-                <div className="flex flex-wrap gap-3">
-                  <div className="h-10 w-32 bg-gray-200 rounded-lg"></div>
-                  <div className="h-10 w-32 bg-gray-200 rounded-lg"></div>
-                  <div className="h-10 w-32 bg-gray-200 rounded-lg"></div>
+                <div className="lg:col-span-4 space-y-3">
+                  <div className="h-24 bg-gray-200 rounded-xl"></div>
+                  <div className="h-10 bg-gray-200 rounded-lg"></div>
+                  <div className="h-10 bg-gray-200 rounded-lg"></div>
                 </div>
               </div>
             </div>
@@ -110,7 +63,7 @@ const BookingHistorySkeletonLoader = () => {
   );
 };
 
-const BookingHistory = () => {
+const BookingHistory = ({ onNavigate }) => {
   const [bookings, setBookings] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -160,7 +113,7 @@ const BookingHistory = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(
-        `${API_BASE_URL}/user/bookings/stats` ,
+        `${API_BASE_URL}/user/bookings/stats`,
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -174,6 +127,14 @@ const BookingHistory = () => {
       setStats(data);
     } catch (err) {
       console.error('Error fetching stats:', err);
+    }
+  };
+
+  const handleBookAgain = (booking) => {
+    if (booking.servicer_id && booking.service_category_id) {
+      onNavigate(`/user/book?servicer_id=${booking.servicer_id}&category_id=${booking.service_category_id}`);
+    } else {
+      alert('Unable to book again: Service information not available');
     }
   };
 
@@ -360,12 +321,14 @@ const BookingHistory = () => {
                 key={booking._id}
                 className="bg-white rounded-xl border-2 border-gray-200 overflow-hidden hover:border-blue-300 hover:shadow-lg transition"
               >
-                <div className="p-6">
-                  {/* Header */}
-                  <div className="flex items-start justify-between mb-6">
-                    <div className="flex-1">
+                {/* Main Content - 2 Column Layout */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-6">
+                  {/* Left Side - Details (70%) */}
+                  <div className="lg:col-span-8 space-y-4">
+                    {/* Service Title & Status */}
+                    <div>
                       <div className="flex items-center space-x-3 mb-2">
-                        <h3 className="text-xl font-bold text-gray-900">
+                        <h3 className="text-2xl font-bold text-gray-900">
                           {booking.service_type}
                         </h3>
                         {getStatusBadge(booking.booking_status)}
@@ -375,81 +338,99 @@ const BookingHistory = () => {
                       </p>
                     </div>
 
-                    <div className="text-right">
-                      <p className="text-3xl font-bold text-gray-900">
-                        ₹{booking.total_amount?.toFixed(2)}
-                      </p>
-                      <p className="text-sm text-gray-600 font-medium uppercase mt-1">
-                        {booking.payment_method}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Servicer Info */}
-                  {booking.servicer_name && (
-                    <div className="flex items-center space-x-3 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                      <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                        {booking.servicer_image ? (
-                          <img
-                            src={booking.servicer_image}
-                            alt={booking.servicer_name}
-                            className="w-12 h-12 rounded-full object-cover"
-                          />
-                        ) : (
-                          <span className="text-blue-600 font-bold text-lg">
-                            {booking.servicer_name.charAt(0).toUpperCase()}
-                          </span>
+                    {/* Servicer Info */}
+                    {booking.servicer_name && (
+                      <div className="flex items-center space-x-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                        <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                          {booking.servicer_image ? (
+                            <img
+                              src={booking.servicer_image}
+                              alt={booking.servicer_name}
+                              className="w-12 h-12 object-cover"
+                            />
+                          ) : (
+                            <span className="text-blue-600 font-bold text-lg">
+                              {booking.servicer_name.charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs text-blue-600 font-medium mb-1">Service Provider</p>
+                          <p className="font-bold text-gray-900">{booking.servicer_name}</p>
+                        </div>
+                        {booking.servicer_phone && (
+                          <a
+                            href={`tel:${booking.servicer_phone}`}
+                            className="text-blue-600 hover:text-blue-700 font-semibold text-sm px-3 py-1.5 bg-blue-100 rounded-lg"
+                          >
+                            Contact
+                          </a>
                         )}
                       </div>
-                      <div className="flex-1">
-                        <p className="font-semibold text-gray-900">{booking.servicer_name}</p>
-                        <p className="text-sm text-gray-600">Service Provider</p>
+                    )}
+
+                    {/* Date, Time & Completed Info */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg">
+                        <Calendar className="w-5 h-5 text-blue-600" />
+                        <div>
+                          <p className="text-xs text-gray-600 font-medium">Date</p>
+                          <p className="text-sm font-semibold text-gray-900">{booking.booking_date}</p>
+                        </div>
                       </div>
-                      {booking.servicer_phone && (
-                        <a
-                          href={`tel:${booking.servicer_phone}`}
-                          className="text-blue-600 hover:text-blue-700 font-medium text-sm"
-                        >
-                          Contact
-                        </a>
+
+                      <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg">
+                        <Clock className="w-5 h-5 text-green-600" />
+                        <div>
+                          <p className="text-xs text-gray-600 font-medium">Time</p>
+                          <p className="text-sm font-semibold text-gray-900">{booking.booking_time}</p>
+                        </div>
+                      </div>
+
+                      {booking.completed_at && (
+                        <div className="flex items-center space-x-3 p-3 bg-purple-50 rounded-lg">
+                          <Award className="w-5 h-5 text-purple-600" />
+                          <div>
+                            <p className="text-xs text-gray-600 font-medium">Completed</p>
+                            <p className="text-sm font-semibold text-gray-900">
+                              {new Date(booking.completed_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
                       )}
                     </div>
-                  )}
 
-                  {/* Booking Details */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div className="flex items-center p-3 bg-blue-50 rounded-lg">
-                      <Calendar className="w-5 h-5 text-blue-600 mr-3" />
-                      <div>
-                        <p className="text-xs text-gray-600 font-medium">Date</p>
-                        <p className="text-sm font-semibold text-gray-900">{booking.booking_date}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center p-3 bg-green-50 rounded-lg">
-                      <Clock className="w-5 h-5 text-green-600 mr-3" />
-                      <div>
-                        <p className="text-xs text-gray-600 font-medium">Time</p>
-                        <p className="text-sm font-semibold text-gray-900">{booking.booking_time}</p>
-                      </div>
-                    </div>
-                    {booking.completed_at && (
-                      <div className="flex items-center p-3 bg-purple-50 rounded-lg">
-                        <Award className="w-5 h-5 text-purple-600 mr-3" />
-                        <div>
-                          <p className="text-xs text-gray-600 font-medium">Completed</p>
-                          <p className="text-sm font-semibold text-gray-900">
-                            {new Date(booking.completed_at).toLocaleDateString()}
-                          </p>
+                    {/* Cancellation Info */}
+                    {booking.booking_status === 'cancelled' && booking.cancellation_reason && (
+                      <div className="p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                        <div className="flex items-start">
+                          <XCircle className="w-5 h-5 text-red-600 mr-2 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-sm font-semibold text-red-800 mb-1">Cancellation Reason</p>
+                            <p className="text-sm text-red-700">{booking.cancellation_reason}</p>
+                          </div>
                         </div>
                       </div>
                     )}
                   </div>
 
-                  {/* Action Buttons */}
-                   <div className="flex flex-wrap gap-3">
+                  {/* Right Side - Amount & Actions (30%) */}
+                  <div className="lg:col-span-4 space-y-3">
+                    {/* Amount Card - Same size as buttons */}
+                    <div className="bg-gradient-to-br from-purple-600 to-purple-700 text-white rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="text-left">
+                          <p className="text-xs opacity-90 mb-1">Total Amount</p>
+                          <p className="text-2xl font-bold">₹{booking.total_amount?.toFixed(2)}</p>
+                        </div>
+                        <DollarSign className="w-6 h-6 opacity-80" />
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
                     <button
-                      onClick={() => window.location.href = `/user/bookings/${booking._id}`}
-                      className="flex items-center space-x-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+                      onClick={() => onNavigate ? onNavigate(`/user/bookings/${booking._id}`) : window.location.href = `/user/bookings/${booking._id}`}
+                      className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
                     >
                       <Eye className="w-4 h-4" />
                       <span>View Details</span>
@@ -457,8 +438,8 @@ const BookingHistory = () => {
 
                     {booking.booking_status === 'completed' && (
                       <button
-                        onClick={() => window.location.href = `/user/bookings/${booking._id}`}
-                        className="flex items-center space-x-2 px-5 py-2.5 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition font-medium"
+                        onClick={() => onNavigate ? onNavigate(`/user/bookings/${booking._id}`) : window.location.href = `/user/bookings/${booking._id}`}
+                        className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition font-medium"
                       >
                         <Star className="w-4 h-4" />
                         <span>Rate Service</span>
@@ -466,10 +447,8 @@ const BookingHistory = () => {
                     )}
 
                     <button
-                      onClick={() => {
-                        alert('This will create a new booking with the same servicer and service type');
-                      }}
-                      className="flex items-center space-x-2 px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
+                      onClick={() => handleBookAgain(booking)}
+                      className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
                     >
                       <TrendingUp className="w-4 h-4" />
                       <span>Book Again</span>
@@ -478,29 +457,19 @@ const BookingHistory = () => {
                     {booking.servicer_id && (
                       <button
                         onClick={() => {
-                          // Navigate to complaint creation with servicer_id and booking_id
-                          window.location.href = `/user/complaints/create?servicer_id=${booking.servicer_id}&booking_id=${booking._id}`;
+                          if (onNavigate) {
+                            onNavigate(`/user/complaints/create?servicer_id=${booking.servicer_id}&booking_id=${booking._id}`);
+                          } else {
+                            window.location.href = `/user/complaints/create?servicer_id=${booking.servicer_id}&booking_id=${booking._id}`;
+                          }
                         }}
-                        className="flex items-center space-x-2 px-5 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium"
+                        className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium"
                       >
                         <AlertCircle className="w-4 h-4" />
                         <span>File Complaint</span>
                       </button>
                     )}
                   </div>
-
-                  {/* Cancellation Info */}
-                  {booking.booking_status === 'cancelled' && booking.cancellation_reason && (
-                    <div className="mt-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
-                      <div className="flex items-start">
-                        <XCircle className="w-5 h-5 text-red-600 mr-2 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-sm font-semibold text-red-800 mb-1">Cancellation Reason</p>
-                          <p className="text-sm text-red-700">{booking.cancellation_reason}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             ))}

@@ -114,6 +114,7 @@ const WalletSkeletonLoader = () => {
     </div>
   );
 };
+
 // Payment Form Component
 const PaymentForm = ({ amount, onSuccess, onCancel }) => {
   const stripe = useStripe();
@@ -314,7 +315,7 @@ const PaymentForm = ({ amount, onSuccess, onCancel }) => {
 };
 
 // Main Wallet Component
-const WalletPage = () => {
+const WalletPage = ({ onNavigate }) => {
   const [walletData, setWalletData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -459,9 +460,7 @@ const WalletPage = () => {
   };
 
   if (loading) {
-    return (
-      <WalletSkeletonLoader/>
-    );
+    return <WalletSkeletonLoader />;
   }
 
   if (error || !walletData) {
@@ -611,7 +610,11 @@ const WalletPage = () => {
           <div className="divide-y divide-gray-100">
             {walletData.transactions && walletData.transactions.length > 0 ? (
               walletData.transactions.map((txn, index) => (
-                <div key={txn._id || index} className="p-6 hover:bg-gray-50 transition">
+                <div 
+                  key={txn._id || index} 
+                  className="p-6 hover:bg-gray-50 transition cursor-pointer"
+                  onClick={() => onNavigate(`/user/transactions/${txn._id}`)}
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
                       <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${

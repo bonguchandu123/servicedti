@@ -440,11 +440,11 @@ import ResetPassword from './pages/auth/ResetPassword';
 // User Pages
 import UserDashboard from './pages/user/Dashboard';
 import SearchServices from './pages/user/SearchServices';
-import MyBookings from './pages/user/MyBookings';
+import MyBookings from './pages/user/MyBookings/MyBookings';
 import BookingHistory from './pages/user/BookingHistory';
 import BookingDetails from './pages/user/BookingDetails';
 import Favorites from './pages/user/Favorites';
-import UserWallet from './pages/user/Wallet';
+import UserWallet from './pages/user/Wallet/Wallet';
 import UserProfile from './pages/user/Profile';
 import LiveTracking from './pages/user/LiveTracking';
 import ChatMessaging from './pages/user/ChatMessaging';
@@ -482,7 +482,7 @@ import AdminBlacklist from './pages/admin/AdminBlackList/AdminBlackList';
 import MyComplaints from './pages/user/MyComplaints';
 import CreateComplaint from './pages/user/CreateComplaint';
 import ServicerComplaints from './pages/servicer/MyComplaints';
-import RefundManagement from './pages/servicer/RefundManagement';
+import RefundManagement from './pages/servicer/RefundManagement/RefundManagement';
 import ServicerAccountStatus from './pages/servicer/ServicerAccountStatus/ServicerAccountStatus';
 import ServicerTransactionIssues from './components/ServicerTransactionIssues';
 import UserTransactionIssueChat from './components/UserTransactionIssueChat';
@@ -502,6 +502,12 @@ import BanUserPage from './pages/admin/AdminBlackList/BanUser';
 import ViewServicerDocDetails from './pages/admin/VerifyService/ViewServicerDocDetails';
 import ServicerComplaintDetails from './pages/servicer/ServicerAccountStatus/ServicerComplaintDetails';
 import ServicerDocumentsViewer from './pages/admin/VerifyService/ServicerDocumentsViewer';
+import ReportTransactionIssuePage from './pages/user/MyBookings/ReportTransactionIssuePage';
+import ReportBookingIssuePage from './pages/user/MyBookings/ReportBookingIssuePage';
+import ReportRefundDelayPage from './pages/user/MyBookings/ReportRefundDelayPage';
+import CancelBookingPage from './pages/user/MyBookings/CancelBookingPage';
+import ProcessRefund from './pages/servicer/RefundManagement/ProcessRefund';
+import TransactionDetails from './pages/user/Wallet/TransactionDetails';
 
 const AppContent = () => {
   const { user, loading, logout } = useAuth();
@@ -621,7 +627,7 @@ const AppContent = () => {
         case '/user/favorites':
           return <Favorites />;
         case '/user/wallet':
-          return <UserWallet />;
+          return <UserWallet onNavigate={navigateTo} />;
         case '/user/profile':
           return <UserProfile />;
         case '/user/notifications':
@@ -630,6 +636,12 @@ const AppContent = () => {
           return <MyComplaints onNavigate={navigateTo} />;
         case '/user/complaints/create':
           return <CreateComplaint onNavigate={navigateTo} />;
+        case '/user/book': {
+  return <CreateBooking onNavigate={navigateTo} />;
+}
+
+      
+
         
         // ✅ UPDATED: Transaction Issue Chat Route
         case '/user/chat': {
@@ -642,6 +654,40 @@ const AppContent = () => {
           return <UserTransactionIssueChat />;
         }
       }
+
+      const transactionMatch = currentPath.match(/^\/user\/transactions\/([^\/]+)$/);
+  if (transactionMatch) {
+    const transactionId = transactionMatch[1];
+    return <TransactionDetails transactionId={transactionId} onNavigate={navigateTo} />;
+  }
+
+        // ✅ NEW: Report Refund Delay Page
+  const refundDelayMatch = currentPath.match(/^\/user\/bookings\/([^\/]+)\/report-refund-delay$/);
+  if (refundDelayMatch) {
+    const bookingId = refundDelayMatch[1];
+    return <ReportRefundDelayPage bookingId={bookingId} onNavigate={navigateTo} />;
+  }
+
+  // ✅ NEW: Report Booking Issue Page
+  const bookingIssueMatch = currentPath.match(/^\/user\/bookings\/([^\/]+)\/report-booking-issue$/);
+  if (bookingIssueMatch) {
+    const bookingId = bookingIssueMatch[1];
+    return <ReportBookingIssuePage bookingId={bookingId} onNavigate={navigateTo} />;
+  }
+
+  // ✅ NEW: Report Transaction Issue Page
+  const transactionIssueMatch = currentPath.match(/^\/user\/bookings\/([^\/]+)\/report-transaction-issue$/);
+  if (transactionIssueMatch) {
+    const bookingId = transactionIssueMatch[1];
+    return <ReportTransactionIssuePage bookingId={bookingId} onNavigate={navigateTo} />;
+  }
+
+       const cancelMatch = currentPath.match(/^\/user\/bookings\/([^\/]+)\/cancel$/);
+  if (cancelMatch) {
+    const bookingId = cancelMatch[1];
+    return <CancelBookingPage bookingId={bookingId} onNavigate={navigateTo} />;
+  }
+
 
       // Dynamic routes
       const trackingMatch = currentPath.match(/^\/user\/bookings\/([^\/]+)\/track$/);
@@ -726,6 +772,11 @@ const AppContent = () => {
         }
       }
 
+      const refundMatch = currentPath.match(/^\/servicer\/refunds\/([^\/]+)$/);
+if (refundMatch) {
+  const bookingId = refundMatch[1];
+  return <ProcessRefund bookingId={bookingId} onNavigate={navigateTo} />;
+}
       // Dynamic routes
       const chatMatch = currentPath.match(/^\/servicer\/chat\/([^\/]+)$/);
       if (chatMatch) {
