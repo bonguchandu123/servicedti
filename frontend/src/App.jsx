@@ -462,7 +462,7 @@ import ServicerProfile from './pages/servicer/ServicerProfile';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
-import VerifyServicers from './pages/admin/VerifyServicers';
+import VerifyServicers from './pages/admin/VerifyService/VerifyServicers';
 import AdminManageUsers from './pages/admin/AdminUserManagement/AdminManageUsers';
 import AdminManageBookings from './pages/admin/AdminBookingMangement/AdminManageBookings';
 import AdminTransactions from './pages/admin/AdminTransactions/AdminTransactions';
@@ -499,6 +499,7 @@ import ViewComplaintDetails from './pages/admin/AdminComplaints/ViewComplaintDet
 import SuspendServicerPage from './pages/admin/AdminComplaints/SuspendServicer';
 import UnsuspendUserPage from './pages/admin/AdminBlackList/UnsuspendUser';
 import BanUserPage from './pages/admin/AdminBlackList/BanUser';
+import ViewServicerDocDetails from './pages/admin/VerifyService/ViewServicerDocDetails';
 
 const AppContent = () => {
   const { user, loading, logout } = useAuth();
@@ -747,6 +748,13 @@ const AppContent = () => {
 
     // Admin Routes
    if (user.role === 'admin') {
+
+     // ✅ NEW: Servicer Verification Details Route (add this near the top)
+  const servicerVerificationMatch = currentPath.match(/^\/admin\/verify-servicers\/([^\/]+)\/details$/);
+  if (servicerVerificationMatch) {
+    const servicerId = servicerVerificationMatch[1];
+    return <ViewServicerDocDetails servicerId={servicerId} onNavigate={navigateTo} />;
+  }
   // ✅ Check dynamic routes FIRST before the switch statement
   const suspendMatch = currentPath.match(/^\/admin\/users\/([^\/]+)\/suspend$/);
   if (suspendMatch) {
@@ -823,7 +831,7 @@ if (unsuspendMatch) {
     case '/admin/dashboard':
       return <AdminDashboard />;
     case '/admin/verify-servicers':
-      return <VerifyServicers />;
+      return <VerifyServicers onNavigate={navigateTo}/>;
     case '/admin/users':
       return <AdminManageUsers onNavigate={navigateTo}/>;
     case '/admin/bookings':
