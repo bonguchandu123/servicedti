@@ -1,17 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, Search, Eye, Filter, TrendingUp, TrendingDown, CreditCard, Wallet, ArrowUpRight, ArrowDownLeft, X, AlertCircle, Calendar } from 'lucide-react';
+import { DollarSign, Search, Eye, TrendingUp, CreditCard, Wallet, AlertCircle } from 'lucide-react';
 
 const AdminTransactionsSkeleton = () => {
-  return ( <div className="min-h-screen bg-gray-50 p-6 animate-pulse">
+  return (
+    <div className="min-h-screen bg-gray-50 p-6 animate-pulse">
       <div className="max-w-7xl mx-auto space-y-6">
-
-        {/* Header skeleton */}
         <div className="space-y-3">
           <div className="h-8 w-64 bg-gray-200 rounded"></div>
           <div className="h-4 w-80 bg-gray-200 rounded"></div>
         </div>
 
-        {/* Stats cards skeleton */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           {[1,2,3].map(i => (
             <div key={i} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-4">
@@ -22,7 +20,6 @@ const AdminTransactionsSkeleton = () => {
           ))}
         </div>
 
-        {/* Filters skeleton */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="h-10 bg-gray-200 rounded md:col-span-2"></div>
@@ -31,32 +28,25 @@ const AdminTransactionsSkeleton = () => {
           </div>
         </div>
 
-        {/* Table rows skeleton */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           {[...Array(6)].map((_, idx) => (
-            <div
-              key={idx}
-              className="flex justify-between items-center px-6 py-4 border-b border-gray-200"
-            >
+            <div key={idx} className="flex justify-between items-center px-6 py-4 border-b border-gray-200">
               {[1,2,3,4,5,6,7,8,9].map((i) => (
                 <div key={i} className="h-4 bg-gray-200 rounded" style={{ width: `${40 + i*6}px` }} />
               ))}
             </div>
           ))}
         </div>
-
       </div>
     </div>
   );
-}
-const AdminTransactions = () => {
+};
+
+const AdminTransactions = ({ onNavigate }) => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedTransaction, setSelectedTransaction] = useState(null);
-  const [showModal, setShowModal] = useState(false);
   
-  // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -65,7 +55,6 @@ const AdminTransactions = () => {
   const [total, setTotal] = useState(0);
   const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
-  // Stats
   const [stats, setStats] = useState({
     totalRevenue: 0,
     totalTransactions: 0,
@@ -96,7 +85,6 @@ const AdminTransactions = () => {
       setTotalPages(data.pages || 1);
       setTotal(data.total || 0);
 
-      // Calculate stats
       const completed = data.transactions.filter(t => t.transaction_status === 'completed');
       const totalRevenue = completed.reduce((sum, t) => sum + (t.platform_fee || 0), 0);
       const successRate = data.total > 0 ? (completed.length / data.total * 100).toFixed(1) : 0;
@@ -113,17 +101,16 @@ const AdminTransactions = () => {
     }
   };
 
-  const viewTransactionDetails = (transaction) => {
-    setSelectedTransaction(transaction);
-    setShowModal(true);
+  const handleViewTransaction = (transactionId) => {
+    onNavigate(`/admin/transactions/${transactionId}/details`);
   };
 
   const getTypeIcon = (type) => {
     const icons = {
       booking_payment: CreditCard,
       wallet_topup: Wallet,
-      payout: TrendingDown,
-      refund: ArrowDownLeft
+      payout: TrendingUp,
+      refund: DollarSign
     };
     const Icon = icons[type] || DollarSign;
     return <Icon className="w-4 h-4" />;
@@ -166,9 +153,7 @@ const AdminTransactions = () => {
   );
 
   if (loading && transactions.length === 0) {
-    return (
-    <AdminTransactionsSkeleton/>
-    );
+    return <AdminTransactionsSkeleton />;
   }
 
   return (
@@ -219,7 +204,6 @@ const AdminTransactions = () => {
         {/* Filters & Search */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* Search */}
             <div className="md:col-span-2 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
@@ -231,7 +215,6 @@ const AdminTransactions = () => {
               />
             </div>
 
-            {/* Type Filter */}
             <div>
               <select
                 value={typeFilter}
@@ -249,7 +232,6 @@ const AdminTransactions = () => {
               </select>
             </div>
 
-            {/* Status Filter */}
             <div>
               <select
                 value={statusFilter}
@@ -342,8 +324,9 @@ const AdminTransactions = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
                         <button
-                          onClick={() => viewTransactionDetails(txn)}
-                          className="text-blue-600 hover:text-blue-900"
+                          onClick={() => handleViewTransaction(txn._id)}
+                          className="text-blue-600 hover:text-blue-900 transition-colors"
+                          title="View details"
                         >
                           <Eye className="w-5 h-5" />
                         </button>
@@ -378,137 +361,6 @@ const AdminTransactions = () => {
                 </div>
               </div>
             )}
-          </div>
-        )}
-
-        {/* Transaction Details Modal */}
-        {showModal && selectedTransaction && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full my-8">
-              {/* Modal Header */}
-              <div className="sticky top-0 bg-white border-b border-gray-200 p-6 rounded-t-lg">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-2xl font-bold text-gray-900">Transaction Details</h2>
-                  <button
-                    onClick={() => {
-                      setShowModal(false);
-                      setSelectedTransaction(null);
-                    }}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <X className="w-6 h-6" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Modal Body */}
-              <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
-                {/* Transaction Info */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Transaction Information</h3>
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <p className="text-sm text-gray-500">Transaction ID</p>
-                        <p className="font-mono text-sm text-gray-900">{selectedTransaction._id}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Type</p>
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(selectedTransaction.transaction_type)}`}>
-                          {getTypeIcon(selectedTransaction.transaction_type)}
-                          {selectedTransaction.transaction_type.replace('_', ' ')}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Status</p>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(selectedTransaction.transaction_status)}`}>
-                          {selectedTransaction.transaction_status}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Payment Method</p>
-                        <div className="flex items-center gap-1">
-                          {getPaymentMethodIcon(selectedTransaction.payment_method)}
-                          <span className="capitalize text-sm text-gray-900">{selectedTransaction.payment_method}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Amount Breakdown */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Amount Breakdown</h3>
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-700">Total Amount:</span>
-                      <span className="font-semibold text-gray-900">₹{selectedTransaction.amount.toLocaleString('en-IN')}</span>
-                    </div>
-                    {selectedTransaction.platform_fee && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-700">Platform Fee:</span>
-                        <span className="font-medium text-green-600">₹{selectedTransaction.platform_fee.toLocaleString('en-IN')}</span>
-                      </div>
-                    )}
-                    {selectedTransaction.servicer_earnings && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-700">Servicer Earnings:</span>
-                        <span className="font-medium text-blue-600">₹{selectedTransaction.servicer_earnings.toLocaleString('en-IN')}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Related Information */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Related Information</h3>
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-700">User ID:</span>
-                      <span className="font-mono text-gray-900">{selectedTransaction.user_id}</span>
-                    </div>
-                    {selectedTransaction.booking_id && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-700">Booking ID:</span>
-                        <span className="font-mono text-gray-900">{selectedTransaction.booking_id}</span>
-                      </div>
-                    )}
-                    {selectedTransaction.servicer_id && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-700">Servicer ID:</span>
-                        <span className="font-mono text-gray-900">{selectedTransaction.servicer_id}</span>
-                      </div>
-                    )}
-                    {selectedTransaction.stripe_payment_intent_id && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-700">Stripe Payment Intent:</span>
-                        <span className="font-mono text-xs text-gray-900">{selectedTransaction.stripe_payment_intent_id}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Timestamps */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-blue-600" />
-                    Timeline
-                  </h3>
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-700">Created:</span>
-                      <span className="text-gray-900">{new Date(selectedTransaction.created_at).toLocaleString()}</span>
-                    </div>
-                    {selectedTransaction.updated_at && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-700">Last Updated:</span>
-                        <span className="text-gray-900">{new Date(selectedTransaction.updated_at).toLocaleString()}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         )}
       </div>

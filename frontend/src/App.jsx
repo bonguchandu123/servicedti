@@ -463,9 +463,9 @@ import ServicerProfile from './pages/servicer/ServicerProfile';
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
 import VerifyServicers from './pages/admin/VerifyServicers';
-import AdminManageUsers from './pages/admin/AdminManageUsers';
-import AdminManageBookings from './pages/admin/AdminManageBookings';
-import AdminTransactions from './pages/admin/AdminTransactions';
+import AdminManageUsers from './pages/admin/AdminUserManagement/AdminManageUsers';
+import AdminManageBookings from './pages/admin/AdminBookingMangement/AdminManageBookings';
+import AdminTransactions from './pages/admin/AdminTransactions/AdminTransactions';
 import AdminPayouts from './pages/admin/AdminPayouts';
 import AdminCategories from './pages/admin/AdminCategoriesPage';
 import AdminLogin from './pages/admin/AdminLogin';
@@ -475,10 +475,10 @@ import { ToastProvider, useToast } from './context/ToastContext';
 import { NotificationProvider } from './context/NotificationContext';
 import ServicerNotifications from './pages/servicer/ServicerNotifications';
 import { DarkProgressBar } from './components/NavigationProgressBar';
-import AdminManageIssues from './pages/admin/AdminManageIssues';
-import AdminTransactionIssues from './pages/admin/AdminTransactionIssue';
-import AdminComplaints from './pages/admin/AdminComplaints';
-import AdminBlacklist from './pages/admin/AdminBlackList';
+import AdminManageIssues from './pages/admin/AdminManageIssues/AdminManageIssues';
+import AdminTransactionIssues from './pages/admin/AdminTranscationIssues.jsx/AdminTransactionIssue';
+import AdminComplaints from './pages/admin/AdminComplaints/AdminComplaints';
+import AdminBlacklist from './pages/admin/AdminBlackList/AdminBlackList';
 import MyComplaints from './pages/user/MyComplaints';
 import CreateComplaint from './pages/user/CreateComplaint';
 import ServicerComplaints from './pages/servicer/MyComplaints';
@@ -487,6 +487,18 @@ import ServicerAccountStatus from './pages/servicer/ServicerAccountStatus';
 import ServicerTransactionIssues from './components/ServicerTransactionIssues';
 import UserTransactionIssueChat from './components/UserTransactionIssueChat';
 import TransactionIssueChat from './components/TransactionIssueChat';
+import SuspendUserPage from './pages/admin/AdminUserManagement/AdminSuspendUser';
+import ViewUserDetails from './pages/admin/AdminUserManagement/ViewUserDetails';
+import ViewBookingDetails from './pages/admin/AdminBookingMangement/ViewBookingDetails';
+import ViewTransactionDetails from './pages/admin/AdminTransactions/ViewTransactionDetails';
+import ViewIssueDetails from './pages/admin/AdminManageIssues/ViewIssueDetails';
+import ViewTransactionIssues from './pages/admin/AdminTranscationIssues.jsx/ViewTransactionIssues';
+import ResolveTransactionIssue from './pages/admin/AdminTranscationIssues.jsx/ResolveTransactionIssue';
+import ResolveComplaint from './pages/admin/AdminComplaints/ResolveComplaint';
+import ViewComplaintDetails from './pages/admin/AdminComplaints/ViewComplaintDetails';
+import SuspendServicerPage from './pages/admin/AdminComplaints/SuspendServicer';
+import UnsuspendUserPage from './pages/admin/AdminBlackList/UnsuspendUser';
+import BanUserPage from './pages/admin/AdminBlackList/BanUser';
 
 const AppContent = () => {
   const { user, loading, logout } = useAuth();
@@ -734,46 +746,118 @@ const AppContent = () => {
     }
 
     // Admin Routes
-    if (user.role === 'admin') {
-      switch (currentPath) {
-        case '/admin/dashboard':
-          return <AdminDashboard />;
-        case '/admin/verify-servicers':
-          return <VerifyServicers />;
-        case '/admin/users':
-          return <AdminManageUsers />;
-        case '/admin/bookings':
-          return <AdminManageBookings />;
-        case '/admin/transactions':
-          return <AdminTransactions />;
-        case '/admin/payouts':
-          return <AdminPayouts />;
-        case '/admin/categories':
-          return <AdminCategories />;
-        case '/admin/issues':
-          return <AdminManageIssues />;
-        case '/admin/issues/transcation':
-          return <AdminTransactionIssues />;
-        case '/admin/complaints':
-          return <AdminComplaints />;
-        case '/admin/Blacklist':
-          return <AdminBlacklist />;
-        
-        // ✅ UPDATED: Transaction Issue Chat Route
-        case '/admin/chat': {
-          const { issue_id } = getQueryParams();
-          if (issue_id) {
-            // Show standalone chat page with specific issue
-            return <TransactionIssueChat issueId={issue_id} userRole="admin" onNavigate={navigateTo} />;
-          }
-          // Default: show transaction issues list
-          return <AdminTransactionIssues />;
-        }
-        
-        default:
-          return <AdminDashboard />;
+   if (user.role === 'admin') {
+  // ✅ Check dynamic routes FIRST before the switch statement
+  const suspendMatch = currentPath.match(/^\/admin\/users\/([^\/]+)\/suspend$/);
+  if (suspendMatch) {
+    const userId = suspendMatch[1];
+    return <SuspendUserPage userId={userId} onNavigate={navigateTo} />;
+  }
+
+  const viewDetailsMatch = currentPath.match(/^\/admin\/users\/([^\/]+)\/details$/);
+  if (viewDetailsMatch) {
+    const userId = viewDetailsMatch[1];
+    return <ViewUserDetails userId={userId} onNavigate={navigateTo} />;
+  }
+
+    const bookingDetailsMatch = currentPath.match(/^\/admin\/bookings\/([^\/]+)\/details$/);
+  if (bookingDetailsMatch) {
+    const bookingId = bookingDetailsMatch[1];
+    return <ViewBookingDetails bookingId={bookingId} onNavigate={navigateTo} />;
+  }
+
+   const transactionDetailsMatch = currentPath.match(/^\/admin\/transactions\/([^\/]+)\/details$/);
+  if (transactionDetailsMatch) {
+    const transactionId = transactionDetailsMatch[1];
+    return <ViewTransactionDetails transactionId={transactionId} onNavigate={navigateTo} />;
+  }
+  const issueDetailsMatch = currentPath.match(/^\/admin\/issues\/([^\/]+)\/details$/);
+  if (issueDetailsMatch) {
+    const issueId = issueDetailsMatch[1];
+    return <ViewIssueDetails issueId={issueId} onNavigate={navigateTo} />;
+  }
+  const transactionIssueResolveMatch = currentPath.match(/^\/admin\/issues\/transaction\/([^\/]+)\/resolve$/);
+  if (transactionIssueResolveMatch) {
+    const issueId = transactionIssueResolveMatch[1];
+    return <ResolveTransactionIssue issueId={issueId} onNavigate={navigateTo} />;
+  }
+
+ const transactionIssueDetailsMatch = currentPath.match(/^\/admin\/issues\/transaction\/([^\/]+)\/details$/);
+  if (transactionIssueDetailsMatch) {
+    const issueId = transactionIssueDetailsMatch[1];
+    return <ViewTransactionIssues issueId={issueId} onNavigate={navigateTo} />;
+  }
+
+
+  // ✅ NEW: Complaint Routes (must come before servicer suspend route to avoid conflicts)
+  const complaintResolveMatch = currentPath.match(/^\/admin\/complaints\/([^\/]+)\/resolve$/);
+  if (complaintResolveMatch) {
+    const complaintId = complaintResolveMatch[1];
+    return <ResolveComplaint complaintId={complaintId} onNavigate={navigateTo} />;
+  }
+
+  const complaintDetailsMatch = currentPath.match(/^\/admin\/complaints\/([^\/]+)\/details$/);
+  if (complaintDetailsMatch) {
+    const complaintId = complaintDetailsMatch[1];
+    return <ViewComplaintDetails complaintId={complaintId} onNavigate={navigateTo} />;
+  }
+
+  // ✅ Servicer Suspend Route
+  const servicerSuspendMatch = currentPath.match(/^\/admin\/servicers\/([^\/]+)\/suspend$/);
+  if (servicerSuspendMatch) {
+    const servicerId = servicerSuspendMatch[1];
+    return <SuspendServicerPage servicerId={servicerId} onNavigate={navigateTo} />;
+  }
+
+  const unsuspendMatch = currentPath.match(/^\/admin\/unsuspend-user\/([^\/]+)$/);
+if (unsuspendMatch) {
+  const userId = unsuspendMatch[1];
+  return <UnsuspendUserPage userId={userId} onNavigate={navigateTo} />;
+}
+
+
+
+
+  // ✅ Then handle static routes
+  switch (currentPath) {
+    case '/admin/dashboard':
+      return <AdminDashboard />;
+    case '/admin/verify-servicers':
+      return <VerifyServicers />;
+    case '/admin/users':
+      return <AdminManageUsers onNavigate={navigateTo}/>;
+    case '/admin/bookings':
+      return <AdminManageBookings onNavigate={navigateTo} />;
+    case '/admin/transactions':
+      return <AdminTransactions onNavigate={navigateTo} />;
+    case '/admin/payouts':
+      return <AdminPayouts />;
+    case '/admin/categories':
+      return <AdminCategories />;
+    case '/admin/issues':
+      return <AdminManageIssues onNavigate={navigateTo} />;
+    case '/admin/issues/transcation':
+      return <AdminTransactionIssues onNavigate={navigateTo} />;
+    case '/admin/complaints':
+      return <AdminComplaints onNavigate={navigateTo} />;
+    case '/admin/Blacklist':
+      return <AdminBlacklist onNavigate={navigateTo} />;
+    case '/admin/ban-user':
+      return <BanUserPage onNavigate={navigateTo} />;
+
+    // ✅ UPDATED: Transaction Issue Chat Route
+    case '/admin/chat': {
+      const { issue_id } = getQueryParams();
+      if (issue_id) {
+        return <TransactionIssueChat issueId={issue_id} userRole="admin" onNavigate={navigateTo} />;
       }
+      return <AdminTransactionIssues />;
     }
+    
+    default:
+      return <AdminDashboard />;
+  }
+}
 
     return <Login onNavigate={navigateTo} />;
   };

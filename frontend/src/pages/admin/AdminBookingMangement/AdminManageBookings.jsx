@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Search, Eye, Clock, CheckCircle, XCircle, AlertCircle, DollarSign, MapPin, User, Briefcase, X, ArrowRight } from 'lucide-react';
+import { Calendar, Search, Eye, Clock, CheckCircle, XCircle, AlertCircle, DollarSign } from 'lucide-react';
 
 const AdminSkeletonManageLoader = () => {
   return (
@@ -48,12 +48,10 @@ const AdminSkeletonManageLoader = () => {
   );
 };
 
-const AdminManageBookings = () => {
+const AdminManageBookings = ({ onNavigate }) => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedBooking, setSelectedBooking] = useState(null);
-  const [showModal, setShowModal] = useState(false);
   const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -91,9 +89,8 @@ const AdminManageBookings = () => {
     }
   };
 
-  const viewBookingDetails = (booking) => {
-    setSelectedBooking(booking);
-    setShowModal(true);
+  const handleViewBooking = (bookingId) => {
+    onNavigate(`/admin/bookings/${bookingId}/details`);
   };
 
   const getStatusConfig = (status) => {
@@ -306,7 +303,7 @@ const AdminManageBookings = () => {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <button
-                            onClick={() => viewBookingDetails(booking)}
+                            onClick={() => handleViewBooking(booking._id)}
                             className="inline-flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors"
                           >
                             <Eye className="w-4 h-4" />
@@ -346,216 +343,6 @@ const AdminManageBookings = () => {
             )}
           </div>
         )}
-
-        {/* Booking Details Modal */}
-        {showModal && selectedBooking && (
-          <BookingDetailsModal
-            booking={selectedBooking}
-            onClose={() => {
-              setShowModal(false);
-              setSelectedBooking(null);
-            }}
-            getStatusConfig={getStatusConfig}
-            getPaymentStatusColor={getPaymentStatusColor}
-          />
-        )}
-      </div>
-    </div>
-  );
-};
-
-const BookingDetailsModal = ({ booking, onClose, getStatusConfig, getPaymentStatusColor }) => {
-  const statusConfig = getStatusConfig(booking.booking_status);
-  const StatusIcon = statusConfig.icon;
-
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full my-8">
-        {/* Modal Header */}
-        <div className="sticky top-0 bg-white border-b border-slate-200 p-6 rounded-t-2xl z-10">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold text-slate-900 mb-1">Booking Details</h2>
-              <p className="text-slate-600">#{booking.booking_number}</p>
-            </div>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              <X className="w-6 h-6 text-slate-400" />
-            </button>
-          </div>
-        </div>
-
-        {/* Modal Body */}
-        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
-          {/* Status Card */}
-          <div className={`${statusConfig.bg} ${statusConfig.border} border rounded-xl p-5`}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`p-2 ${statusConfig.bg} rounded-lg`}>
-                  <StatusIcon className={`w-6 h-6 ${statusConfig.text}`} />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-600">Current Status</p>
-                  <p className={`text-lg font-bold ${statusConfig.text} capitalize`}>
-                    {booking.booking_status.replace('_', ' ')}
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-slate-600">Service Type</p>
-                <p className="font-semibold text-slate-900">{booking.service_type}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* User & Servicer Info */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-5 border border-blue-200">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="p-2 bg-blue-200 rounded-lg">
-                  <User className="w-5 h-5 text-blue-700" />
-                </div>
-                <h3 className="text-lg font-semibold text-slate-900">User Details</h3>
-              </div>
-              <div className="space-y-2">
-                <p className="font-semibold text-slate-900">{booking.user_name}</p>
-                <p className="text-sm text-slate-700">ID: {booking.user_id}</p>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-5 border border-purple-200">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="p-2 bg-purple-200 rounded-lg">
-                  <Briefcase className="w-5 h-5 text-purple-700" />
-                </div>
-                <h3 className="text-lg font-semibold text-slate-900">Servicer Details</h3>
-              </div>
-              <div className="space-y-2">
-                <p className="font-semibold text-slate-900">{booking.servicer_name || 'Not Assigned'}</p>
-                <p className="text-sm text-slate-700">ID: {booking.servicer_id}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Service Location */}
-          {booking.service_location && (
-            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-5 border border-emerald-200">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="p-2 bg-emerald-200 rounded-lg">
-                  <MapPin className="w-5 h-5 text-emerald-700" />
-                </div>
-                <h3 className="text-lg font-semibold text-slate-900">Service Location</h3>
-              </div>
-              <p className="text-slate-800">{booking.service_location.address || 'N/A'}</p>
-            </div>
-          )}
-
-          {/* Problem Description */}
-          {booking.problem_description && (
-            <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
-              <h3 className="text-lg font-semibold text-slate-900 mb-3">Problem Description</h3>
-              <p className="text-slate-700 leading-relaxed">{booking.problem_description}</p>
-            </div>
-          )}
-
-          {/* Payment Details */}
-          <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-5 border border-green-200">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-green-200 rounded-lg">
-                <DollarSign className="w-5 h-5 text-green-700" />
-              </div>
-              <h3 className="text-lg font-semibold text-slate-900">Payment Details</h3>
-            </div>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-700">Service Amount:</span>
-                <span className="font-semibold text-slate-900">₹{booking.total_amount.toLocaleString('en-IN')}</span>
-              </div>
-              {booking.platform_fee && (
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-700">Platform Fee:</span>
-                  <span className="font-semibold text-slate-900">₹{booking.platform_fee.toLocaleString('en-IN')}</span>
-                </div>
-              )}
-              {booking.servicer_amount && (
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-700">Servicer Amount:</span>
-                  <span className="font-semibold text-slate-900">₹{booking.servicer_amount.toLocaleString('en-IN')}</span>
-                </div>
-              )}
-              <div className="pt-3 border-t border-green-200">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-700">Payment Method:</span>
-                  <span className="font-semibold text-slate-900 capitalize">{booking.payment_method}</span>
-                </div>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-700">Payment Status:</span>
-                <span className={`font-semibold capitalize ${getPaymentStatusColor(booking.payment_status)}`}>
-                  {booking.payment_status}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Timeline */}
-          <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-slate-200 rounded-lg">
-                <Clock className="w-5 h-5 text-slate-700" />
-              </div>
-              <h3 className="text-lg font-semibold text-slate-900">Timeline</h3>
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 bg-slate-400 rounded-full"></div>
-                <div className="flex-1 flex justify-between items-center">
-                  <span className="text-slate-700 font-medium">Created</span>
-                  <span className="text-sm text-slate-600">{new Date(booking.created_at).toLocaleString()}</span>
-                </div>
-              </div>
-              {booking.accepted_at && (
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <div className="flex-1 flex justify-between items-center">
-                    <span className="text-slate-700 font-medium">Accepted</span>
-                    <span className="text-sm text-slate-600">{new Date(booking.accepted_at).toLocaleString()}</span>
-                  </div>
-                </div>
-              )}
-              {booking.started_at && (
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                  <div className="flex-1 flex justify-between items-center">
-                    <span className="text-slate-700 font-medium">Started</span>
-                    <span className="text-sm text-slate-600">{new Date(booking.started_at).toLocaleString()}</span>
-                  </div>
-                </div>
-              )}
-              {booking.completed_at && (
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                  <div className="flex-1 flex justify-between items-center">
-                    <span className="text-slate-700 font-medium">Completed</span>
-                    <span className="text-sm text-slate-600">{new Date(booking.completed_at).toLocaleString()}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Modal Footer */}
-        <div className="sticky bottom-0 bg-slate-50 border-t border-slate-200 p-6 rounded-b-2xl">
-          <button
-            onClick={onClose}
-            className="w-full px-6 py-3 bg-slate-900 text-white rounded-xl hover:bg-slate-800 font-semibold transition-all"
-          >
-            Close
-          </button>
-        </div>
       </div>
     </div>
   );

@@ -8841,28 +8841,244 @@ async def get_all_users(
     }
 
 
-@app.get("/api/admin/users/{user_id}")
-async def get_user_details_admin(user_id: str, current_admin: dict = Depends(get_current_admin)):
-    """Get detailed user profile and activity"""
-    user = await db[Collections.USERS].find_one({"_id": ObjectId(user_id)})
+# @app.get("/api/admin/users/{user_id}")
+# async def get_user_details_admin(user_id: str, current_admin: dict = Depends(get_current_admin)):
+#     """Get detailed user profile and activity"""
+#     user = await db[Collections.USERS].find_one({"_id": ObjectId(user_id)})
     
+#     if not user:
+#         raise HTTPException(status_code=404, detail="User not found")
+    
+#     user.pop('password_hash', None)
+    
+#     # Get bookings count
+#     bookings_count = await db[Collections.BOOKINGS].count_documents({"user_id": ObjectId(user_id)})
+    
+#     # Get transactions
+#     transactions = await db[Collections.TRANSACTIONS].find(
+#         {"user_id": ObjectId(user_id)}
+#     ).sort("created_at", -1).limit(10).to_list(10)
+    
+#     user['bookings_count'] = bookings_count
+#     user['recent_transactions'] = transactions
+    
+#     return serialize_doc(user)
+@app.get("/api/admin/users/{user_id}/details")
+async def get_comprehensive_user_details(
+    user_id: str,
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Get comprehensive user details with ALL activity - for admin view details page"""
+    
+    # ✅ 1. USER BASIC INFO
+    user = await db[Collections.USERS].find_one({"_id": ObjectId(user_id)})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    user.pop('password_hash', None)
+    user_data = serialize_doc(user)
+    user_data.pop('password_hash', None)
     
-    # Get bookings count
-    bookings_count = await db[Collections.BOOKINGS].count_documents({"user_id": ObjectId(user_id)})
+    # ✅ 2. ACCOUNT STATUS & WALLET
+    wallet = await db[Collections.WALLETS].find_one({"user_id": ObjectId(user_id)})
+    user_data['wallet'] = serialize_doc(wallet) if wallet else None
     
-    # Get transactions
-    transactions = await db[Collections.TRANSACTIONS].find(
-        {"user_id": ObjectId(user_id)}
-    ).sort("created_at", -1).limit(10).to_list(10)
+    # Check if servicer
+    servicer = await db[Collections.SERVICERS].find_one({"user_id": ObjectId(user_id)})
+    user_data['is_servicer'] = servicer is not None
+    user_data['servicer_data'] = serialize_doc(servicer) if servicer else None
     
-    user['bookings_count'] = bookings_count
-    user['recent_transactions'] = transactions
+    # ✅ 3. BOOKING ACTIVITY (Last 50 bookings)
+    bookings_cursor = db[Collections.BOOKINGS].find({
+        "$or": [
+            {"user_id": ObjectId(user_id)},
+            {"servicer_id": ObjectId(user_id) if servicer else None}
+        ]
+    }).sort("created_at", -1).limit(50)
     
-    return serialize_doc(user)
+    bookings = []
+    async for booking in bookings_cursor:
+        booking_data = serialize_doc(booking)
+        
+        # Get related user/servicer name
+        if str(booking['user_id']) == user_id:
+            # User is customer - get servicer name
+            svc = await db[Collections.SERVICERS].find_one({"_id": booking['servicer_id']})
+            if svc:
+                svc_user = await db[Collections.USERS].find_one({"_id": svc['user_id']})
+                booking_data['other_party'] = svc_user.get('name') if svc_user else 'Unknown'
+                booking_data['user_role'] = 'customer'
+        else:
+            # User is servicer - get customer name
+            customer = await db[Collections.USERS].find_one({"_id": booking['user_id']})
+            booking_data['other_party'] = customer.get('name') if customer else 'Unknown'
+            booking_data['user_role'] = 'servicer'
+        
+        bookings.append(booking_data)
+    
+    user_data['bookings'] = bookings
+    user_data['total_bookings'] = len(bookings)
+    
+    # ✅ 4. TRANSACTIONS (Last 50)
+    transactions_cursor = db[Collections.TRANSACTIONS].find({
+        "user_id": ObjectId(user_id)
+    }).sort("created_at", -1).limit(50)
+    
+    transactions = []
+    async for txn in transactions_cursor:
+        txn_data = serialize_doc(txn)
+        
+        # Get booking number if exists
+        if txn.get('booking_id'):
+            booking = await db[Collections.BOOKINGS].find_one({"_id": ObjectId(txn['booking_id'])})
+            txn_data['booking_number'] = booking.get('booking_number') if booking else None
+        
+        transactions.append(txn_data)
+    
+    user_data['transactions'] = transactions
+    
+    # ✅ 5. COMPLAINTS (Filed by and against user)
+    complaints_filed = await db[Collections.COMPLAINTS].find({
+        "filed_by": ObjectId(user_id)
+    }).sort("created_at", -1).to_list(50)
+    
+    complaints_against = await db[Collections.COMPLAINTS].find({
+        "complaint_against_id": ObjectId(user_id)
+    }).sort("created_at", -1).to_list(50)
+    
+    user_data['complaints_filed'] = [serialize_doc(c) for c in complaints_filed]
+    user_data['complaints_against'] = [serialize_doc(c) for c in complaints_against]
+    
+    # ✅ 6. SUSPENSION & BAN HISTORY
+    blacklist = await db[Collections.BLACKLIST].find({
+        "user_id": ObjectId(user_id)
+    }).sort("created_at", -1).to_list(10)
+    
+    user_data['ban_history'] = [serialize_doc(b) for b in blacklist]
+    
+    # ✅ 7. WARNINGS (if servicer)
+    if servicer:
+        warnings = await db[Collections.SERVICER_WARNINGS].find({
+            "servicer_id": servicer['_id']
+        }).sort("created_at", -1).to_list(50)
+        
+        user_data['warnings'] = [serialize_doc(w) for w in warnings]
+    
+    # ✅ 8. AUDIT LOGS (Admin actions on this user)
+    audit_logs = await db[Collections.AUDIT_LOGS].find({
+        "target_id": ObjectId(user_id),
+        "target_type": "user"
+    }).sort("created_at", -1).limit(50).to_list(50)
+    
+    processed_logs = []
+    for log in audit_logs:
+        log_data = serialize_doc(log)
+        
+        # Get admin name
+        if log.get('admin_id'):
+            admin = await db[Collections.USERS].find_one({"_id": ObjectId(log['admin_id'])})
+            log_data['admin_name'] = admin.get('name') if admin else 'System'
+        
+        processed_logs.append(log_data)
+    
+    user_data['audit_logs'] = processed_logs
+    
+    # ✅ 9. NOTIFICATIONS (Last 20)
+    notifications = await db[Collections.NOTIFICATIONS].find({
+        "user_id": ObjectId(user_id)
+    }).sort("created_at", -1).limit(20).to_list(20)
+    
+    user_data['recent_notifications'] = [serialize_doc(n) for n in notifications]
+    
+    # ✅ 10. RATINGS (if servicer)
+    if servicer:
+        ratings = await db[Collections.RATINGS].find({
+            "servicer_id": servicer['_id']
+        }).sort("created_at", -1).limit(20).to_list(20)
+        
+        user_data['ratings_received'] = [serialize_doc(r) for r in ratings]
+    
+    # Also ratings given by user
+    ratings_given = await db[Collections.RATINGS].find({
+        "user_id": ObjectId(user_id)
+    }).sort("created_at", -1).limit(20).to_list(20)
+    
+    user_data['ratings_given'] = [serialize_doc(r) for r in ratings_given]
+    
+    # ✅ 11. TRANSACTION ISSUES
+    transaction_issues = await db[Collections.TRANSACTION_ISSUES].find({
+        "user_id": ObjectId(user_id)
+    }).sort("created_at", -1).to_list(20)
+    
+    user_data['transaction_issues'] = [serialize_doc(ti) for ti in transaction_issues]
+    
+    # ✅ 12. BOOKING ISSUES
+    booking_issues = await db[Collections.BOOKING_ISSUES].find({
+        "$or": [
+            {"user_id": ObjectId(user_id)},
+            {"servicer_id": ObjectId(user_id) if servicer else None}
+        ]
+    }).sort("created_at", -1).to_list(20)
+    
+    user_data['booking_issues'] = [serialize_doc(bi) for bi in booking_issues]
+    
+    # ✅ 13. STATISTICS SUMMARY
+    user_data['statistics'] = {
+        "total_bookings": len(bookings),
+        "total_spent": sum(t.get('amount', 0) for t in transactions if t.get('transaction_type') == 'booking_payment'),
+        "total_complaints_filed": len(complaints_filed),
+        "total_complaints_against": len(complaints_against),
+        "total_warnings": len(user_data.get('warnings', [])),
+        "is_suspended": user.get('is_blocked') or user.get('is_suspended'),
+        "account_age_days": (datetime.utcnow() - user['created_at']).days if user.get('created_at') else 0,
+        "email_verified": user.get('email_verified', False),
+        "last_login": user.get('last_login')
+    }
+    
+    # ✅ 14. RECENT ACTIVITY TIMELINE (Combined from all sources)
+    all_activities = []
+    
+    # From bookings
+    for booking in bookings[:10]:
+        all_activities.append({
+            "type": "booking",
+            "action": f"Booking {booking.get('booking_status', 'created')}",
+            "details": f"#{booking.get('booking_number')} - {booking.get('service_type')}",
+            "timestamp": booking.get('created_at')
+        })
+    
+    # From transactions
+    for txn in transactions[:10]:
+        all_activities.append({
+            "type": "transaction",
+            "action": txn.get('transaction_type', 'payment'),
+            "details": f"₹{txn.get('amount', 0)} - {txn.get('transaction_status')}",
+            "timestamp": txn.get('created_at')
+        })
+    
+    # From complaints
+    for complaint in complaints_filed[:5]:
+        all_activities.append({
+            "type": "complaint_filed",
+            "action": "Filed complaint",
+            "details": complaint.get('subject', 'Complaint'),
+            "timestamp": complaint.get('created_at')
+        })
+    
+    # From audit logs
+    for log in processed_logs[:10]:
+        all_activities.append({
+            "type": "admin_action",
+            "action": log.get('action_type', 'action').replace('_', ' ').title(),
+            "details": f"By {log.get('admin_name', 'Admin')}",
+            "timestamp": log.get('created_at')
+        })
+    
+    # Sort by timestamp
+    all_activities.sort(key=lambda x: x.get('timestamp', datetime.min), reverse=True)
+    user_data['recent_activity_timeline'] = all_activities[:30]  # Last 30 activities
+    
+    return user_data
+
 @app.put("/api/admin/users/{user_id}/block")
 async def block_unblock_user(
     user_id: str,
@@ -8949,6 +9165,86 @@ async def get_all_bookings_admin(
         "page": page,
         "pages": math.ceil(total / limit)
     }
+
+
+@app.get("/api/admin/bookings/{booking_id}")
+async def get_booking_details_admin(
+    booking_id: str,
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Get detailed information about a specific booking"""
+    try:
+        # Validate ObjectId
+        if not ObjectId.is_valid(booking_id):
+            raise HTTPException(status_code=400, detail="Invalid booking ID")
+        
+        # Get booking
+        booking = await db[Collections.BOOKINGS].find_one({"_id": ObjectId(booking_id)})
+        
+        if not booking:
+            raise HTTPException(status_code=404, detail="Booking not found")
+        
+        # Convert ObjectIds and datetimes
+        booking = convert_objectid_to_str(booking)
+        
+        # Get user details
+        user = await db[Collections.USERS].find_one({"_id": ObjectId(booking['user_id'])})
+        if user:
+            booking['user_name'] = user.get('name', 'Unknown')
+            booking['user_email'] = user.get('email', '')
+            booking['user_phone'] = user.get('phone', '')
+        else:
+            booking['user_name'] = 'Unknown'
+            booking['user_email'] = ''
+            booking['user_phone'] = ''
+        
+        # Get servicer details
+        if booking.get('servicer_id'):
+            servicer_doc = await db[Collections.SERVICERS].find_one({"_id": ObjectId(booking['servicer_id'])})
+            if servicer_doc:
+                servicer_user = await db[Collections.USERS].find_one({"_id": servicer_doc['user_id']})
+                if servicer_user:
+                    booking['servicer_name'] = servicer_user.get('name', 'Unknown')
+                    booking['servicer_email'] = servicer_user.get('email', '')
+                    booking['servicer_phone'] = servicer_user.get('phone', '')
+                else:
+                    booking['servicer_name'] = 'Unknown'
+                    booking['servicer_email'] = ''
+                    booking['servicer_phone'] = ''
+            else:
+                booking['servicer_name'] = 'Not Assigned'
+                booking['servicer_email'] = ''
+                booking['servicer_phone'] = ''
+        else:
+            booking['servicer_name'] = 'Not Assigned'
+            booking['servicer_email'] = ''
+            booking['servicer_phone'] = ''
+        
+        # Get service category details if available
+        if booking.get('service_type'):
+            category = await db[Collections.SERVICE_CATEGORIES].find_one({"name": booking['service_type']})
+            if category:
+                booking['category_details'] = convert_objectid_to_str(category)
+        
+        # Get transaction details if payment is completed
+        if booking.get('payment_status') == 'completed' and booking.get('transaction_id'):
+            transaction = await db[Collections.TRANSACTIONS].find_one({"_id": ObjectId(booking['transaction_id'])})
+            if transaction:
+                booking['transaction_details'] = convert_objectid_to_str(transaction)
+        
+        # Get review if booking is completed
+        if booking.get('booking_status') == 'completed':
+            review = await db[Collections.REVIEWS].find_one({"booking_id": ObjectId(booking_id)})
+            if review:
+                booking['review'] = convert_objectid_to_str(review)
+        
+        return booking
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching booking details: {str(e)}")
+
 @app.get("/api/admin/transactions")
 async def get_all_transactions_admin(
     type: Optional[str] = None,
@@ -8986,6 +9282,58 @@ async def get_all_transactions_admin(
         "pages": math.ceil(total / limit)
     }
 
+@app.get("/api/admin/transactions/{transaction_id}")
+async def get_transaction_details_admin(
+    transaction_id: str,
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Get detailed information about a specific transaction"""
+    try:
+        # Validate ObjectId
+        if not ObjectId.is_valid(transaction_id):
+            raise HTTPException(status_code=400, detail="Invalid transaction ID")
+        
+        # Get transaction
+        transaction = await db[Collections.TRANSACTIONS].find_one({"_id": ObjectId(transaction_id)})
+        
+        if not transaction:
+            raise HTTPException(status_code=404, detail="Transaction not found")
+        
+        # Convert ObjectIds and datetimes
+        transaction = convert_objectid_to_str(transaction)
+        
+        # Get user details
+        if transaction.get('user_id'):
+            user = await db[Collections.USERS].find_one({"_id": ObjectId(transaction['user_id'])})
+            if user:
+                transaction['user_name'] = user.get('name', 'Unknown')
+                transaction['user_email'] = user.get('email', '')
+        
+        # Get servicer details if present
+        if transaction.get('servicer_id'):
+            servicer_doc = await db[Collections.SERVICERS].find_one({"_id": ObjectId(transaction['servicer_id'])})
+            if servicer_doc:
+                servicer_user = await db[Collections.USERS].find_one({"_id": servicer_doc['user_id']})
+                if servicer_user:
+                    transaction['servicer_name'] = servicer_user.get('name', 'Unknown')
+                    transaction['servicer_email'] = servicer_user.get('email', '')
+        
+        # Get booking details if present
+        if transaction.get('booking_id'):
+            booking = await db[Collections.BOOKINGS].find_one({"_id": ObjectId(transaction['booking_id'])})
+            if booking:
+                transaction['booking_details'] = {
+                    'booking_number': booking.get('booking_number'),
+                    'service_type': booking.get('service_type'),
+                    'booking_status': booking.get('booking_status')
+                }
+        
+        return transaction
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching transaction details: {str(e)}")
 
 # ============= TRANSACTION ISSUE CHAT ENDPOINTS =============
 # Add after transaction issues endpoints (around line 8500)
@@ -10227,57 +10575,103 @@ async def get_all_booking_issues(
             "in_progress": in_progress_count
         }
     }
-
-
 @app.get("/api/admin/booking-issues/{issue_id}")
 async def get_booking_issue_details(
     issue_id: str,
     current_admin: dict = Depends(get_current_admin)
 ):
     """Get detailed information about a specific issue"""
-    issue = await db[Collections.BOOKING_ISSUES].find_one({"_id": ObjectId(issue_id)})
-    
-    if not issue:
-        raise HTTPException(status_code=404, detail="Issue not found")
-    
-    # Convert ObjectIds
-    issue['_id'] = str(issue['_id'])
-    issue['booking_id'] = str(issue['booking_id'])
-    issue['user_id'] = str(issue['user_id'])
-    issue['servicer_id'] = str(issue['servicer_id'])
-    
-    # Get full booking details
-    booking = await db[Collections.BOOKINGS].find_one({"_id": ObjectId(issue['booking_id'])})
-    if booking:
-        booking = convert_objectid_to_str(booking)
-        issue['booking_details'] = booking
-    
-    # Get user details
-    user = await db[Collections.USERS].find_one({"_id": ObjectId(issue['user_id'])})
-    if user:
-        user = convert_objectid_to_str(user)
-        user.pop('password_hash', None)
-        issue['user_details'] = user
-    
-    # Get servicer details
-    servicer_doc = await db[Collections.SERVICERS].find_one({"_id": ObjectId(issue['servicer_id'])})
-    if servicer_doc:
-        servicer_user = await db[Collections.USERS].find_one({"_id": servicer_doc['user_id']})
-        if servicer_user:
-            servicer_user = convert_objectid_to_str(servicer_user)
-            servicer_user.pop('password_hash', None)
-            issue['servicer_details'] = servicer_user
-    
-    # Get any admin responses
-    if issue.get('admin_responses'):
-        for response in issue['admin_responses']:
-            if response.get('admin_id'):
-                admin = await db[Collections.USERS].find_one({"_id": ObjectId(response['admin_id'])})
-                if admin:
-                    response['admin_name'] = admin.get('name')
-    
-    return issue
-
+    try:
+        issue = await db[Collections.BOOKING_ISSUES].find_one({"_id": ObjectId(issue_id)})
+        
+        if not issue:
+            raise HTTPException(status_code=404, detail="Issue not found")
+        
+        print(f"🔍 Fetching booking issue details for: {issue_id}")
+        
+        # Store ObjectIds before converting
+        booking_id = issue.get('booking_id')
+        user_id = issue.get('user_id')
+        servicer_id = issue.get('servicer_id')
+        
+        # Convert main issue ObjectIds
+        issue = serialize_doc(issue)
+        
+        # Get full booking details
+        if booking_id:
+            booking = await db[Collections.BOOKINGS].find_one({"_id": booking_id})
+            if booking:
+                issue['booking_details'] = serialize_doc(booking)
+                print(f"✅ Booking details added: {booking.get('booking_number')}")
+        
+        # Get user details
+        if user_id:
+            user = await db[Collections.USERS].find_one({"_id": user_id})
+            if user:
+                user_data = serialize_doc(user)
+                user_data.pop('password_hash', None)
+                issue['user_details'] = user_data
+                print(f"✅ User details added: {user.get('name')}")
+            else:
+                print(f"⚠️ User not found: {user_id}")
+                issue['user_details'] = None
+        
+        # Get servicer details - THIS IS THE FIX
+        if servicer_id:
+            # First get the servicer document
+            servicer_doc = await db[Collections.SERVICERS].find_one({"_id": servicer_id})
+            
+            if servicer_doc:
+                servicer_user_id = servicer_doc.get('user_id')
+                print(f"🔍 Found servicer doc, fetching user: {servicer_user_id}")
+                
+                # Get the servicer's user account
+                if servicer_user_id:
+                    servicer_user = await db[Collections.USERS].find_one({"_id": servicer_user_id})
+                    
+                    if servicer_user:
+                        servicer_user_data = serialize_doc(servicer_user)
+                        servicer_user_data.pop('password_hash', None)
+                        issue['servicer_details'] = servicer_user_data
+                        print(f"✅ Servicer details added: {servicer_user.get('name')}")
+                    else:
+                        print(f"⚠️ Servicer user not found: {servicer_user_id}")
+                        issue['servicer_details'] = {
+                            'name': 'Unknown Servicer',
+                            'email': 'N/A',
+                            'phone': 'N/A'
+                        }
+                else:
+                    print(f"⚠️ No user_id in servicer doc")
+                    issue['servicer_details'] = {
+                        'name': 'Unknown Servicer',
+                        'email': 'N/A',
+                        'phone': 'N/A'
+                    }
+            else:
+                print(f"⚠️ Servicer document not found: {servicer_id}")
+                issue['servicer_details'] = {
+                    'name': 'Servicer Not Found',
+                    'email': 'N/A',
+                    'phone': 'N/A'
+                }
+        
+        # Get any admin responses
+        if issue.get('admin_responses'):
+            for response in issue['admin_responses']:
+                if response.get('admin_id'):
+                    admin = await db[Collections.USERS].find_one({"_id": ObjectId(response['admin_id'])})
+                    if admin:
+                        response['admin_name'] = admin.get('name')
+        
+        print(f"✅ Issue details complete with user and servicer info")
+        return issue
+        
+    except Exception as e:
+        print(f"❌ Error fetching booking issue details: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 @app.put("/api/admin/booking-issues/{issue_id}/status")
 async def update_issue_status(
@@ -10763,45 +11157,39 @@ async def get_transaction_issue_details_admin(
     current_admin: dict = Depends(get_current_admin)
 ):
     """Get detailed information about a specific transaction issue"""
-    issue = await db[Collections.TRANSACTION_ISSUES].find_one({"_id": ObjectId(issue_id)})
-    
-    if not issue:
-        raise HTTPException(status_code=404, detail="Transaction issue not found")
-    
-    # Convert ObjectIds
-    issue['_id'] = str(issue['_id'])
-    issue['user_id'] = str(issue['user_id'])
-    
-    if issue.get('transaction_id'):
-        issue['transaction_id'] = str(issue['transaction_id'])
-        # Get transaction details
-        transaction = await db[Collections.TRANSACTIONS].find_one({"_id": ObjectId(issue['transaction_id'])})
-        if transaction:
-            transaction['_id'] = str(transaction['_id'])
-            transaction['user_id'] = str(transaction['user_id'])
-            if transaction.get('booking_id'):
-                transaction['booking_id'] = str(transaction['booking_id'])
-            issue['transaction_details'] = transaction
-    
-    if issue.get('booking_id'):
-        issue['booking_id'] = str(issue['booking_id'])
-        # Get booking details
-        booking = await db[Collections.BOOKINGS].find_one({"_id": ObjectId(issue['booking_id'])})
-        if booking:
-            booking['_id'] = str(booking['_id'])
-            booking['user_id'] = str(booking['user_id'])
-            booking['servicer_id'] = str(booking['servicer_id'])
-            issue['booking_details'] = booking
-    
-    # Get user details
-    user = await db[Collections.USERS].find_one({"_id": ObjectId(issue['user_id'])})
-    if user:
-        user['_id'] = str(user['_id'])
-        user.pop('password_hash', None)
-        issue['user_details'] = user
-    
-    return issue
-
+    try:
+        issue = await db[Collections.TRANSACTION_ISSUES].find_one({"_id": ObjectId(issue_id)})
+        
+        if not issue:
+            raise HTTPException(status_code=404, detail="Transaction issue not found")
+        
+        # Get transaction details if exists
+        if issue.get('transaction_id'):
+            transaction = await db[Collections.TRANSACTIONS].find_one({"_id": issue['transaction_id']})
+            if transaction:
+                issue['transaction_details'] = transaction
+        
+        # Get booking details if exists
+        if issue.get('booking_id'):
+            booking = await db[Collections.BOOKINGS].find_one({"_id": issue['booking_id']})
+            if booking:
+                issue['booking_details'] = booking
+        
+        # Get user details
+        user = await db[Collections.USERS].find_one({"_id": issue['user_id']})
+        if user:
+            user.pop('password_hash', None)
+            issue['user_details'] = user
+            issue['user_name'] = user.get('name', 'Unknown User')
+        
+        # Serialize the entire document (converts all ObjectIds and datetimes)
+        serialized_issue = serialize_doc(issue)
+        
+        return {"success": True, "issue": serialized_issue}
+        
+    except Exception as e:
+        print(f"Error fetching transaction issue details: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/admin/transaction-issues/{issue_id}/status")
 async def update_transaction_issue_status(
@@ -12372,6 +12760,101 @@ async def unsuspend_servicer_admin(
     })
     
     return SuccessResponse(message="Servicer suspension removed successfully")
+
+@app.get("/api/admin/servicers/{servicer_id}")
+async def get_servicer_details_admin(
+    servicer_id: str,
+    current_admin: dict = Depends(get_current_admin)
+):
+    """Get detailed servicer information for admin"""
+    try:
+        # Validate ObjectId
+        if not ObjectId.is_valid(servicer_id):
+            raise HTTPException(status_code=400, detail="Invalid servicer ID format")
+        
+        # Get servicer
+        servicer = await db[Collections.SERVICERS].find_one({"_id": ObjectId(servicer_id)})
+        
+        if not servicer:
+            raise HTTPException(status_code=404, detail="Servicer not found")
+        
+        # Convert ObjectIds to strings
+        servicer = serialize_doc(servicer)
+        
+        # Get user details
+        user = await db[Collections.USERS].find_one({"_id": ObjectId(servicer['user_id'])})
+        if user:
+            user = serialize_doc(user)
+            user.pop('password_hash', None)
+            servicer['user_details'] = user
+        
+        # Get service categories with names
+        category_details = []
+        for cat_id in servicer.get('service_categories', []):
+            category = await db[Collections.SERVICE_CATEGORIES].find_one({"_id": ObjectId(cat_id)})
+            if category:
+                category_details.append({
+                    'id': str(category['_id']),
+                    'name': category.get('name', ''),
+                    'description': category.get('description', '')
+                })
+        servicer['category_details'] = category_details
+        
+        # Get pricing information
+        pricing = await db[Collections.SERVICER_PRICING].find(
+            {"servicer_id": ObjectId(servicer_id)}
+        ).to_list(100)
+        servicer['pricing'] = [serialize_doc(p) for p in pricing]
+        
+        # Get statistics
+        total_bookings = await db[Collections.BOOKINGS].count_documents({
+            "servicer_id": ObjectId(servicer_id)
+        })
+        
+        completed_bookings = await db[Collections.BOOKINGS].count_documents({
+            "servicer_id": ObjectId(servicer_id),
+            "booking_status": BookingStatus.COMPLETED
+        })
+        
+        cancelled_bookings = await db[Collections.BOOKINGS].count_documents({
+            "servicer_id": ObjectId(servicer_id),
+            "booking_status": BookingStatus.CANCELLED
+        })
+        
+        # Get wallet info
+        wallet = await db[Collections.WALLETS].find_one({"user_id": ObjectId(servicer['user_id'])})
+        
+        # Get complaints count
+        complaints_count = await db[Collections.COMPLAINTS].count_documents({
+            "complaint_against_id": ObjectId(servicer_id),
+            "complaint_against_type": "servicer"
+        })
+        
+        # Get warnings count
+        warnings_count = await db[Collections.SERVICER_WARNINGS].count_documents({
+            "servicer_id": ObjectId(servicer_id)
+        })
+        
+        # Add statistics to response
+        servicer['statistics'] = {
+            'total_bookings': total_bookings,
+            'completed_bookings': completed_bookings,
+            'cancelled_bookings': cancelled_bookings,
+            'complaints_count': complaints_count,
+            'warnings_count': warnings_count,
+            'wallet_balance': wallet.get('balance', 0) if wallet else 0,
+            'total_earned': wallet.get('total_earned', 0) if wallet else 0
+        }
+        
+        return servicer
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching servicer details: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
 # ==========================================
 # NEW: DIRECT SUSPEND USER ENDPOINT
 # ==========================================

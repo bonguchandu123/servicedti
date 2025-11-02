@@ -34,18 +34,10 @@ const TransactionIssuesSkeleton = () => {
   );
 };
 
-const AdminTransactionIssues = () => {
+const AdminTransactionIssues = ({ onNavigate }) => {
   const [issues, setIssues] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedIssue, setSelectedIssue] = useState(null);
-  const [showModal, setShowModal] = useState(false);
-  const [showResolveModal, setShowResolveModal] = useState(false);
-  const [resolveForm, setResolveForm] = useState({
-    resolution: '',
-    refund_amount: '',
-    notes: ''
-  });
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -90,7 +82,6 @@ const AdminTransactionIssues = () => {
       setTotalPages(data.pages || 1);
       setTotal(data.total || 0);
 
-      // Calculate stats
       const pending = data.issues.filter(i => i.status === 'pending_review').length;
       const investigating = data.issues.filter(i => i.status === 'investigating').length;
       const resolved = data.issues.filter(i => i.status === 'resolved').length;
@@ -104,67 +95,8 @@ const AdminTransactionIssues = () => {
     }
   };
 
-  const viewIssueDetails = (issue) => {
-    setSelectedIssue(issue);
-    setShowModal(true);
-  };
-
-  const openResolveModal = (issue) => {
-    setSelectedIssue(issue);
-    setResolveForm({
-      resolution: '',
-      refund_amount: '',
-      notes: ''
-    });
-    setShowResolveModal(true);
-  };
-
-  const resolveIssue = async () => {
-    if (!resolveForm.resolution) {
-      alert('Please select a resolution type');
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/admin/transaction-issues/${selectedIssue._id}/resolve`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(resolveForm)
-      });
-
-      if (!response.ok) throw new Error('Failed to resolve issue');
-
-      alert('Issue resolved successfully');
-      setShowResolveModal(false);
-      fetchIssues();
-    } catch (err) {
-      alert(`Error: ${err.message}`);
-    }
-  };
-
-  const updateIssueStatus = async (issueId, newStatus) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/admin/transaction-issues/${issueId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ status: newStatus })
-      });
-
-      if (!response.ok) throw new Error('Failed to update status');
-
-      alert('Status updated successfully');
-      fetchIssues();
-    } catch (err) {
-      alert(`Error: ${err.message}`);
-    }
+  const viewIssueDetails = (issueId) => {
+    onNavigate(`/admin/issues/transaction/${issueId}/details`);
   };
 
   const getIssueTypeColor = (type) => {
@@ -212,7 +144,6 @@ const AdminTransactionIssues = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
             <AlertCircle className="w-8 h-8 text-red-600" />
@@ -221,7 +152,6 @@ const AdminTransactionIssues = () => {
           <p className="text-gray-600 mt-2">Manage payment disputes and transaction problems</p>
         </div>
 
-        {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
@@ -264,7 +194,6 @@ const AdminTransactionIssues = () => {
           </div>
         </div>
 
-        {/* Filters */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="relative">
@@ -336,7 +265,6 @@ const AdminTransactionIssues = () => {
           </div>
         )}
 
-        {/* Issues List */}
         {filteredIssues.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
             <AlertCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -391,10 +319,10 @@ const AdminTransactionIssues = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(issue.created_at).toLocaleDateString()}
                       </td>
-                     ?<td className="px-6 py-4 whitespace-nowrap text-right">
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <a
-                            href={`/admin/chat?issue_id=${issue._id}`}
+                          <button
+                            onClick={() => onNavigate(`/admin/chat?issue_id=${issue._id}`)}
                             className="text-purple-600 hover:text-purple-900 relative"
                             title="Open Chat"
                           >
@@ -404,9 +332,9 @@ const AdminTransactionIssues = () => {
                                 {issue.unread_messages}
                               </span>
                             )}
-                          </a>
+                          </button>
                           <button
-                            onClick={() => viewIssueDetails(issue)}
+                            onClick={() => viewIssueDetails(issue._id)}
                             className="text-blue-600 hover:text-blue-900"
                             title="View Details"
                           >
@@ -414,7 +342,7 @@ const AdminTransactionIssues = () => {
                           </button>
                           {issue.status !== 'resolved' && (
                             <button
-                              onClick={() => openResolveModal(issue)}
+                              onClick={() => onNavigate(`/admin/issues/transaction/${issue._id}/resolve`)}
                               className="text-green-600 hover:text-green-900"
                               title="Resolve Issue"
                             >
@@ -452,175 +380,6 @@ const AdminTransactionIssues = () => {
                 </div>
               </div>
             )}
-          </div>
-        )}
-
-        {/* View Details Modal */}
-        {showModal && selectedIssue && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="sticky top-0 bg-white border-b p-6 rounded-t-lg">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-2xl font-bold text-gray-900">Issue Details</h2>
-                  <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
-                    <X className="w-6 h-6" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-6 space-y-6">
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">Issue Information</h3>
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-gray-500">Issue Type</p>
-                        <span className={`inline-flex mt-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getIssueTypeColor(selectedIssue.issue_type)}`}>
-                          {selectedIssue.issue_type.replace(/_/g, ' ')}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Priority</p>
-                        <span className={`inline-flex mt-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(selectedIssue.priority)}`}>
-                          {selectedIssue.priority}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Status</p>
-                        <span className={`inline-flex mt-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(selectedIssue.status)}`}>
-                          {selectedIssue.status.replace(/_/g, ' ')}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Amount Involved</p>
-                        <p className="font-semibold text-gray-900">₹{(selectedIssue.amount || 0).toLocaleString('en-IN')}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">Description</h3>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-gray-700">{selectedIssue.description}</p>
-                  </div>
-                </div>
-
-                {selectedIssue.evidence_urls && selectedIssue.evidence_urls.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-semibold mb-3">Evidence</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      {selectedIssue.evidence_urls.map((url, idx) => (
-                        <img key={idx} src={url} alt={`Evidence ${idx + 1}`} className="rounded-lg w-full h-48 object-cover" />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">Related IDs</h3>
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
-                    {selectedIssue.transaction_id && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-700">Transaction ID:</span>
-                        <span className="font-mono text-gray-900">{selectedIssue.transaction_id}</span>
-                      </div>
-                    )}
-                    {selectedIssue.booking_id && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-700">Booking ID:</span>
-                        <span className="font-mono text-gray-900">{selectedIssue.booking_id}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="text-gray-700">User ID:</span>
-                      <span className="font-mono text-gray-900">{selectedIssue.user_id}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {selectedIssue.resolution && (
-                  <div>
-                    <h3 className="text-lg font-semibold mb-3 text-green-600">Resolution</h3>
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                      <p className="text-gray-700">{selectedIssue.resolution}</p>
-                      {selectedIssue.resolved_at && (
-                        <p className="text-sm text-gray-500 mt-2">
-                          Resolved on {new Date(selectedIssue.resolved_at).toLocaleString()}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Resolve Modal */}
-        {showResolveModal && selectedIssue && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-lg w-full">
-              <div className="border-b p-6">
-                <h2 className="text-xl font-bold text-gray-900">Resolve Issue</h2>
-              </div>
-
-              <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Resolution Type</label>
-                  <select
-                    value={resolveForm.resolution}
-                    onChange={(e) => setResolveForm({...resolveForm, resolution: e.target.value})}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select resolution...</option>
-                    <option value="full_refund">Full Refund</option>
-                    <option value="partial_refund">Partial Refund</option>
-                    <option value="retry_payment">Retry Payment</option>
-                    <option value="no_action">No Action Needed</option>
-                  </select>
-                </div>
-
-                {(resolveForm.resolution === 'full_refund' || resolveForm.resolution === 'partial_refund') && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Refund Amount</label>
-                    <input
-                      type="number"
-                      value={resolveForm.refund_amount}
-                      onChange={(e) => setResolveForm({...resolveForm, refund_amount: e.target.value})}
-                      placeholder="Enter amount"
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Resolution Notes</label>
-                  <textarea
-                    value={resolveForm.notes}
-                    onChange={(e) => setResolveForm({...resolveForm, notes: e.target.value})}
-                    rows={4}
-                    placeholder="Add notes about the resolution..."
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div className="border-t p-6 flex gap-3 justify-end">
-                <button
-                  onClick={() => setShowResolveModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={resolveIssue}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                >
-                  Resolve Issue
-                </button>
-              </div>
-            </div>
           </div>
         )}
       </div>
