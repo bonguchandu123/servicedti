@@ -502,7 +502,6 @@ import BanUserPage from './pages/admin/AdminBlackList/BanUser';
 import ViewServicerDocDetails from './pages/admin/VerifyService/ViewServicerDocDetails';
 import ServicerComplaintDetails from './pages/servicer/ServicerAccountStatus/ServicerComplaintDetails';
 import ServicerDocumentsViewer from './pages/admin/VerifyService/ServicerDocumentsViewer';
-import SignupDocumentUpload from './pages/auth/SignupDocumentUpload';
 
 const AppContent = () => {
   const { user, loading, logout } = useAuth();
@@ -601,13 +600,7 @@ const AppContent = () => {
     if (currentPath === '/reset-password') return <ResetPassword onNavigate={navigateTo} />;
     if (currentPath === '/admin/login') return <AdminLogin onNavigate={navigateTo} />;
 
-    if (currentPath === '/signup/upload-documents') {
-  return <SignupDocumentUpload
-    onNavigate={navigateTo}
-    onSkip={() => navigateTo('/verify-email')}
-  />;
-}
-    // Protected Routes
+  // Protected Routes
     if (!user) {
       return <Login onNavigate={navigateTo} />;
     }
