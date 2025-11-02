@@ -3,24 +3,16 @@ import { Bell, CheckCircle, XCircle, Clock, MapPin, DollarSign, Calendar, User, 
 
 const ServicerRequestsSkeletonLoader = () => {
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header Skeleton */}
-        <div className="mb-8 animate-pulse">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="h-9 w-56 bg-gray-200 rounded mb-2"></div>
-              <div className="h-5 w-80 bg-gray-200 rounded"></div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-gray-200 rounded"></div>
-              <div className="w-8 h-6 bg-gray-200 rounded-full"></div>
-            </div>
-          </div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-6 animate-pulse">
+          <div className="h-9 w-56 bg-gray-200 rounded mb-2"></div>
+          <div className="h-5 w-80 bg-gray-200 rounded"></div>
         </div>
+      </div>
 
-        {/* Filter Tabs Skeleton */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6 animate-pulse">
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 animate-pulse">
           <div className="flex items-center gap-2">
             <div className="w-5 h-5 bg-gray-200 rounded"></div>
             <div className="h-4 w-12 bg-gray-200 rounded"></div>
@@ -32,75 +24,23 @@ const ServicerRequestsSkeletonLoader = () => {
           </div>
         </div>
 
-        {/* Requests List Skeleton */}
-        <div className="space-y-4 animate-pulse">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              {/* Header */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gray-200 rounded-lg"></div>
-                  <div>
-                    <div className="h-6 w-32 bg-gray-200 rounded mb-2"></div>
-                    <div className="h-4 w-40 bg-gray-200 rounded"></div>
+        <div className="space-y-6 animate-pulse">
+          {[1, 2].map((i) => (
+            <div key={i} className="bg-white rounded-xl border border-gray-200 p-6">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <div className="lg:col-span-8 space-y-4">
+                  <div className="h-7 w-40 bg-gray-200 rounded"></div>
+                  <div className="h-5 w-32 bg-gray-200 rounded"></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="h-16 bg-gray-200 rounded-lg"></div>
+                    <div className="h-16 bg-gray-200 rounded-lg"></div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="h-6 w-20 bg-gray-200 rounded"></div>
-                  <div className="h-6 w-24 bg-gray-200 rounded-full"></div>
+                <div className="lg:col-span-4 space-y-3">
+                  <div className="h-24 bg-gray-200 rounded-xl"></div>
+                  <div className="h-10 bg-gray-200 rounded-lg"></div>
+                  <div className="h-10 bg-gray-200 rounded-lg"></div>
                 </div>
-              </div>
-
-              {/* Customer Details Skeleton */}
-              <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                <div className="h-5 w-32 bg-gray-200 rounded mb-3"></div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-gray-200 rounded"></div>
-                    <div className="h-4 w-32 bg-gray-200 rounded"></div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-gray-200 rounded"></div>
-                    <div className="h-4 w-28 bg-gray-200 rounded"></div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Service Details Skeleton */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                {[1, 2, 3].map((j) => (
-                  <div key={j} className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-gray-200 rounded"></div>
-                    <div className="flex-1">
-                      <div className="h-3 w-16 bg-gray-200 rounded mb-2"></div>
-                      <div className="h-5 w-full bg-gray-200 rounded"></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Problem Description Skeleton */}
-              <div className="bg-gray-100 border border-gray-200 rounded-lg p-4 mb-4">
-                <div className="flex items-start gap-2">
-                  <div className="w-5 h-5 bg-gray-200 rounded mt-0.5"></div>
-                  <div className="flex-1">
-                    <div className="h-5 w-40 bg-gray-200 rounded mb-2"></div>
-                    <div className="h-4 w-full bg-gray-200 rounded mb-1"></div>
-                    <div className="h-4 w-3/4 bg-gray-200 rounded"></div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Payment Method Skeleton */}
-              <div className="flex items-center gap-2 mb-4">
-                <div className="h-4 w-32 bg-gray-200 rounded"></div>
-                <div className="h-6 w-20 bg-gray-200 rounded"></div>
-              </div>
-
-              {/* Action Buttons Skeleton */}
-              <div className="flex gap-3">
-                <div className="flex-1 h-12 bg-gray-200 rounded-lg"></div>
-                <div className="flex-1 h-12 bg-gray-200 rounded-lg"></div>
               </div>
             </div>
           ))}
@@ -223,9 +163,9 @@ const ServicerRequests = () => {
 
   const getStatusBadge = (status) => {
     const badges = {
-      pending: { className: 'bg-yellow-100 text-yellow-700', text: 'Pending' },
-      accepted: { className: 'bg-blue-100 text-blue-700', text: 'Accepted' },
-      rejected: { className: 'bg-red-100 text-red-700', text: 'Rejected' },
+      pending: { className: 'bg-amber-50 text-amber-800', text: 'Pending' },
+      accepted: { className: 'bg-sky-50 text-sky-800', text: 'Accepted' },
+      rejected: { className: 'bg-rose-50 text-rose-800', text: 'Rejected' },
       cancelled: { className: 'bg-gray-100 text-gray-700', text: 'Cancelled' }
     };
 
@@ -239,9 +179,9 @@ const ServicerRequests = () => {
 
   const getUrgencyBadge = (urgency) => {
     const badges = {
-      low: { className: 'bg-green-100 text-green-700', text: 'Low' },
-      medium: { className: 'bg-yellow-100 text-yellow-700', text: 'Medium' },
-      high: { className: 'bg-red-100 text-red-700', text: 'High' }
+      low: { className: 'bg-emerald-50 text-emerald-800', text: 'Low' },
+      medium: { className: 'bg-amber-50 text-amber-800', text: 'Medium' },
+      high: { className: 'bg-rose-50 text-rose-800', text: 'High' }
     };
 
     const badge = badges[urgency] || badges.medium;
@@ -257,189 +197,197 @@ const ServicerRequests = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-6">
+          <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Service Requests</h1>
               <p className="text-gray-600 mt-1">Review and manage incoming service requests</p>
             </div>
             <div className="flex items-center gap-2">
               <Bell className="w-6 h-6 text-gray-600" />
-              <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+              <span className="bg-rose-600 text-white text-xs font-bold px-2 py-1 rounded-full">
                 {requests.length}
               </span>
             </div>
           </div>
-        </div>
 
-        {/* Filter Tabs */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
-          <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-gray-600" />
-            <span className="text-sm font-medium text-gray-700">Filter:</span>
-            <div className="flex gap-2">
-              {['pending', 'accepted', 'rejected', 'cancelled'].map((status) => (
-                <button
-                  key={status}
-                  onClick={() => {
-                    setFilter(status);
-                    setPage(1);
-                  }}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    filter === status
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
-                </button>
-              ))}
-            </div>
+          {/* Filter Tabs */}
+          <div className="flex flex-wrap gap-2">
+            {['pending', 'accepted', 'rejected', 'cancelled'].map((status) => (
+              <button
+                key={status}
+                onClick={() => {
+                  setFilter(status);
+                  setPage(1);
+                }}
+                className={`px-4 py-2 rounded-lg font-medium transition ${
+                  filter === status
+                    ? 'bg-slate-800 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {status.charAt(0).toUpperCase() + status.slice(1)}
+              </button>
+            ))}
           </div>
         </div>
+      </div>
 
-        {/* Requests List */}
+      {/* Content */}
+      <div className="max-w-7xl mx-auto px-6 py-8">
         {requests.length > 0 ? (
-          <div className="space-y-4">
+          <div className="space-y-6">
             {requests.map((request) => (
               <div
                 key={request._id}
-                className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow"
+                className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition"
               >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-blue-100 p-3 rounded-lg">
-                      <Briefcase className="w-6 h-6 text-blue-600" />
-                    </div>
+                {/* Main Content - 2 Column Layout */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-6">
+                  {/* Left Side - Main Details */}
+                  <div className="lg:col-span-8 space-y-4">
+                    {/* Service Title & Booking Number */}
                     <div>
-                      <h3 className="font-semibold text-lg text-gray-900">
-                        #{request.booking_number}
+                      <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                        {request.service_type}
                       </h3>
-                      <p className="text-sm text-gray-600">{request.service_type}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {getUrgencyBadge(request.urgency_level)}
-                    {getStatusBadge(request.booking_status)}
-                  </div>
-                </div>
-
-                {/* Customer Details */}
-                <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <h4 className="font-medium text-gray-900 mb-3">Customer Details</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className="flex items-center gap-2 text-sm">
-                      <User className="w-4 h-4 text-gray-500" />
-                      <span className="text-gray-700">{request.user_name || 'N/A'}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <Phone className="w-4 h-4 text-gray-500" />
-                      <span className="text-gray-700">{request.user_phone || 'N/A'}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Service Details */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Calendar className="w-4 h-4 text-gray-500" />
-                    <div>
-                      <p className="text-gray-500 text-xs">Date & Time</p>
-                      <p className="text-gray-900 font-medium">
-                        {request.booking_date} at {request.booking_time}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-sm">
-                    <MapPin className="w-4 h-4 text-gray-500" />
-                    <div>
-                      <p className="text-gray-500 text-xs">Location</p>
-                      <p className="text-gray-900 font-medium truncate">
-                        {request.service_location?.address || 'Not provided'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-sm">
-                    <DollarSign className="w-4 h-4 text-gray-500" />
-                    <div>
-                      <p className="text-gray-500 text-xs">Amount</p>
-                      <p className="text-gray-900 font-bold text-lg">₹{request.total_amount}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Problem Description */}
-                {request.problem_description && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-                    <div className="flex items-start gap-2">
-                      <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
-                      <div>
-                        <h4 className="font-medium text-yellow-900 mb-1">Problem Description</h4>
-                        <p className="text-yellow-800 text-sm">{request.problem_description}</p>
+                      <div className="flex items-center space-x-3">
+                        <p className="text-sm text-gray-600 font-medium">
+                          Booking #{request.booking_number}
+                        </p>
+                        {getUrgencyBadge(request.urgency_level)}
+                        {getStatusBadge(request.booking_status)}
                       </div>
                     </div>
+
+                    {/* Customer Info */}
+                    <div className="flex items-center space-x-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                      <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
+                        <User className="w-6 h-6 text-slate-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs text-slate-600 font-medium mb-1">Customer</p>
+                        <p className="font-bold text-gray-900">{request.user_name || 'N/A'}</p>
+                        {request.user_phone && (
+                          <div className="flex items-center text-sm text-gray-600 mt-1">
+                            <Phone className="w-4 h-4 mr-1" />
+                            {request.user_phone}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Date, Time & Location */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                        <Calendar className="w-5 h-5 text-slate-700" />
+                        <div>
+                          <p className="text-xs text-gray-500 font-medium">Date & Time</p>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {request.booking_date} at {request.booking_time}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                        <MapPin className="w-5 h-5 text-slate-700" />
+                        <div>
+                          <p className="text-xs text-gray-500 font-medium">Location</p>
+                          <p className="text-sm font-semibold text-gray-900 truncate">
+                            {request.service_location?.address || 'Not provided'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Problem Description */}
+                    {request.problem_description && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                        <div className="flex items-start">
+                          <AlertCircle className="w-4 h-4 text-amber-700 mr-2 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-sm font-semibold text-amber-900 mb-1">Problem Description</p>
+                            <p className="text-sm text-amber-800">{request.problem_description}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Payment Method */}
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <span className="font-medium">Payment Method:</span>
+                      <span className="px-2 py-1 bg-gray-100 rounded text-gray-700 font-medium">
+                        {request.payment_method?.toUpperCase() || 'CASH'}
+                      </span>
+                    </div>
+
+                    {/* Accepted Info */}
+                    {request.booking_status === 'accepted' && (
+                      <div className="bg-sky-50 border border-sky-200 rounded-lg p-3">
+                        <div className="flex items-start">
+                          <CheckCircle className="w-4 h-4 text-sky-700 mr-2 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-sm font-medium text-sky-900">Request Accepted</p>
+                            <p className="text-sm text-sky-800">Go to Active Services to start work.</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
 
-                {/* Payment Method */}
-                <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
-                  <span className="font-medium">Payment Method:</span>
-                  <span className="px-2 py-1 bg-gray-100 rounded">
-                    {request.payment_method?.toUpperCase() || 'CASH'}
-                  </span>
-                </div>
+                  {/* Right Side - Amount & Primary Actions */}
+                  <div className="lg:col-span-4 space-y-3">
+                    {/* Amount Card */}
+                    <div className="bg-white border border-gray-300 rounded-xl p-4 text-center">
+                      <p className="text-xs text-gray-600 mb-1">Total Amount</p>
+                      <p className="text-2xl font-bold text-gray-900">₹{request.total_amount}</p>
+                    </div>
 
-                {/* Action Buttons */}
-                {request.booking_status === 'pending' && (
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => handleAccept(request._id)}
-                      disabled={actionLoading === request._id}
-                      className="flex-1 bg-green-600 text-white py-3 rounded-lg font-medium hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                      {actionLoading === request._id ? (
+                    {/* Quick Actions */}
+                    <div className="space-y-2">
+                      {request.booking_status === 'pending' && (
                         <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          Processing...
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle className="w-5 h-5" />
-                          Accept Request
+                          <button
+                            onClick={() => handleAccept(request._id)}
+                            disabled={actionLoading === request._id}
+                            className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium text-sm transition"
+                          >
+                            {actionLoading === request._id ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                <span>Processing...</span>
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle className="w-4 h-4" />
+                                <span>Accept Request</span>
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            onClick={() => handleRejectClick(request)}
+                            disabled={actionLoading === request._id}
+                            className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 font-medium text-sm transition"
+                          >
+                            <XCircle className="w-4 h-4" />
+                            <span>Reject Request</span>
+                          </button>
                         </>
                       )}
-                    </button>
-
-                    <button
-                      onClick={() => handleRejectClick(request)}
-                      disabled={actionLoading === request._id}
-                      className="flex-1 bg-red-600 text-white py-3 rounded-lg font-medium hover:bg-red-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                      <XCircle className="w-5 h-5" />
-                      Reject Request
-                    </button>
+                    </div>
                   </div>
-                )}
-
-                {request.booking_status === 'accepted' && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <p className="text-blue-800 text-sm font-medium">
-                      ✓ You have accepted this request. Go to Active Services to start work.
-                    </p>
-                  </div>
-                )}
+                </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
+          <div className="text-center py-12 bg-white rounded-xl shadow-sm">
             <Bell className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No Requests Found</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Requests Found</h3>
             <p className="text-gray-600">
               {filter === 'pending' 
                 ? "You don't have any pending requests at the moment"
@@ -450,21 +398,21 @@ const ServicerRequests = () => {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-8">
+          <div className="flex items-center justify-center space-x-2 mt-8">
             <button
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
               Previous
             </button>
-            <span className="px-4 py-2 text-gray-700">
+            <span className="px-4 py-2 text-gray-600">
               Page {page} of {totalPages}
             </span>
             <button
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
               Next
             </button>
@@ -484,7 +432,7 @@ const ServicerRequests = () => {
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}
               placeholder="E.g., Schedule conflict, Outside service area, etc."
-              className="w-full border border-gray-300 rounded-lg p-3 mb-4 resize-none"
+              className="w-full border border-gray-300 rounded-lg p-3 mb-4 resize-none focus:outline-none focus:ring-2 focus:ring-slate-500"
               rows="4"
             />
             <div className="flex gap-3">
@@ -494,14 +442,14 @@ const ServicerRequests = () => {
                   setRejectionReason('');
                   setSelectedRequest(null);
                 }}
-                className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+                className="flex-1 bg-white border border-gray-300 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleReject}
                 disabled={!rejectionReason.trim() || actionLoading}
-                className="flex-1 bg-red-600 text-white py-3 rounded-lg font-medium hover:bg-red-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="flex-1 bg-rose-600 text-white py-3 rounded-lg font-medium hover:bg-rose-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
                 {actionLoading ? 'Processing...' : 'Confirm Reject'}
               </button>

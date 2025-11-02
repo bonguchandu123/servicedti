@@ -508,12 +508,14 @@ import ReportRefundDelayPage from './pages/user/MyBookings/ReportRefundDelayPage
 import CancelBookingPage from './pages/user/MyBookings/CancelBookingPage';
 import ProcessRefund from './pages/servicer/RefundManagement/ProcessRefund';
 import TransactionDetails from './pages/user/Wallet/TransactionDetails';
+import Navbar from './components/Navbar';
 
 const AppContent = () => {
   const { user, loading, logout } = useAuth();
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
+    const [layoutMode, setLayoutMode] = useState('navbar');
   const toast = useToast();
 
   // Helper function to get query parameters
@@ -955,44 +957,128 @@ if (unsuspendMatch) {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {isNavigating && <DarkProgressBar />}
+  // return (
+  //   <div className="min-h-screen bg-gray-50 flex">
+  //     {isNavigating && <DarkProgressBar />}
 
-      <Sidebar
-        role={user.role}
-        currentPath={currentPath}
-        onNavigate={navigateTo}
-        sidebarOpen={sidebarOpen}
-        setSidebarOpen={setSidebarOpen}
-        onLogout={handleLogout}
-      />
+  //     <Sidebar
+  //       role={user.role}
+  //       currentPath={currentPath}
+  //       onNavigate={navigateTo}
+  //       sidebarOpen={sidebarOpen}
+  //       setSidebarOpen={setSidebarOpen}
+  //       onLogout={handleLogout}
+  //     />
 
-      <div className="flex-1 lg:ml-64">
-        <div className="lg:hidden bg-white shadow-sm border-b sticky top-0 z-30">
-          <div className="flex items-center justify-between p-4">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="p-2 rounded-lg hover:bg-gray-100"
-            >
-              <Menu className="w-6 h-6 text-gray-700" />
-            </button>
-            <h1 className="text-lg font-bold text-gray-800">
-              {user.role === 'user' && 'ServiceApp'}
-              {user.role === 'servicer' && 'ServiceApp Pro'}
-              {user.role === 'admin' && 'ServiceApp Admin'}
-            </h1>
-            <div className="w-10"></div>
+  //     <div className="flex-1 lg:ml-64">
+  //       <div className="lg:hidden bg-white shadow-sm border-b sticky top-0 z-30">
+  //         <div className="flex items-center justify-between p-4">
+  //           <button
+  //             onClick={() => setSidebarOpen(true)}
+  //             className="p-2 rounded-lg hover:bg-gray-100"
+  //           >
+  //             <Menu className="w-6 h-6 text-gray-700" />
+  //           </button>
+  //           <h1 className="text-lg font-bold text-gray-800">
+  //             {user.role === 'user' && 'ServiceApp'}
+  //             {user.role === 'servicer' && 'ServiceApp Pro'}
+  //             {user.role === 'admin' && 'ServiceApp Admin'}
+  //           </h1>
+  //           <div className="w-10"></div>
+  //         </div>
+  //       </div>
+
+  //       <main className="min-h-screen">
+  //         {renderPage()}
+  //       </main>
+  //     </div>
+  //   </div>
+  // );
+
+//   return (
+//   <div className="min-h-screen bg-gray-50">
+//     {isNavigating && <DarkProgressBar />}
+    
+//     {/* NEW: Navbar instead of Sidebar */}
+//     <Navbar
+//       role={user.role}
+//       currentPath={currentPath}
+//       onNavigate={navigateTo}
+//       onLogout={handleLogout}
+//     />
+
+//     {/* Main Content - No margin needed */}
+//     <main className="min-h-screen">
+//       {renderPage()}
+//     </main>
+//   </div>
+// );
+
+
+// In App.jsx, update the Navbar usage:
+
+return (
+  <>
+    {layoutMode === 'sidebar' ? (
+      // Sidebar Layout
+      <div className="min-h-screen bg-gray-50 flex">
+        {isNavigating && <DarkProgressBar />}
+
+        <Sidebar
+          role={user.role}
+          currentPath={currentPath}
+          onNavigate={navigateTo}
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          onLogout={handleLogout}
+        />
+
+        <div className="flex-1 lg:ml-64">
+          <div className="lg:hidden bg-white shadow-sm border-b sticky top-0 z-30">
+            <div className="flex items-center justify-between p-4">
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="p-2 rounded-lg hover:bg-gray-100"
+              >
+                <Menu className="w-6 h-6 text-gray-700" />
+              </button>
+              <h1 className="text-lg font-bold text-gray-800">
+                {user.role === 'user' && 'ServiceApp'}
+                {user.role === 'servicer' && 'ServiceApp Pro'}
+                {user.role === 'admin' && 'ServiceApp Admin'}
+              </h1>
+              <div className="w-10"></div>
+            </div>
           </div>
+
+          <main className="min-h-screen">
+            {renderPage()}
+          </main>
         </div>
+      </div>
+    ) : (
+      // Navbar Layout
+      <div className="min-h-screen bg-gray-50">
+        {isNavigating && <DarkProgressBar />}
+        
+        <Navbar
+          role={user.role}
+          currentPath={currentPath}
+          onNavigate={navigateTo}
+          onLogout={handleLogout}
+          layoutMode={layoutMode}
+          onLayoutToggle={setLayoutMode}
+          user={user}
+        />
 
         <main className="min-h-screen">
           {renderPage()}
         </main>
       </div>
-    </div>
-  );
-};
+    )}
+  </>
+);
+}
 
 const App = () => {
   return (
