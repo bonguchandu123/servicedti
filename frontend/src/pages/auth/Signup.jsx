@@ -125,6 +125,7 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
   const [step, setStep] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const { signup } = useAuth();
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
   const getIcon = (iconName) => {
     const icons = {
@@ -162,7 +163,7 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
     try {
       console.log('📡 Fetching categories from API...');
       
-      const response = await fetch('http://localhost:8000/api/public/categories', {
+      const response = await fetch(`${API_BASE_URL}/api/public/categories`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
