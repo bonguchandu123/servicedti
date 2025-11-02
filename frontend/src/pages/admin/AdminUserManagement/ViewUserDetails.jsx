@@ -3,13 +3,16 @@ import axios from 'axios';
 import { 
   ArrowLeft, User, Mail, Phone, MapPin, Calendar, 
   AlertTriangle, CheckCircle, XCircle, Clock, 
-  DollarSign, FileText, Shield, TrendingUp, Activity
+  DollarSign, FileText, Shield, TrendingUp, Activity, X
 } from 'lucide-react';
 
 const ViewUserDetails = ({ userId, onNavigate }) => {
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  const [showUnsuspendModal, setShowUnsuspendModal] = useState(false);
+  const [unsuspendReason, setUnsuspendReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`
 
   useEffect(() => {
@@ -36,22 +39,54 @@ const ViewUserDetails = ({ userId, onNavigate }) => {
     onNavigate(`/admin/users/${userId}/suspend`);
   };
 
-  const handleUnsuspendUser = async () => {
-    if (!window.confirm('Are you sure you want to unsuspend this user?')) return;
+  const openUnsuspendModal = () => {
+    setUnsuspendReason('');
+    setShowUnsuspendModal(true);
+  };
 
+  const closeUnsuspendModal = () => {
+    setShowUnsuspendModal(false);
+    setUnsuspendReason('');
+  };
+
+  const handleUnsuspendUser = async () => {
+    if (!unsuspendReason.trim()) {
+      alert('Please provide a reason for unsuspending');
+      return;
+    }
+    
+    if (unsuspendReason.trim().length < 10) {
+      alert('Reason must be at least 10 characters long');
+      return;
+    }
+
+    setSubmitting(true);
     try {
       const token = localStorage.getItem('token');
-      await axios.post(
+      
+      const formData = new FormData();
+      formData.append('reason', unsuspendReason.trim());
+      formData.append('notify_user', 'true');
+
+      const response = await axios.post(
         `${API_BASE_URL}/admin/users/${userId}/unsuspend`,
-        { reason: 'Suspension lifted by admin' },
-        { headers: { Authorization: `Bearer ${token}` } }
+        formData,
+        { 
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data'
+          } 
+        }
       );
       
-      alert('User unsuspended successfully');
+      alert(response.data?.message || 'User unsuspended successfully');
+      closeUnsuspendModal();
       fetchUserDetails(); // Refresh data
     } catch (error) {
       console.error('Error unsuspending user:', error);
       alert(error.response?.data?.detail || 'Failed to unsuspend user');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -81,6 +116,94 @@ const ViewUserDetails = ({ userId, onNavigate }) => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
+      {/* Unsuspend Modal */}
+      {showUnsuspendModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <CheckCircle className="w-6 h-6 text-green-600" />
+                <h3 className="text-xl font-bold text-gray-900">Unsuspend User</h3>
+              </div>
+              <button
+                onClick={closeUnsuspendModal}
+                disabled={submitting}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800">
+                  You are about to unsuspend <span className="font-semibold">{userData.name}</span>. 
+                  This will restore their account access immediately.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason for Unsuspension <span className="text-red-600">*</span>
+                </label>
+                <textarea
+                  value={unsuspendReason}
+                  onChange={(e) => setUnsuspendReason(e.target.value)}
+                  placeholder="Provide a detailed explanation for unsuspending this user. This will be logged for audit purposes and sent to the user."
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+                  rows={4}
+                  disabled={submitting}
+                />
+                <div className="flex justify-between items-center mt-2">
+                  <p className="text-sm text-gray-500">Minimum 10 characters required</p>
+                  <p className="text-sm text-gray-500">{unsuspendReason.length} characters</p>
+                </div>
+              </div>
+
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <p className="text-sm font-semibold text-green-900 mb-2">What happens next:</p>
+                <ul className="text-sm text-green-700 space-y-1">
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 mt-1">•</span>
+                    <span>User account will be reactivated immediately</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 mt-1">•</span>
+                    <span>User will receive an email notification</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 mt-1">•</span>
+                    <span>This action will be logged in the audit trail</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-gray-50 border-t border-gray-200 p-6 rounded-b-lg">
+              <div className="flex gap-3">
+                <button
+                  onClick={closeUnsuspendModal}
+                  disabled={submitting}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUnsuspendUser}
+                  disabled={submitting || !unsuspendReason.trim() || unsuspendReason.length < 10}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium transition-colors"
+                >
+                  {submitting ? 'Processing...' : 'Unsuspend User'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-6">
         <button
@@ -129,7 +252,7 @@ const ViewUserDetails = ({ userId, onNavigate }) => {
                     {userData.role.toUpperCase()}
                   </span>
                   
-                  {stats.is_suspended && (
+                  {(userData.is_blocked || userData.is_suspended || stats.is_suspended) && (
                     <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800 flex items-center">
                       <XCircle className="w-4 h-4 mr-1" />
                       SUSPENDED
@@ -153,7 +276,7 @@ const ViewUserDetails = ({ userId, onNavigate }) => {
 
             {/* Quick Actions */}
             <div className="flex flex-col space-y-2">
-              {!stats.is_suspended ? (
+              {!(userData.is_blocked || userData.is_suspended || stats.is_suspended) ? (
                 <button
                   onClick={handleSuspendUser}
                   className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
@@ -162,7 +285,7 @@ const ViewUserDetails = ({ userId, onNavigate }) => {
                 </button>
               ) : (
                 <button
-                  onClick={handleUnsuspendUser}
+                  onClick={openUnsuspendModal}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
                 >
                   Unsuspend User
@@ -282,7 +405,7 @@ const ViewUserDetails = ({ userId, onNavigate }) => {
   );
 };
 
-// Sub-components (same as before)
+// Sub-components (unchanged)
 const UserInfo = ({ userData }) => (
   <div className="bg-gray-50 p-4 rounded-lg">
     <h3 className="text-lg font-semibold mb-4">User Information</h3>

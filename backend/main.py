@@ -22,6 +22,7 @@ import math
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 import time
+from pydantic import BaseModel
 
 import stripe
 # Import models and config
@@ -6995,7 +6996,6 @@ async def verify_otp_and_complete_service(
             "servicer_name": servicer_user.get('name', '') if servicer_user else ''
         }
     )
-
 @app.get("/api/user/bookings/{booking_id}/transaction-issue")
 async def get_booking_transaction_issue(
     booking_id: str,
@@ -7020,8 +7020,10 @@ async def get_booking_transaction_issue(
         })
         
         if not issue:
-            # No issue found - return 404 so frontend can skip
-            raise HTTPException(status_code=404, detail="No transaction issue found")
+            # Return null instead of 404 when no issue exists
+            return {
+                "issue": None
+            }
         
         # Convert ObjectIds to strings
         issue = serialize_doc(issue)
@@ -7044,7 +7046,6 @@ async def get_booking_transaction_issue(
     except Exception as e:
         print(f"Error fetching transaction issue: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 @app.post("/api/user/bookings/{booking_id}/request-completion-otp")
 async def request_completion_otp_from_servicer(
     booking_id: str,
@@ -9037,6 +9038,25 @@ async def get_comprehensive_user_details(
     }
     
     # ✅ 14. RECENT ACTIVITY TIMELINE (Combined from all sources)
+    # Helper function to safely parse timestamps
+    def parse_timestamp(ts):
+        """Convert timestamp to datetime object for sorting"""
+        if isinstance(ts, datetime):
+            return ts
+        elif isinstance(ts, str):
+            try:
+                # Try parsing ISO format string
+                from dateutil import parser
+                return parser.parse(ts)
+            except:
+                try:
+                    # Fallback to standard formats
+                    return datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                except:
+                    return datetime.min
+        else:
+            return datetime.min
+    
     all_activities = []
     
     # From bookings
@@ -9075,12 +9095,11 @@ async def get_comprehensive_user_details(
             "timestamp": log.get('created_at')
         })
     
-    # Sort by timestamp
-    all_activities.sort(key=lambda x: x.get('timestamp', datetime.min), reverse=True)
+    # ✅ FIX: Sort by timestamp with proper type handling
+    all_activities.sort(key=lambda x: parse_timestamp(x.get('timestamp')), reverse=True)
     user_data['recent_activity_timeline'] = all_activities[:30]  # Last 30 activities
     
     return user_data
-
 @app.put("/api/admin/users/{user_id}/block")
 async def block_unblock_user(
     user_id: str,
@@ -10532,12 +10551,10 @@ async def get_all_booking_issues(
         "created_at", -1
     ).skip(skip).limit(limit).to_list(limit)
     
-    # Convert ObjectIds and add details
+    # Serialize and add details
+    serialized_issues = []
     for issue in issues:
-        issue['_id'] = str(issue['_id'])
-        issue['booking_id'] = str(issue['booking_id'])
-        issue['user_id'] = str(issue['user_id'])
-        issue['servicer_id'] = str(issue['servicer_id'])
+        issue = serialize_doc(issue)
         
         # Get booking details
         booking = await db[Collections.BOOKINGS].find_one({"_id": ObjectId(issue['booking_id'])})
@@ -10560,6 +10577,8 @@ async def get_all_booking_issues(
                 issue['servicer_name'] = servicer_user.get('name')
                 issue['servicer_email'] = servicer_user.get('email')
                 issue['servicer_phone'] = servicer_user.get('phone')
+        
+        serialized_issues.append(issue)
     
     total = await db[Collections.BOOKING_ISSUES].count_documents(query)
     
@@ -10568,7 +10587,7 @@ async def get_all_booking_issues(
     in_progress_count = await db[Collections.BOOKING_ISSUES].count_documents({"status": "in_progress"})
     
     return {
-        "issues": issues,
+        "issues": serialized_issues,
         "total": total,
         "page": page,
         "pages": math.ceil(total / limit),
@@ -11242,12 +11261,18 @@ async def update_transaction_issue_status(
     return SuccessResponse(message="Issue status updated successfully")
 
 
+
+
+# Add this Pydantic model for the request body
+class ResolveTransactionIssueRequest(BaseModel):
+    resolution: str
+    refund_amount: Optional[float] = None
+    notes: Optional[str] = None
+
 @app.put("/api/admin/transaction-issues/{issue_id}/resolve")
 async def resolve_transaction_issue(
     issue_id: str,
-    resolution: str = Form(...),
-    refund_amount: Optional[float] = Form(None),
-    notes: Optional[str] = Form(None),
+    request: ResolveTransactionIssueRequest,
     current_admin: dict = Depends(get_current_admin)
 ):
     """Resolve a transaction issue"""
@@ -11259,14 +11284,14 @@ async def resolve_transaction_issue(
     # Update issue
     update_data = {
         "status": "resolved",
-        "resolution": resolution,
-        "admin_notes": notes,
+        "resolution": request.resolution,
+        "admin_notes": request.notes,
         "resolved_at": datetime.utcnow(),
         "updated_at": datetime.utcnow()
     }
     
-    if refund_amount:
-        update_data["refund_amount"] = refund_amount
+    if request.refund_amount:
+        update_data["refund_amount"] = request.refund_amount
     
     await db[Collections.TRANSACTION_ISSUES].update_one(
         {"_id": ObjectId(issue_id)},
@@ -11274,12 +11299,12 @@ async def resolve_transaction_issue(
     )
     
     # Handle refund if needed
-    if resolution in ['full_refund', 'partial_refund'] and refund_amount:
+    if request.resolution in ['full_refund', 'partial_refund'] and request.refund_amount:
         # Credit user wallet
         await db[Collections.WALLETS].update_one(
             {"user_id": issue['user_id']},
             {
-                "$inc": {"balance": refund_amount},
+                "$inc": {"balance": request.refund_amount},
                 "$set": {"last_transaction_at": datetime.utcnow()}
             }
         )
@@ -11289,7 +11314,7 @@ async def resolve_transaction_issue(
             "user_id": issue['user_id'],
             "transaction_type": TransactionType.REFUND,
             "payment_method": PaymentMethod.WALLET,
-            "amount": refund_amount,
+            "amount": request.refund_amount,
             "transaction_status": PaymentStatus.COMPLETED,
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow()
@@ -11305,7 +11330,7 @@ async def resolve_transaction_issue(
             str(issue['user_id']),
             NotificationTypes.PAYMENT,
             "Refund Processed",
-            f"₹{refund_amount} has been refunded to your wallet for the reported issue."
+            f"₹{request.refund_amount} has been refunded to your wallet for the reported issue."
         )
     else:
         # Send resolution notification
@@ -11313,7 +11338,7 @@ async def resolve_transaction_issue(
             str(issue['user_id']),
             NotificationTypes.SYSTEM,
             "Transaction Issue Resolved",
-            f"Your transaction issue has been resolved. Resolution: {resolution.replace('_', ' ')}"
+            f"Your transaction issue has been resolved. Resolution: {request.resolution.replace('_', ' ')}"
         )
     
     # Create audit log
@@ -11323,9 +11348,9 @@ async def resolve_transaction_issue(
         "target_id": ObjectId(issue_id),
         "target_type": "transaction_issue",
         "details": {
-            "resolution": resolution,
-            "refund_amount": refund_amount,
-            "notes": notes
+            "resolution": request.resolution,
+            "refund_amount": request.refund_amount,
+            "notes": request.notes
         },
         "created_at": datetime.utcnow()
     })
@@ -11333,12 +11358,10 @@ async def resolve_transaction_issue(
     return SuccessResponse(
         message="Transaction issue resolved successfully",
         data={
-            "resolution": resolution,
-            "refund_amount": refund_amount
+            "resolution": request.resolution,
+            "refund_amount": request.refund_amount
         }
     )
-
-
 @app.put("/api/admin/transaction-issues/{issue_id}/priority")
 async def update_transaction_issue_priority(
     issue_id: str,
