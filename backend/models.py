@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, List, Any
-from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict,validator
 from bson import ObjectId
 from enum import Enum
 
@@ -601,12 +601,29 @@ class Wallet(BaseModel):
 
 
 # ============= PAYOUT REQUEST MODELS =============
+class PayoutMethod(str, Enum):
+    BANK_TRANSFER = "bank_transfer"
+    UPI = "upi"
+
 class PayoutRequestCreate(BaseModel):
     amount_requested: float
+    payout_method: PayoutMethod  # Validates it's either bank_transfer or upi
     bank_account_number: Optional[str] = None
     ifsc_code: Optional[str] = None
+    account_holder_name: Optional[str] = None
     upi_id: Optional[str] = None
-
+    
+    @validator('bank_account_number', 'ifsc_code', 'account_holder_name')
+    def validate_bank_details(cls, v, values):
+        if values.get('payout_method') == PayoutMethod.BANK_TRANSFER and not v:
+            raise ValueError('Bank details required for bank transfer')
+        return v
+    
+    @validator('upi_id')
+    def validate_upi(cls, v, values):
+        if values.get('payout_method') == PayoutMethod.UPI and not v:
+            raise ValueError('UPI ID required for UPI transfer')
+        return v
 
 class PayoutRequest(BaseModel):
     id: Optional[PyObjectId] = Field(default=None, alias="_id")

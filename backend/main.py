@@ -6014,32 +6014,58 @@ async def get_transaction_details(
     current_user: dict = Depends(get_current_user)
 ):
     """Get detailed transaction information"""
-    transaction = await db[Collections.TRANSACTIONS].find_one({
-        "_id": ObjectId(transaction_id),
-        "user_id": ObjectId(current_user['_id'])
-    })
-    
-    if not transaction:
-        raise HTTPException(status_code=404, detail="Transaction not found")
-    
-    transaction['_id'] = str(transaction['_id'])
-    transaction['user_id'] = str(transaction['user_id'])
-    
-    if transaction.get('booking_id'):
-        transaction['booking_id'] = str(transaction['booking_id'])
+    try:
+        # Validate transaction_id format
+        if not ObjectId.is_valid(transaction_id):
+            raise HTTPException(status_code=400, detail="Invalid transaction ID")
         
-        # Get booking details
-        booking = await db[Collections.BOOKINGS].find_one({"_id": ObjectId(transaction['booking_id'])})
-        if booking:
-            transaction['booking_details'] = {
-                "booking_number": booking.get('booking_number'),
-                "service_type": booking.get('service_type'),
-                "booking_date": booking.get('booking_date'),
-                "booking_status": booking.get('booking_status')
-            }
-    
-    return transaction
-
+        # Find the transaction
+        transaction = await db[Collections.TRANSACTIONS].find_one({
+            "_id": ObjectId(transaction_id),
+            "user_id": ObjectId(current_user['_id'])
+        })
+        
+        if not transaction:
+            raise HTTPException(status_code=404, detail="Transaction not found")
+        
+        # Serialize transaction
+        transaction = serialize_doc(transaction)
+        
+        # Get booking details if booking_id exists
+        if transaction.get('booking_id'):
+            booking = await db[Collections.BOOKINGS].find_one({
+                "_id": ObjectId(transaction['booking_id'])
+            })
+            
+            if booking:
+                transaction['booking_details'] = {
+                    "booking_number": booking.get('booking_number'),
+                    "service_type": booking.get('service_type'),
+                    "booking_date": booking.get('booking_date'),
+                    "booking_status": booking.get('booking_status')
+                }
+        
+        # Get servicer details if servicer_id exists
+        if transaction.get('servicer_id'):
+            servicer = await db[Collections.USERS].find_one(
+                {"_id": ObjectId(transaction['servicer_id'])},
+                {"name": 1, "phone": 1, "email": 1}
+            )
+            
+            if servicer:
+                transaction['servicer_details'] = {
+                    "name": servicer.get('name'),
+                    "phone": servicer.get('phone'),
+                    "email": servicer.get('email')
+                }
+        
+        return transaction
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching transaction details: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch transaction details")
 
 @app.get("/api/user/spending-report")
 async def get_spending_report(
@@ -7046,6 +7072,8 @@ async def get_booking_transaction_issue(
     except Exception as e:
         print(f"Error fetching transaction issue: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/user/bookings/{booking_id}/request-completion-otp")
 async def request_completion_otp_from_servicer(
     booking_id: str,

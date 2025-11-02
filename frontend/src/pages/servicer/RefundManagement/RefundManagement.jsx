@@ -3,7 +3,7 @@ import {
   AlertCircle, 
   DollarSign, 
   Clock, 
-  CheckCircle, 
+  CheckCircle,
   XCircle,
   Calendar,
   User,
@@ -22,11 +22,12 @@ const RefundManagement = ({ onNavigate }) => {
   const [completedRefunds, setCompletedRefunds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('pending');
-  const [selectedRefund, setSelectedRefund] = useState(null);
-  const [refundReason, setRefundReason] = useState('');
-  const [processingRefund, setProcessingRefund] = useState(false);
   const [stats, setStats] = useState({});
-  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`
+  const [showIssueModal, setShowIssueModal] = useState(false);
+  const [selectedRefund, setSelectedRefund] = useState(null);
+  const [issueDescription, setIssueDescription] = useState('');
+  const [reportingIssue, setReportingIssue] = useState(false);
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
   useEffect(() => {
     fetchRefunds();
@@ -64,54 +65,21 @@ const RefundManagement = ({ onNavigate }) => {
     }
   };
 
-  const handleProcessRefund = async (bookingId, refundAmount) => {
-    if (!window.confirm(`Process refund of ₹${refundAmount}?`)) return;
-
-    try {
-      setProcessingRefund(true);
-      const token = localStorage.getItem('token');
-      
-      const formData = new FormData();
-      formData.append('refund_amount', refundAmount);
-      formData.append('reason', refundReason || 'User cancellation refund');
-
-      const response = await fetch(`${API_BASE_URL}/servicer/bookings/${bookingId}/process-refund`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.detail || 'Failed to process refund');
-      }
-
-      alert('✅ Refund processed successfully! User will receive the amount in their wallet.');
-      fetchRefunds();
-      setSelectedRefund(null);
-      setRefundReason('');
-    } catch (error) {
-      alert(error.message || 'Failed to process refund');
-    } finally {
-      setProcessingRefund(false);
+  const handleReportIssue = async () => {
+    if (!issueDescription.trim()) {
+      alert('Please describe the issue');
+      return;
     }
-  };
-
-  const handleReportIssue = async (refund) => {
-    const reason = prompt('Describe the issue preventing refund processing:');
-    if (!reason) return;
 
     try {
+      setReportingIssue(true);
       const token = localStorage.getItem('token');
       
       const formData = new FormData();
       formData.append('issue_type', 'refund_processing_failed');
-      formData.append('description', reason);
+      formData.append('description', issueDescription);
 
-      const response = await fetch(`${API_BASE_URL}/servicer/bookings/${refund.booking_id}/report-refund-issue`, {
+      const response = await fetch(`${API_BASE_URL}/servicer/bookings/${selectedRefund.booking_id}/report-refund-issue`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -122,9 +90,14 @@ const RefundManagement = ({ onNavigate }) => {
       if (!response.ok) throw new Error('Failed to report issue');
 
       alert('✅ Issue reported to admin. They will process the refund.');
+      setShowIssueModal(false);
+      setSelectedRefund(null);
+      setIssueDescription('');
       fetchRefunds();
     } catch (error) {
       alert('Failed to report issue: ' + error.message);
+    } finally {
+      setReportingIssue(false);
     }
   };
 
@@ -237,7 +210,7 @@ const RefundManagement = ({ onNavigate }) => {
       {(isPending || isOverdue) && (
         <div className="flex gap-2 mt-4 pt-4 border-t">
           <button
-            onClick={() => setSelectedRefund(refund)}
+            onClick={() => onNavigate(`/servicer/refunds/${refund.booking_id}`)}
             className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2 ${
               isOverdue 
                 ? 'bg-red-600 hover:bg-red-700 animate-pulse' 
@@ -248,7 +221,10 @@ const RefundManagement = ({ onNavigate }) => {
             {isOverdue ? 'Process NOW' : 'Process Refund'}
           </button>
           <button
-            onClick={() => handleReportIssue(refund)}
+            onClick={() => {
+              setSelectedRefund(refund);
+              setShowIssueModal(true);
+            }}
             className="flex-1 px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors text-sm font-medium flex items-center justify-center gap-2"
           >
             <AlertTriangle className="w-4 h-4" />
@@ -475,71 +451,69 @@ const RefundManagement = ({ onNavigate }) => {
         )}
       </div>
 
-      {/* Process Refund Modal */}
-      {selectedRefund && (
+      {/* Report Issue Modal */}
+      {showIssueModal && selectedRefund && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">
-              Process Refund
-            </h3>
+            <div className="flex items-center gap-3 mb-4">
+              <AlertTriangle className="w-6 h-6 text-orange-600" />
+              <h3 className="text-xl font-bold text-gray-900">
+                Report Refund Issue
+              </h3>
+            </div>
 
-            <div className="space-y-4 mb-6">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <div className="flex justify-between mb-2">
+            <div className="mb-6">
+              <p className="text-sm text-gray-600 mb-4">
+                Describe the issue preventing you from processing this refund. The admin team will review and handle it.
+              </p>
+
+              <div className="bg-gray-50 p-3 rounded-lg mb-4">
+                <div className="flex justify-between text-sm mb-2">
                   <span className="text-gray-600">Booking:</span>
                   <span className="font-semibold">#{selectedRefund.booking_number}</span>
                 </div>
-                <div className="flex justify-between mb-2">
+                <div className="flex justify-between text-sm mb-2">
                   <span className="text-gray-600">User:</span>
                   <span className="font-semibold">{selectedRefund.user_name}</span>
                 </div>
-                <div className="flex justify-between mb-2">
-                  <span className="text-gray-600">Percentage:</span>
-                  <span className="font-semibold">{selectedRefund.refund_percentage}%</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Refund Amount:</span>
-                  <span className="font-bold text-red-600 text-lg">
-                    ₹{selectedRefund.refund_amount?.toFixed(2)}
-                  </span>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Amount:</span>
+                  <span className="font-semibold text-orange-600">₹{selectedRefund.refund_amount?.toFixed(2)}</span>
                 </div>
               </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <p className="text-xs text-blue-700">
-                  💡 This amount will be credited to the user's wallet immediately upon confirmation.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Note (Optional)
-                </label>
-                <textarea
-                  value={refundReason}
-                  onChange={(e) => setRefundReason(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  rows="3"
-                  placeholder="Add a note about this refund..."
-                />
-              </div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Issue Description *
+              </label>
+              <textarea
+                value={issueDescription}
+                onChange={(e) => setIssueDescription(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                rows="4"
+                placeholder="E.g., Payment gateway issue, technical error, verification needed..."
+                disabled={reportingIssue}
+              />
+              <p className="text-xs text-gray-500 mt-2">
+                The admin will be notified and will process the refund on your behalf
+              </p>
             </div>
 
             <div className="flex gap-3">
               <button
-                onClick={() => handleProcessRefund(selectedRefund.booking_id, selectedRefund.refund_amount)}
-                disabled={processingRefund}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 font-medium"
+                onClick={handleReportIssue}
+                disabled={reportingIssue || !issueDescription.trim()}
+                className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
               >
-                {processingRefund ? 'Processing...' : 'Confirm Refund'}
+                {reportingIssue ? 'Reporting...' : 'Submit Report'}
               </button>
               <button
                 onClick={() => {
+                  setShowIssueModal(false);
                   setSelectedRefund(null);
-                  setRefundReason('');
+                  setIssueDescription('');
                 }}
-                disabled={processingRefund}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium"
+                disabled={reportingIssue}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 font-medium"
               >
                 Cancel
               </button>
