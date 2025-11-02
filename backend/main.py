@@ -7219,35 +7219,64 @@ async def get_earnings(
     current_user: dict = Depends(get_current_user),
     servicer: dict = Depends(get_current_servicer)
 ):
-    """Get earnings overview"""
-    wallet = await db[Collections.WALLETS].find_one({"user_id": ObjectId(current_user['_id'])})
-    
-    # Get pending payouts
-    pending_payouts = await db[Collections.PAYOUT_REQUESTS].find({
-        "servicer_id": ObjectId(servicer['_id']),
-        "status": "pending"
-    }).to_list(100)
-    
-    pending_amount = sum(p['amount_requested'] for p in pending_payouts)
-    
-    # Get this month earnings
-    month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    
-    this_month_transactions = await db[Collections.TRANSACTIONS].find({
-        "servicer_id": ObjectId(servicer['_id']),
-        "transaction_status": PaymentStatus.COMPLETED,
-        "created_at": {"$gte": month_start}
-    }).to_list(1000)
-    
-    this_month_earnings = sum(t['servicer_earnings'] for t in this_month_transactions)
-    
-    return {
-        "wallet_balance": wallet['balance'] if wallet else 0,
-        "total_earned": wallet['total_earned'] if wallet else 0,
-        "pending_payouts": pending_amount,
-        "this_month_earnings": this_month_earnings
-    }
-
+    """Get servicer earnings summary"""
+    try:
+        # Get wallet balance
+        wallet = await db[Collections.WALLETS].find_one({"user_id": ObjectId(current_user['_id'])})
+        wallet_balance = wallet['balance'] if wallet else 0.0
+        
+        # Get all completed transactions for this servicer
+        all_transactions = await db[Collections.TRANSACTIONS].find({
+            "servicer_id": ObjectId(servicer['_id']),
+            "transaction_status": "completed"
+        }).to_list(1000)
+        
+        # Calculate total earned (use .get() to handle missing fields)
+        total_earned = sum(t.get('servicer_earnings', 0) for t in all_transactions)
+        
+        # Get pending payouts
+        pending_payouts_cursor = await db[Collections.PAYOUT_REQUESTS].find({
+            "servicer_id": ObjectId(servicer['_id']),
+            "status": "pending"
+        }).to_list(100)
+        
+        pending_payouts = sum(p.get('amount_requested', 0) for p in pending_payouts_cursor)
+        
+        # Calculate this month's earnings
+        now = datetime.utcnow()
+        month_start = datetime(now.year, now.month, 1)
+        
+        this_month_transactions = await db[Collections.TRANSACTIONS].find({
+            "servicer_id": ObjectId(servicer['_id']),
+            "transaction_status": "completed",
+            "created_at": {"$gte": month_start}
+        }).to_list(1000)
+        
+        # Use .get() to safely access servicer_earnings
+        this_month_earnings = sum(t.get('servicer_earnings', 0) for t in this_month_transactions)
+        
+        print("=" * 60)
+        print("📊 EARNINGS SUMMARY:")
+        print(f"   Wallet Balance: ₹{wallet_balance}")
+        print(f"   Total Earned: ₹{total_earned}")
+        print(f"   Pending Payouts: ₹{pending_payouts}")
+        print(f"   This Month: ₹{this_month_earnings}")
+        print(f"   Total Transactions: {len(all_transactions)}")
+        print(f"   This Month Transactions: {len(this_month_transactions)}")
+        print("=" * 60)
+        
+        return {
+            "wallet_balance": round(wallet_balance, 2),
+            "total_earned": round(total_earned, 2),
+            "pending_payouts": round(pending_payouts, 2),
+            "this_month_earnings": round(this_month_earnings, 2)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error in get_earnings: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to fetch earnings: {str(e)}")
 @app.post("/api/servicer/payout")
 async def request_payout(
     payout_data: PayoutRequestCreate,
@@ -7255,14 +7284,41 @@ async def request_payout(
     servicer: dict = Depends(get_current_servicer)
 ):
     """Request withdrawal to bank/UPI"""
+    
+    # ====== DEBUG LOGGING ======
+    print("=" * 60)
+    print("🔍 PAYOUT REQUEST DEBUG INFO:")
+    print(f"   Requested Amount: ₹{payout_data.amount_requested}")
+    print(f"   Min Required: ₹{settings.MIN_PAYOUT_AMOUNT}")
+    print(f"   Payout Method: {payout_data.payout_method}")
+    print(f"   Servicer: {current_user.get('name', 'Unknown')}")
+    print("=" * 60)
+    
     # Check wallet balance
     wallet = await db[Collections.WALLETS].find_one({"user_id": ObjectId(current_user['_id'])})
     
-    if not wallet or wallet['balance'] < payout_data.amount_requested:
-        raise HTTPException(status_code=400, detail=Messages.INSUFFICIENT_BALANCE)
+    if not wallet:
+        print("❌ Wallet not found!")
+        raise HTTPException(status_code=400, detail="Wallet not found")
     
+    print(f"💰 Current Wallet Balance: ₹{wallet['balance']}")
+    
+    if wallet['balance'] < payout_data.amount_requested:
+        print(f"❌ Insufficient balance: Has ₹{wallet['balance']}, needs ₹{payout_data.amount_requested}")
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Insufficient balance. Available: ₹{wallet['balance']}"
+        )
+    
+    # Check minimum payout amount
     if payout_data.amount_requested < settings.MIN_PAYOUT_AMOUNT:
-        raise HTTPException(status_code=400, detail=Messages.MIN_PAYOUT_NOT_MET)
+        print(f"❌ Amount ₹{payout_data.amount_requested} is below minimum ₹{settings.MIN_PAYOUT_AMOUNT}")
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Minimum payout amount is ₹{settings.MIN_PAYOUT_AMOUNT}. You requested ₹{payout_data.amount_requested}"
+        )
+    
+    print("✅ All validation checks passed!")
     
     # Create payout request
     payout_dict = payout_data.dict()
@@ -7272,12 +7328,14 @@ async def request_payout(
     payout_dict['updated_at'] = datetime.utcnow()
     
     result = await db[Collections.PAYOUT_REQUESTS].insert_one(payout_dict)
+    print(f"✅ Payout request created with ID: {result.inserted_id}")
     
     # Deduct from wallet (hold until processed)
     await db[Collections.WALLETS].update_one(
         {"user_id": ObjectId(current_user['_id'])},
         {"$inc": {"balance": -payout_data.amount_requested}}
     )
+    print(f"✅ Deducted ₹{payout_data.amount_requested} from wallet")
     
     # Send notification to admins
     admins = await db[Collections.USERS].find({"role": UserRole.ADMIN}).to_list(100)
@@ -7288,12 +7346,16 @@ async def request_payout(
             "New Payout Request",
             f"Servicer {current_user['name']} requested payout of ₹{payout_data.amount_requested}"
         )
+    print(f"✅ Notifications sent to {len(admins)} admins")
+    
+    print("=" * 60)
+    print("✅ PAYOUT REQUEST COMPLETED SUCCESSFULLY")
+    print("=" * 60)
     
     return SuccessResponse(
         message=Messages.PAYOUT_REQUESTED,
         data={"payout_id": str(result.inserted_id)}
     )
-
 @app.get("/api/servicer/reviews")
 async def get_servicer_reviews(
     rating: Optional[int] = None,

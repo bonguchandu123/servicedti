@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     COMPLETION_OTP_EXPIRY_HOURS: int = 24
     MAX_OTP_VERIFICATION_ATTEMPTS: int = 5
     OTP_VERIFICATION_LOCKOUT_MINUTES: int = 30
+    MIN_PAYOUT_AMOUNT: float = 100.0
+
     
     # Stripe
     STRIPE_SECRET_KEY: str
@@ -45,7 +47,7 @@ class Settings(BaseSettings):
     
     # Platform Fees & Configuration
     PLATFORM_FEE_PERCENTAGE: float = 15.0  # 15% platform fee
-    MIN_PAYOUT_AMOUNT: float = 500.0
+    
     MAX_SERVICE_RADIUS_KM: float = 50.0
     OTP_EXPIRY_MINUTES: int = 10
     OTP_MAX_ATTEMPTS: int = 3
@@ -131,6 +133,8 @@ class Collections:
     SERVICER_WARNINGS = "servicer_warnings"
 
     TRANSACTION_ISSUE_MESSAGES = "transaction_issue_messages" 
+    # In your settings/config file
+    
     
 
 
