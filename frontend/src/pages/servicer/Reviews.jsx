@@ -5,15 +5,15 @@ import { useToast } from '../../context/ToastContext';
 // Skeleton Loading Component
 const ReviewsSkeleton = () => {
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header Skeleton */}
-        <div className="mb-6">
-          <div className="h-8 w-48 bg-gray-200 rounded animate-pulse mb-2"></div>
-          <div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-6 animate-pulse">
+          <div className="h-9 w-56 bg-gray-200 rounded mb-2"></div>
+          <div className="h-5 w-80 bg-gray-200 rounded"></div>
         </div>
+      </div>
 
-        {/* Stats Grid Skeleton */}
+      <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           {[1, 2, 3].map((i) => (
             <div key={i} className="bg-white rounded-lg border border-gray-200 p-6">
@@ -29,98 +29,16 @@ const ReviewsSkeleton = () => {
           ))}
         </div>
 
-        {/* Rating Distribution Skeleton */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-          <div className="h-5 w-40 bg-gray-200 rounded animate-pulse mb-4"></div>
-          <div className="space-y-3">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="flex items-center gap-4">
-                <div className="h-4 w-14 bg-gray-200 rounded animate-pulse"></div>
-                <div className="flex-1 h-2 bg-gray-200 rounded animate-pulse"></div>
-                <div className="h-4 w-16 bg-gray-200 rounded animate-pulse"></div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Filters & Search Skeleton */}
-        <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 h-10 bg-gray-200 rounded-lg animate-pulse"></div>
-            <div className="flex gap-2">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="h-10 w-16 bg-gray-200 rounded-lg animate-pulse"></div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Review Cards Skeleton */}
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-white rounded-lg border border-gray-200 p-6">
-              {/* Header */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse"></div>
-                  <div className="space-y-2">
-                    <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
-                    <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
-                  </div>
-                </div>
-                <div className="h-4 w-20 bg-gray-200 rounded animate-pulse"></div>
-              </div>
-
-              {/* Review Text */}
-              <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                <div className="space-y-2">
-                  <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-                  <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-                  <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse"></div>
-                </div>
-              </div>
-
-              {/* Rating Breakdown */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                {[1, 2, 3].map((j) => (
-                  <div key={j} className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                    <div className="h-3 w-16 bg-gray-200 rounded animate-pulse mb-2"></div>
-                    <div className="h-4 w-12 bg-gray-200 rounded animate-pulse"></div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Button */}
-              <div className="h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+        <div className="space-y-6 animate-pulse">
+          {[1, 2].map((i) => (
+            <div key={i} className="bg-white rounded-xl border border-gray-200 p-6">
+              <div className="h-6 w-40 bg-gray-200 rounded mb-4"></div>
+              <div className="h-20 bg-gray-200 rounded mb-4"></div>
+              <div className="h-10 bg-gray-200 rounded"></div>
             </div>
           ))}
         </div>
       </div>
-
-      {/* Shimmer Effect */}
-      <style>{`
-        @keyframes shimmer {
-          0% {
-            background-position: -1000px 0;
-          }
-          100% {
-            background-position: 1000px 0;
-          }
-        }
-        
-        .animate-pulse {
-          animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-        
-        @keyframes pulse {
-          0%, 100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.5;
-          }
-        }
-      `}</style>
     </div>
   );
 };
@@ -165,7 +83,6 @@ const ServicerReviews = () => {
       setReviews(data.reviews || []);
       setTotalPages(data.pages || 1);
       
-      // Calculate stats
       if (data.reviews && data.reviews.length > 0) {
         const total = data.total || data.reviews.length;
         const avgRating = data.reviews.reduce((sum, r) => sum + r.overall_rating, 0) / data.reviews.length;
@@ -243,7 +160,7 @@ const ServicerReviews = () => {
             key={star}
             className={`w-4 h-4 ${
               star <= rating 
-                ? 'fill-green-500 text-green-500' 
+                ? 'fill-amber-500 text-amber-500' 
                 : 'fill-gray-200 text-gray-200'
             }`}
           />
@@ -253,9 +170,9 @@ const ServicerReviews = () => {
   };
 
   const getRatingColor = (rating) => {
-    if (rating >= 4.5) return 'text-green-600';
-    if (rating >= 3.5) return 'text-green-600';
-    return 'text-red-600';
+    if (rating >= 4.5) return 'text-emerald-700';
+    if (rating >= 3.5) return 'text-amber-700';
+    return 'text-rose-700';
   };
 
   const filteredReviews = reviews.filter(review => 
@@ -263,115 +180,110 @@ const ServicerReviews = () => {
     review.user_name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Show skeleton loading
   if (loading) {
     return <ReviewsSkeleton />;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Reviews & Ratings</h1>
-          <p className="text-sm text-gray-600 mt-1">View and respond to customer feedback</p>
-        </div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-6">
+          <h1 className="text-3xl font-bold text-gray-900 mb-6">Reviews & Ratings</h1>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          {/* Overall Rating */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-green-50 p-2 rounded-lg">
-                  <Star className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-0.5">Average Rating</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {stats.averageRating.toFixed(1)}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {renderStars(Math.round(stats.averageRating))}
-              <span className="text-xs text-gray-500">out of 5</span>
-            </div>
-          </div>
-
-          {/* Total Reviews */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-green-50 p-2 rounded-lg">
-                  <MessageSquare className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-0.5">Total Reviews</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.totalReviews}</p>
-                </div>
-              </div>
-            </div>
-            <p className="text-xs text-gray-500">All customer feedback</p>
-          </div>
-
-          {/* Response Rate */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-green-50 p-2 rounded-lg">
-                  <TrendingUp className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-0.5">Response Rate</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {stats.totalReviews > 0 
-                      ? `${((reviews.filter(r => r.response_from_servicer).length / stats.totalReviews) * 100).toFixed(0)}%`
-                      : '0%'}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <p className="text-xs text-gray-500">
-              {reviews.filter(r => r.response_from_servicer).length} of {stats.totalReviews} responded
-            </p>
-          </div>
-        </div>
-
-        {/* Rating Distribution */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-          <h3 className="font-semibold text-gray-900 mb-4 text-sm">Rating Distribution</h3>
-          <div className="space-y-3">
-            {[5, 4, 3, 2, 1].map((rating) => {
-              const count = stats.ratingDistribution[rating] || 0;
-              const percentage = stats.totalReviews > 0 ? (count / stats.totalReviews) * 100 : 0;
-              
-              return (
-                <div key={rating} className="flex items-center gap-4">
-                  <div className="flex items-center gap-1.5 w-14">
-                    <span className="font-medium text-gray-700 text-sm w-3">{rating}</span>
-                    <Star className="w-3.5 h-3.5 fill-green-500 text-green-500" />
+          {/* Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            {/* Overall Rating */}
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
+                    <Star className="w-6 h-6 text-amber-600" />
                   </div>
-                  <div className="flex-1 bg-gray-100 rounded-full h-2">
-                    <div
-                      className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${percentage}%` }}
-                    />
+                  <div>
+                    <p className="text-xs text-gray-500 mb-0.5">Average Rating</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {stats.averageRating.toFixed(1)}
+                    </p>
                   </div>
-                  <span className="text-xs text-gray-600 w-16 text-right">
-                    {count} {count === 1 ? 'review' : 'reviews'}
-                  </span>
                 </div>
-              );
-            })}
-          </div>
-        </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {renderStars(Math.round(stats.averageRating))}
+                <span className="text-xs text-gray-500">out of 5</span>
+              </div>
+            </div>
 
-        {/* Filters & Search */}
-        <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+            {/* Total Reviews */}
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center">
+                    <MessageSquare className="w-6 h-6 text-slate-700" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-0.5">Total Reviews</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.totalReviews}</p>
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">All customer feedback</p>
+            </div>
+
+            {/* Response Rate */}
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center">
+                    <TrendingUp className="w-6 h-6 text-teal-700" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-0.5">Response Rate</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {stats.totalReviews > 0 
+                        ? `${((reviews.filter(r => r.response_from_servicer).length / stats.totalReviews) * 100).toFixed(0)}%`
+                        : '0%'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">
+                {reviews.filter(r => r.response_from_servicer).length} of {stats.totalReviews} responded
+              </p>
+            </div>
+          </div>
+
+          {/* Rating Distribution */}
+          <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+            <h3 className="font-semibold text-gray-900 mb-4 text-sm">Rating Distribution</h3>
+            <div className="space-y-3">
+              {[5, 4, 3, 2, 1].map((rating) => {
+                const count = stats.ratingDistribution[rating] || 0;
+                const percentage = stats.totalReviews > 0 ? (count / stats.totalReviews) * 100 : 0;
+                
+                return (
+                  <div key={rating} className="flex items-center gap-4">
+                    <div className="flex items-center gap-1.5 w-14">
+                      <span className="font-medium text-gray-700 text-sm w-3">{rating}</span>
+                      <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                    </div>
+                    <div className="flex-1 bg-gray-100 rounded-full h-2">
+                      <div
+                        className="bg-amber-500 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-gray-600 w-16 text-right">
+                      {count} {count === 1 ? 'review' : 'reviews'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Filters & Search */}
           <div className="flex flex-col md:flex-row gap-4">
-            {/* Search */}
             <div className="flex-1 relative">
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
               <input
@@ -379,24 +291,19 @@ const ServicerReviews = () => {
                 placeholder="Search reviews..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent"
               />
             </div>
 
-            {/* Rating Filter */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-2 text-sm text-gray-700">
-                <Filter className="w-4 h-4" />
-                <span className="font-medium">Filter:</span>
-              </div>
+            <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => {
                   setFilterRating(null);
                   setPage(1);
                 }}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
                   filterRating === null
-                    ? 'bg-green-600 text-white'
+                    ? 'bg-slate-800 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -409,9 +316,9 @@ const ServicerReviews = () => {
                     setFilterRating(rating);
                     setPage(1);
                   }}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-1 ${
                     filterRating === rating
-                      ? 'bg-green-600 text-white'
+                      ? 'bg-slate-800 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
@@ -421,118 +328,122 @@ const ServicerReviews = () => {
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Reviews List */}
+      {/* Content */}
+      <div className="max-w-7xl mx-auto px-6 py-8">
         {filteredReviews.length > 0 ? (
-          <div className="space-y-4">
+          <div className="space-y-6">
             {filteredReviews.map((review) => (
               <div
                 key={review._id}
-                className="bg-white rounded-lg border border-gray-200 p-6 hover:border-gray-300 transition-colors"
+                className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition"
               >
-                {/* Review Header */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-start gap-3">
-                    <div className="bg-gray-100 p-2 rounded-full">
-                      {review.user_image ? (
-                        <img
-                          src={review.user_image}
-                          alt={review.user_name}
-                          className="w-10 h-10 rounded-full object-cover"
-                        />
-                      ) : (
-                        <User className="w-6 h-6 text-gray-600" />
+                <div className="p-6">
+                  {/* Review Header */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                        {review.user_image ? (
+                          <img
+                            src={review.user_image}
+                            alt={review.user_name}
+                            className="w-12 h-12 object-cover"
+                          />
+                        ) : (
+                          <User className="w-6 h-6 text-slate-600" />
+                        )}
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900 text-sm">{review.user_name}</h4>
+                        <div className="flex items-center gap-2 mt-1">
+                          {renderStars(review.overall_rating)}
+                          <span className={`text-xs font-bold ${getRatingColor(review.overall_rating)}`}>
+                            {review.overall_rating}.0
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 text-gray-500 text-xs">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {new Date(review.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+
+                  {/* Review Text */}
+                  {review.review_text && (
+                    <div className="bg-gray-50 rounded-lg p-4 mb-4 border border-gray-100">
+                      <p className="text-sm text-gray-700 leading-relaxed">{review.review_text}</p>
+                    </div>
+                  )}
+
+                  {/* Rating Breakdown */}
+                  {(review.quality_rating || review.professionalism_rating || review.punctuality_score) && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                      {review.quality_rating && (
+                        <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                          <p className="text-xs text-gray-500 mb-1">Quality</p>
+                          <div className="flex items-center gap-1">
+                            <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                            <p className="text-sm font-semibold text-gray-900">{review.quality_rating}/5</p>
+                          </div>
+                        </div>
+                      )}
+                      {review.professionalism_rating && (
+                        <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                          <p className="text-xs text-gray-500 mb-1">Professional</p>
+                          <div className="flex items-center gap-1">
+                            <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                            <p className="text-sm font-semibold text-gray-900">{review.professionalism_rating}/5</p>
+                          </div>
+                        </div>
+                      )}
+                      {review.punctuality_score && (
+                        <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                          <p className="text-xs text-gray-500 mb-1">Punctuality</p>
+                          <div className="flex items-center gap-1">
+                            <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                            <p className="text-sm font-semibold text-gray-900">{review.punctuality_score}/5</p>
+                          </div>
+                        </div>
                       )}
                     </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900 text-sm">{review.user_name}</h4>
-                      <div className="flex items-center gap-2 mt-1">
-                        {renderStars(review.overall_rating)}
-                        <span className={`text-xs font-bold ${getRatingColor(review.overall_rating)}`}>
-                          {review.overall_rating}.0
-                        </span>
+                  )}
+
+                  {/* Servicer Response */}
+                  {review.response_from_servicer ? (
+                    <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
+                      <div className="flex items-start gap-2">
+                        <MessageSquare className="w-4 h-4 text-teal-700 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-xs font-medium text-teal-900 mb-1">Your Response</p>
+                          <p className="text-sm text-teal-800 leading-relaxed">{review.response_from_servicer}</p>
+                          <p className="text-xs text-teal-600 mt-2">
+                            {new Date(review.response_at).toLocaleDateString()}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1 text-gray-500 text-xs">
-                    <Calendar className="w-3.5 h-3.5" />
-                    {new Date(review.created_at).toLocaleDateString()}
-                  </div>
+                  ) : (
+                    <button
+                      onClick={() => handleResponseClick(review)}
+                      className="w-full bg-slate-800 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-slate-900 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      Respond to Review
+                    </button>
+                  )}
                 </div>
-
-                {/* Review Text */}
-                {review.review_text && (
-                  <div className="bg-gray-50 rounded-lg p-4 mb-4 border border-gray-100">
-                    <p className="text-sm text-gray-700 leading-relaxed">{review.review_text}</p>
-                  </div>
-                )}
-
-                {/* Rating Breakdown */}
-                {(review.quality_rating || review.professionalism_rating || review.punctuality_score) && (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                    {review.quality_rating && (
-                      <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                        <p className="text-xs text-gray-500 mb-1">Quality</p>
-                        <div className="flex items-center gap-1">
-                          <Star className="w-3 h-3 fill-green-500 text-green-500" />
-                          <p className="text-sm font-semibold text-gray-900">{review.quality_rating}/5</p>
-                        </div>
-                      </div>
-                    )}
-                    {review.professionalism_rating && (
-                      <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                        <p className="text-xs text-gray-500 mb-1">Professional</p>
-                        <div className="flex items-center gap-1">
-                          <Star className="w-3 h-3 fill-green-500 text-green-500" />
-                          <p className="text-sm font-semibold text-gray-900">{review.professionalism_rating}/5</p>
-                        </div>
-                      </div>
-                    )}
-                    {review.punctuality_score && (
-                      <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                        <p className="text-xs text-gray-500 mb-1">Punctuality</p>
-                        <div className="flex items-center gap-1">
-                          <Star className="w-3 h-3 fill-green-500 text-green-500" />
-                          <p className="text-sm font-semibold text-gray-900">{review.punctuality_score}/5</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Servicer Response */}
-                {review.response_from_servicer ? (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <div className="flex items-start gap-2">
-                      <MessageSquare className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1">
-                        <p className="text-xs font-medium text-green-900 mb-1">Your Response</p>
-                        <p className="text-sm text-green-800 leading-relaxed">{review.response_from_servicer}</p>
-                        <p className="text-xs text-green-600 mt-2">
-                          {new Date(review.response_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => handleResponseClick(review)}
-                    className="w-full bg-green-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <MessageSquare className="w-4 h-4" />
-                    Respond to Review
-                  </button>
-                )}
               </div>
             ))}
           </div>
         ) : (
-          <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
-            <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="text-center py-12 bg-white rounded-xl shadow-sm">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Star className="w-8 h-8 text-gray-400" />
             </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No Reviews Found</h3>
-            <p className="text-sm text-gray-600">
+            <p className="text-gray-600">
               {filterRating 
                 ? `No ${filterRating}-star reviews available`
                 : searchQuery
@@ -544,11 +455,11 @@ const ServicerReviews = () => {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-6">
+          <div className="flex items-center justify-center space-x-2 mt-8">
             <button
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="px-4 py-2 text-sm bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
               Previous
             </button>
@@ -557,10 +468,10 @@ const ServicerReviews = () => {
                 <button
                   key={i + 1}
                   onClick={() => setPage(i + 1)}
-                  className={`w-8 h-8 text-sm rounded-lg transition-colors ${
+                  className={`w-8 h-8 text-sm rounded-lg transition ${
                     page === i + 1
-                      ? 'bg-green-600 text-white'
-                      : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                      ? 'bg-slate-800 text-white'
+                      : 'border border-gray-300 hover:bg-gray-50'
                   }`}
                 >
                   {i + 1}
@@ -570,7 +481,7 @@ const ServicerReviews = () => {
             <button
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="px-4 py-2 text-sm bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
               Next
             </button>
@@ -581,14 +492,14 @@ const ServicerReviews = () => {
       {/* Response Modal */}
       {showResponseModal && selectedReview && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full p-6">
+          <div className="bg-white rounded-xl max-w-2xl w-full p-6">
             <h3 className="text-lg font-bold text-gray-900 mb-4">Respond to Review</h3>
             
             {/* Review Summary */}
             <div className="bg-gray-50 rounded-lg p-4 mb-4 border border-gray-200">
               <div className="flex items-center gap-3 mb-2">
-                <div className="bg-gray-200 p-2 rounded-full">
-                  <User className="w-4 h-4 text-gray-600" />
+                <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center">
+                  <User className="w-5 h-5 text-slate-600" />
                 </div>
                 <div>
                   <p className="font-semibold text-gray-900 text-sm">{selectedReview.user_name}</p>
@@ -608,7 +519,7 @@ const ServicerReviews = () => {
               value={responseText}
               onChange={(e) => setResponseText(e.target.value)}
               placeholder="Thank the customer and address their feedback professionally..."
-              className="w-full border border-gray-300 rounded-lg p-3 text-sm resize-none focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+              className="w-full border border-gray-300 rounded-lg p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent"
               rows="6"
             />
             <p className="text-xs text-gray-500 mt-2 mb-4">
@@ -623,14 +534,14 @@ const ServicerReviews = () => {
                   setResponseText('');
                   setSelectedReview(null);
                 }}
-                className="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                className="flex-1 bg-white border border-gray-300 text-gray-700 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={submitResponse}
                 disabled={!responseText.trim() || responding}
-                className="flex-1 bg-green-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="flex-1 bg-slate-800 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-slate-900 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
                 {responding ? 'Submitting...' : 'Submit Response'}
               </button>
