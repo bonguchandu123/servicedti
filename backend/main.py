@@ -8841,28 +8841,30 @@ async def get_all_users(
     }
 
 
-# @app.get("/api/admin/users/{user_id}")
-# async def get_user_details_admin(user_id: str, current_admin: dict = Depends(get_current_admin)):
-#     """Get detailed user profile and activity"""
-#     user = await db[Collections.USERS].find_one({"_id": ObjectId(user_id)})
+@app.get("/api/admin/users/{user_id}")
+async def get_user_details_admin(user_id: str, current_admin: dict = Depends(get_current_admin)):
+    """Get detailed user profile and activity"""
+    user = await db[Collections.USERS].find_one({"_id": ObjectId(user_id)})
     
-#     if not user:
-#         raise HTTPException(status_code=404, detail="User not found")
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
     
-#     user.pop('password_hash', None)
+    user.pop('password_hash', None)
     
-#     # Get bookings count
-#     bookings_count = await db[Collections.BOOKINGS].count_documents({"user_id": ObjectId(user_id)})
+    # Get bookings count
+    bookings_count = await db[Collections.BOOKINGS].count_documents({"user_id": ObjectId(user_id)})
     
-#     # Get transactions
-#     transactions = await db[Collections.TRANSACTIONS].find(
-#         {"user_id": ObjectId(user_id)}
-#     ).sort("created_at", -1).limit(10).to_list(10)
+    # Get transactions
+    transactions = await db[Collections.TRANSACTIONS].find(
+        {"user_id": ObjectId(user_id)}
+    ).sort("created_at", -1).limit(10).to_list(10)
     
-#     user['bookings_count'] = bookings_count
-#     user['recent_transactions'] = transactions
+    user['bookings_count'] = bookings_count
+    user['recent_transactions'] = transactions
     
-#     return serialize_doc(user)
+    return serialize_doc(user)
+
+
 @app.get("/api/admin/users/{user_id}/details")
 async def get_comprehensive_user_details(
     user_id: str,
