@@ -79,11 +79,11 @@ const MyBookings = ({ onNavigate }) => {
 
   const getStatusBadge = (status) => {
     const statusConfig = {
-      pending: { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'Pending' },
-      accepted: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Accepted' },
-      in_progress: { bg: 'bg-purple-100', text: 'text-purple-700', label: 'In Progress' },
-      completed: { bg: 'bg-green-100', text: 'text-green-700', label: 'Completed' },
-      cancelled: { bg: 'bg-red-100', text: 'text-red-700', label: 'Cancelled' }
+      pending: { bg: 'bg-amber-50', text: 'text-amber-800', label: 'Pending' },
+      accepted: { bg: 'bg-sky-50', text: 'text-sky-800', label: 'Accepted' },
+      in_progress: { bg: 'bg-indigo-50', text: 'text-indigo-800', label: 'In Progress' },
+      completed: { bg: 'bg-emerald-50', text: 'text-emerald-800', label: 'Completed' },
+      cancelled: { bg: 'bg-rose-50', text: 'text-rose-800', label: 'Cancelled' }
     };
 
     const config = statusConfig[status] || statusConfig.pending;
@@ -96,10 +96,10 @@ const MyBookings = ({ onNavigate }) => {
 
   const getPaymentStatusBadge = (status) => {
     const statusConfig = {
-      pending: { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'Pending' },
-      completed: { bg: 'bg-green-100', text: 'text-green-700', label: 'Paid' },
-      failed: { bg: 'bg-red-100', text: 'text-red-700', label: 'Failed' },
-      refunded: { bg: 'bg-purple-100', text: 'text-purple-700', label: 'Refunded' }
+      pending: { bg: 'bg-amber-50', text: 'text-amber-800', label: 'Pending' },
+      completed: { bg: 'bg-emerald-50', text: 'text-emerald-800', label: 'Paid' },
+      failed: { bg: 'bg-rose-50', text: 'text-rose-800', label: 'Failed' },
+      refunded: { bg: 'bg-violet-50', text: 'text-violet-800', label: 'Refunded' }
     };
 
     const config = statusConfig[status] || statusConfig.pending;
@@ -179,7 +179,7 @@ const MyBookings = ({ onNavigate }) => {
   if (loading && bookings.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-slate-800"></div>
       </div>
     );
   }
@@ -202,7 +202,7 @@ const MyBookings = ({ onNavigate }) => {
                 }}
                 className={`px-4 py-2 rounded-lg font-medium transition ${
                   statusFilter === status
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-slate-800 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -262,21 +262,21 @@ const MyBookings = ({ onNavigate }) => {
                       {/* Refund Status Banner */}
                       {refundStatus && (
                         <div className={`rounded-lg p-3 border ${
-                          refundStatus.color === 'green' ? 'bg-green-50 border-green-200' :
-                          refundStatus.color === 'red' ? 'bg-red-50 border-red-200' :
+                          refundStatus.color === 'green' ? 'bg-emerald-50 border-emerald-200' :
+                          refundStatus.color === 'red' ? 'bg-rose-50 border-rose-200' :
                           refundStatus.color === 'orange' ? 'bg-orange-50 border-orange-200' :
-                          'bg-yellow-50 border-yellow-200'
+                          'bg-amber-50 border-amber-200'
                         }`}>
                           <div className="flex items-center">
-                            {refundStatus.type === 'processed' && <CheckCircle className="w-4 h-4 text-green-600 mr-2" />}
-                            {refundStatus.type === 'overdue' && <AlertTriangle className="w-4 h-4 text-red-600 mr-2" />}
-                            {refundStatus.type === 'reported' && <AlertCircle className="w-4 h-4 text-orange-600 mr-2" />}
-                            {refundStatus.type === 'pending' && <Timer className="w-4 h-4 text-yellow-600 mr-2" />}
+                            {refundStatus.type === 'processed' && <CheckCircle className="w-4 h-4 text-emerald-700 mr-2" />}
+                            {refundStatus.type === 'overdue' && <AlertTriangle className="w-4 h-4 text-rose-700 mr-2" />}
+                            {refundStatus.type === 'reported' && <AlertCircle className="w-4 h-4 text-orange-700 mr-2" />}
+                            {refundStatus.type === 'pending' && <Timer className="w-4 h-4 text-amber-700 mr-2" />}
                             <span className={`text-sm font-medium ${
-                              refundStatus.color === 'green' ? 'text-green-900' :
-                              refundStatus.color === 'red' ? 'text-red-900' :
+                              refundStatus.color === 'green' ? 'text-emerald-900' :
+                              refundStatus.color === 'red' ? 'text-rose-900' :
                               refundStatus.color === 'orange' ? 'text-orange-900' :
-                              'text-yellow-900'
+                              'text-amber-900'
                             }`}>
                               {refundStatus.message}
                             </span>
@@ -287,7 +287,7 @@ const MyBookings = ({ onNavigate }) => {
                       {/* Date, Time & Location in Grid */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                          <Calendar className="w-5 h-5 text-blue-600" />
+                          <Calendar className="w-5 h-5 text-slate-700" />
                           <div>
                             <p className="text-xs text-gray-500 font-medium">Date</p>
                             <p className="text-sm font-semibold text-gray-900">{booking.booking_date}</p>
@@ -295,7 +295,7 @@ const MyBookings = ({ onNavigate }) => {
                         </div>
                         
                         <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                          <Clock className="w-5 h-5 text-purple-600" />
+                          <Clock className="w-5 h-5 text-slate-700" />
                           <div>
                             <p className="text-xs text-gray-500 font-medium">Time</p>
                             <p className="text-sm font-semibold text-gray-900">{booking.booking_time}</p>
@@ -305,7 +305,7 @@ const MyBookings = ({ onNavigate }) => {
 
                       {booking.service_location?.address && (
                         <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                          <MapPin className="w-5 h-5 text-red-600 mt-0.5" />
+                          <MapPin className="w-5 h-5 text-slate-700 mt-0.5" />
                           <div className="flex-1">
                             <p className="text-xs text-gray-500 font-medium mb-1">Service Location</p>
                             <p className="text-sm text-gray-900">{booking.service_location.address}</p>
@@ -315,8 +315,8 @@ const MyBookings = ({ onNavigate }) => {
 
                       {/* Servicer Info */}
                       {booking.servicer_name && (
-                        <div className="flex items-center space-x-3 p-4 bg-blue-50 rounded-lg border border-blue-100">
-                          <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                        <div className="flex items-center space-x-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                          <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0 overflow-hidden">
                             {booking.servicer_image ? (
                               <img
                                 src={booking.servicer_image}
@@ -324,11 +324,11 @@ const MyBookings = ({ onNavigate }) => {
                                 className="w-12 h-12 object-cover"
                               />
                             ) : (
-                              <User className="w-6 h-6 text-blue-600" />
+                              <User className="w-6 h-6 text-slate-600" />
                             )}
                           </div>
                           <div className="flex-1">
-                            <p className="text-xs text-blue-600 font-medium mb-1">Service Provider</p>
+                            <p className="text-xs text-slate-600 font-medium mb-1">Service Provider</p>
                             <p className="font-bold text-gray-900">{booking.servicer_name}</p>
                             {booking.servicer_phone && (
                               <div className="flex items-center text-sm text-gray-600 mt-1">
@@ -344,15 +344,15 @@ const MyBookings = ({ onNavigate }) => {
                     {/* Right Side - Amount & Primary Actions (30%) */}
                     <div className="lg:col-span-4 space-y-3">
                       {/* Amount Card */}
-                      <div className="bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-xl p-4 text-center">
-                        <p className="text-xs opacity-90 mb-1">
+                      <div className="bg-white border border-gray-300 rounded-xl p-4 text-center">
+                        <p className="text-xs text-gray-600 mb-1">
                           {booking.refund_processed ? 'Original Amount' : 'Total Amount'}
                         </p>
-                        <p className="text-2xl font-bold mb-1">₹{booking.total_amount?.toFixed(2)}</p>
+                        <p className="text-2xl font-bold text-gray-900 mb-1">₹{booking.total_amount?.toFixed(2)}</p>
                         {booking.refund_processed && (
-                          <div className="inline-flex items-center space-x-1 bg-white bg-opacity-20 rounded-full px-2 py-0.5">
-                            <CheckCircle className="w-3 h-3" />
-                            <span className="text-xs font-semibold">Refunded</span>
+                          <div className="inline-flex items-center space-x-1 bg-emerald-100 rounded-full px-2 py-0.5">
+                            <CheckCircle className="w-3 h-3 text-emerald-700" />
+                            <span className="text-xs font-semibold text-emerald-700">Refunded</span>
                           </div>
                         )}
                       </div>
@@ -361,7 +361,7 @@ const MyBookings = ({ onNavigate }) => {
                       <div className="space-y-2">
                         <button
                           onClick={() => onNavigate(`/user/bookings/${booking._id}`)}
-                          className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
+                          className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-slate-800 text-white rounded-lg hover:bg-slate-900 font-medium text-sm transition"
                         >
                           <Eye className="w-4 h-4" />
                           <span>View Details</span>
@@ -370,7 +370,7 @@ const MyBookings = ({ onNavigate }) => {
                         {canTrackBooking(booking) && (
                           <button
                             onClick={() => onNavigate(`/user/bookings/${booking._id}/track`)}
-                            className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium text-sm"
+                            className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium text-sm transition"
                           >
                             <Navigation className="w-4 h-4" />
                             <span>Track Service</span>
@@ -379,7 +379,7 @@ const MyBookings = ({ onNavigate }) => {
 
                         <button
                           onClick={() => onNavigate(`/user/bookings/${booking._id}/chat`)}
-                          className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-sm"
+                          className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium text-sm transition"
                         >
                           <MessageSquare className="w-4 h-4" />
                           <span>Chat</span>
@@ -388,7 +388,7 @@ const MyBookings = ({ onNavigate }) => {
                         {canCancelBooking(booking) && (
                           <button
                             onClick={() => onNavigate(`/user/bookings/${booking._id}/cancel`)}
-                            className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium text-sm"
+                            className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 font-medium text-sm transition"
                           >
                             <XCircle className="w-4 h-4" />
                             <span>Cancel Booking</span>
@@ -404,7 +404,7 @@ const MyBookings = ({ onNavigate }) => {
                       {canReportRefundDelay(booking) && (
                         <button
                           onClick={() => onNavigate(`/user/bookings/${booking._id}/report-refund-delay`)}
-                          className="flex items-center space-x-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm font-medium animate-pulse"
+                          className="flex items-center space-x-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm font-medium transition animate-pulse"
                         >
                           <AlertTriangle className="w-4 h-4" />
                           <span>Report Refund Delay</span>
@@ -414,7 +414,7 @@ const MyBookings = ({ onNavigate }) => {
                       {canReportBookingIssue(booking) && (
                         <button
                           onClick={() => onNavigate(`/user/bookings/${booking._id}/report-booking-issue`)}
-                          className="flex items-center space-x-2 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-sm font-medium"
+                          className="flex items-center space-x-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm font-medium transition"
                         >
                           <FileText className="w-4 h-4" />
                           <span>Report Issue</span>
@@ -424,7 +424,7 @@ const MyBookings = ({ onNavigate }) => {
                       {canReportTransactionIssue(booking) && (
                         <button
                           onClick={() => onNavigate(`/user/bookings/${booking._id}/report-transaction-issue`)}
-                          className="flex items-center space-x-2 px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 text-sm font-medium"
+                          className="flex items-center space-x-2 px-4 py-2 bg-fuchsia-600 text-white rounded-lg hover:bg-fuchsia-700 text-sm font-medium transition"
                         >
                           <DollarSign className="w-4 h-4" />
                           <span>Payment Issue</span>
@@ -434,12 +434,12 @@ const MyBookings = ({ onNavigate }) => {
                       {booking.transaction_issue && (
                         <button
                           onClick={() => onNavigate(`/user/chat?issue_id=${booking.transaction_issue._id}`)}
-                          className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium relative"
+                          className="flex items-center space-x-2 px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 text-sm font-medium relative transition"
                         >
                           <MessageCircle className="w-4 h-4" />
                           <span>Payment Chat</span>
                           {booking.transaction_issue.unread_messages > 0 && (
-                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                            <span className="absolute -top-1 -right-1 bg-rose-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
                               {booking.transaction_issue.unread_messages}
                             </span>
                           )}
@@ -459,7 +459,7 @@ const MyBookings = ({ onNavigate }) => {
             <button
               onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
               disabled={currentPage === 1}
-              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
               Previous
             </button>
@@ -469,7 +469,7 @@ const MyBookings = ({ onNavigate }) => {
             <button
               onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
               disabled={currentPage === totalPages}
-              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
               Next
             </button>

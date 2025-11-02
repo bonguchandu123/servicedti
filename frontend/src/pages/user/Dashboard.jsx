@@ -145,114 +145,112 @@ const UserDashboard = ({ onNavigate }) => {
             <p className="text-gray-600 mt-2">Welcome back! Here's your overview</p>
           </div>
           
-          {/* Notifications Button - CLICKABLE */}
+          {/* Notifications Button */}
           <button
             onClick={() => onNavigate && onNavigate('/user/notifications')}
-            className="relative flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-all"
+            className="relative flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all"
           >
             <Bell className="w-5 h-5 text-gray-700" />
-            <span className="font-medium text-gray-700">Notifications</span>
+            <span className="font-medium text-gray-900">Notifications</span>
             {dashboardData?.unread_notifications > 0 && (
-              <span className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-600 rounded-full">
+              <span className="absolute -top-2 -right-2 flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-semibold text-white bg-rose-600 rounded-full">
                 {dashboardData.unread_notifications > 9 ? '9+' : dashboardData.unread_notifications}
               </span>
             )}
           </button>
         </div>
 
-        {/* Stats Cards - ALL CLICKABLE */}
+        {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {/* Active Bookings Card - CLICKABLE */}
+          {/* Active Bookings Card */}
           <div 
             onClick={() => onNavigate && onNavigate('/user/bookings')}
-            className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer"
+            className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg hover:border-gray-300 transition-all cursor-pointer"
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-sm text-gray-600 mb-1">Active Bookings</p>
+                <p className="text-sm font-medium text-gray-600 mb-1">Active Bookings</p>
                 <p className="text-3xl font-bold text-gray-900">
                   {dashboardData?.active_bookings || 0}
                 </p>
               </div>
-              <div className="bg-blue-100 p-3 rounded-lg">
-                <Calendar className="w-6 h-6 text-blue-600" />
+              <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center">
+                <Calendar className="w-6 h-6 text-slate-700" />
               </div>
             </div>
-            <div className="mt-4 flex items-center text-sm">
-              <TrendingUp className="w-4 h-4 text-green-600 mr-1" />
-              <span className="text-green-600">In progress</span>
+            <div className="flex items-center text-sm text-gray-600">
+              <span className="w-2 h-2 bg-emerald-500 rounded-full mr-2"></span>
+              <span>In progress</span>
             </div>
           </div>
 
-          {/* Favorites Card - CLICKABLE */}
+          {/* Favorites Card */}
           <div 
             onClick={() => onNavigate && onNavigate('/user/favorites')}
-            className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer"
+            className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg hover:border-gray-300 transition-all cursor-pointer"
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-sm text-gray-600 mb-1">Favorites</p>
+                <p className="text-sm font-medium text-gray-600 mb-1">Favorites</p>
                 <p className="text-3xl font-bold text-gray-900">
                   {dashboardData?.favorites_count || 0}
                 </p>
               </div>
-              <div className="bg-yellow-100 p-3 rounded-lg">
-                <Star className="w-6 h-6 text-yellow-600" />
+              <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
+                <Star className="w-6 h-6 text-amber-600" />
               </div>
             </div>
-            <div className="mt-4 flex items-center text-sm">
-              <span className="text-gray-600">Servicers</span>
+            <div className="text-sm text-gray-600">
+              Saved servicers
             </div>
           </div>
 
-          {/* Wallet Balance Card - CLICKABLE */}
+          {/* Wallet Balance Card */}
           <div 
             onClick={() => onNavigate && onNavigate('/user/wallet')}
-            className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer"
+            className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg hover:border-gray-300 transition-all cursor-pointer"
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-sm text-gray-600 mb-1">Wallet Balance</p>
+                <p className="text-sm font-medium text-gray-600 mb-1">Wallet Balance</p>
                 <p className="text-3xl font-bold text-gray-900">
                   ₹{dashboardData?.wallet_balance?.toFixed(2) || '0.00'}
                 </p>
               </div>
-              <div className="bg-green-100 p-3 rounded-lg">
-                <Wallet className="w-6 h-6 text-green-600" />
+              <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center">
+                <Wallet className="w-6 h-6 text-teal-700" />
               </div>
             </div>
-            <div className="mt-4">
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onNavigate && onNavigate('/user/wallet');
-                }}
-                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-              >
-                Add Money
-              </button>
-            </div>
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                onNavigate && onNavigate('/user/wallet');
+              }}
+              className="text-sm text-slate-700 hover:text-slate-900 font-medium"
+            >
+              Add Money →
+            </button>
           </div>
 
-          {/* Notifications Card - CLICKABLE */}
+          {/* Notifications Card */}
           <button
             onClick={() => onNavigate && onNavigate('/user/notifications')}
-            className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md hover:border-blue-300 transition-all text-left group cursor-pointer"
+            className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg hover:border-gray-300 transition-all text-left group cursor-pointer"
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-sm text-gray-600 mb-1">Notifications</p>
+                <p className="text-sm font-medium text-gray-600 mb-1">Notifications</p>
                 <p className="text-3xl font-bold text-gray-900">
                   {dashboardData?.unread_notifications || 0}
                 </p>
               </div>
-              <div className="bg-red-100 p-3 rounded-lg group-hover:bg-red-200 transition-colors">
-                <Bell className="w-6 h-6 text-red-600" />
+              <div className="w-12 h-12 bg-rose-100 rounded-lg flex items-center justify-center group-hover:bg-rose-200 transition-colors">
+                <Bell className="w-6 h-6 text-rose-700" />
               </div>
             </div>
-            <div className="mt-4 flex items-center justify-between text-sm">
-              <span className="text-gray-600">Unread</span>
-              <ArrowRight className="w-4 h-4 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-600">Unread messages</span>
+              <ArrowRight className="w-4 h-4 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
           </button>
         </div>
@@ -264,7 +262,7 @@ const UserDashboard = ({ onNavigate }) => {
               <h2 className="text-xl font-semibold text-gray-900">Recent Bookings</h2>
               <button 
                 onClick={() => onNavigate && onNavigate('/user/bookings')}
-                className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
+                className="text-slate-700 hover:text-slate-900 text-sm font-medium flex items-center gap-1"
               >
                 View All
                 <ArrowRight className="w-4 h-4" />
@@ -274,24 +272,28 @@ const UserDashboard = ({ onNavigate }) => {
 
           <div className="p-6">
             {dashboardData?.recent_bookings?.length > 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {dashboardData.recent_bookings.map((booking) => (
                   <div
                     key={booking._id}
                     onClick={() => onNavigate && onNavigate(`/user/bookings/${booking._id}`)}
-                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 hover:shadow-sm transition cursor-pointer"
+                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-md transition cursor-pointer"
                   >
                     <div className="flex items-center space-x-4">
-                      <div className={`p-3 rounded-lg ${
-                        booking.booking_status === 'completed' ? 'bg-green-100' :
-                        booking.booking_status === 'in_progress' ? 'bg-blue-100' :
-                        booking.booking_status === 'accepted' ? 'bg-yellow-100' :
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        booking.booking_status === 'completed' ? 'bg-emerald-100' :
+                        booking.booking_status === 'in_progress' ? 'bg-indigo-100' :
+                        booking.booking_status === 'accepted' ? 'bg-amber-100' :
                         'bg-gray-100'
                       }`}>
                         {booking.booking_status === 'completed' ? (
-                          <CheckCircle className="w-5 h-5 text-green-600" />
+                          <CheckCircle className={`w-5 h-5 text-emerald-700`} />
                         ) : (
-                          <Clock className="w-5 h-5 text-gray-600" />
+                          <Clock className={`w-5 h-5 ${
+                            booking.booking_status === 'in_progress' ? 'text-indigo-700' :
+                            booking.booking_status === 'accepted' ? 'text-amber-700' :
+                            'text-gray-600'
+                          }`} />
                         )}
                       </div>
                       <div>
@@ -308,13 +310,13 @@ const UserDashboard = ({ onNavigate }) => {
                     </div>
 
                     <div className="text-right">
-                      <p className="font-semibold text-gray-900">
+                      <p className="font-semibold text-gray-900 mb-1">
                         ₹{booking.total_amount?.toFixed(2)}
                       </p>
-                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium mt-1 ${
-                        booking.booking_status === 'completed' ? 'bg-green-100 text-green-700' :
-                        booking.booking_status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
-                        booking.booking_status === 'accepted' ? 'bg-yellow-100 text-yellow-700' :
+                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
+                        booking.booking_status === 'completed' ? 'bg-emerald-50 text-emerald-800' :
+                        booking.booking_status === 'in_progress' ? 'bg-indigo-50 text-indigo-800' :
+                        booking.booking_status === 'accepted' ? 'bg-amber-50 text-amber-800' :
                         'bg-gray-100 text-gray-700'
                       }`}>
                         {booking.booking_status.replace('_', ' ').toUpperCase()}
@@ -325,7 +327,9 @@ const UserDashboard = ({ onNavigate }) => {
               </div>
             ) : (
               <div className="text-center py-12">
-                <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Calendar className="w-8 h-8 text-gray-400" />
+                </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
                   No bookings yet
                 </h3>
@@ -334,7 +338,7 @@ const UserDashboard = ({ onNavigate }) => {
                 </p>
                 <button 
                   onClick={() => onNavigate && onNavigate('/user/search')}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="px-6 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-900"
                 >
                   Browse Services
                 </button>
@@ -343,59 +347,59 @@ const UserDashboard = ({ onNavigate }) => {
           </div>
         </div>
 
-        {/* Quick Actions - ALL CLICKABLE */}
+        {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <button 
             onClick={() => onNavigate && onNavigate('/user/search')}
-            className="bg-white rounded-lg border border-gray-200 p-6 hover:border-blue-300 hover:shadow-md transition text-left group"
+            className="bg-white rounded-lg border border-gray-200 p-6 hover:border-gray-300 hover:shadow-lg transition text-left group"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
-                <div className="bg-blue-100 p-3 rounded-lg group-hover:bg-blue-200 transition-colors">
-                  <Home className="w-6 h-6 text-blue-600" />
+                <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center group-hover:bg-slate-200 transition-colors">
+                  <Home className="w-6 h-6 text-slate-700" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900">Book Service</h3>
                   <p className="text-sm text-gray-600">Find & book services</p>
                 </div>
               </div>
-              <ArrowRight className="w-5 h-5 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <ArrowRight className="w-5 h-5 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
           </button>
 
           <button 
             onClick={() => onNavigate && onNavigate('/user/favorites')}
-            className="bg-white rounded-lg border border-gray-200 p-6 hover:border-blue-300 hover:shadow-md transition text-left group"
+            className="bg-white rounded-lg border border-gray-200 p-6 hover:border-gray-300 hover:shadow-lg transition text-left group"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
-                <div className="bg-yellow-100 p-3 rounded-lg group-hover:bg-yellow-200 transition-colors">
-                  <Star className="w-6 h-6 text-yellow-600" />
+                <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center group-hover:bg-amber-200 transition-colors">
+                  <Star className="w-6 h-6 text-amber-600" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900">My Favorites</h3>
                   <p className="text-sm text-gray-600">View saved servicers</p>
                 </div>
               </div>
-              <ArrowRight className="w-5 h-5 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <ArrowRight className="w-5 h-5 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
           </button>
 
           <button 
             onClick={() => onNavigate && onNavigate('/user/wallet')}
-            className="bg-white rounded-lg border border-gray-200 p-6 hover:border-blue-300 hover:shadow-md transition text-left group"
+            className="bg-white rounded-lg border border-gray-200 p-6 hover:border-gray-300 hover:shadow-lg transition text-left group"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
-                <div className="bg-green-100 p-3 rounded-lg group-hover:bg-green-200 transition-colors">
-                  <Wallet className="w-6 h-6 text-green-600" />
+                <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center group-hover:bg-teal-200 transition-colors">
+                  <Wallet className="w-6 h-6 text-teal-700" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900">My Wallet</h3>
                   <p className="text-sm text-gray-600">Manage payments</p>
                 </div>
               </div>
-              <ArrowRight className="w-5 h-5 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <ArrowRight className="w-5 h-5 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
           </button>
         </div>
