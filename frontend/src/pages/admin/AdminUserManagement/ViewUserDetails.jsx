@@ -10,6 +10,7 @@ const ViewUserDetails = ({ userId, onNavigate }) => {
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`
 
   useEffect(() => {
     fetchUserDetails();
@@ -19,7 +20,7 @@ const ViewUserDetails = ({ userId, onNavigate }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(
-        `http://localhost:8000/api/admin/users/${userId}/details`,
+        `${API_BASE_URL}/admin/users/${userId}/details`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setUserData(response.data);
@@ -41,7 +42,7 @@ const ViewUserDetails = ({ userId, onNavigate }) => {
     try {
       const token = localStorage.getItem('token');
       await axios.post(
-        `http://localhost:8000/api/admin/users/${userId}/unsuspend`,
+        `${API_BASE_URL}/admin/users/${userId}/unsuspend`,
         { reason: 'Suspension lifted by admin' },
         { headers: { Authorization: `Bearer ${token}` } }
       );
