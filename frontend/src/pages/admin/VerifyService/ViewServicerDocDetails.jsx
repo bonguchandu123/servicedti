@@ -99,22 +99,13 @@ const ViewServicerDocDetails = ({ servicerId, onNavigate }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-center gap-3 mb-6 animate-pulse">
-            <div className="w-10 h-10 bg-gray-200 rounded-lg"></div>
-            <div className="h-8 w-64 bg-gray-200 rounded"></div>
-          </div>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="space-y-3">
-                <div className="h-6 w-48 bg-gray-200 rounded"></div>
-                <div className="h-24 w-full bg-gray-100 rounded"></div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+      <img
+        src="/newmg.svg"
+        alt="Loading..."
+        className="w-40 h-40 animate-logo"
+      />
+    </div>
     );
   }
 

@@ -369,7 +369,15 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
   const totalSteps = formData.role === 'servicer' ? 3 : 2;
 
   if (pageLoading) {
-    return <PageLoadingSkeleton />;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+      <img
+        src="/newmg.svg"
+        alt="Loading..."
+        className="w-40 h-40 animate-logo"
+      />
+    </div>
+    )
   }
 
   return (

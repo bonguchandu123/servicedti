@@ -139,7 +139,15 @@ const ServicerDashboard = ({ onNavigate }) => {
   };
 
   if (loading) {
-    return <ServicerDashboardSkeletonLoader />;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+      <img
+        src="/newmg.svg"
+        alt="Loading..."
+        className="w-40 h-40 animate-logo"
+      />
+    </div>
+    )
   }
 
   const stats = [

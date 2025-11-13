@@ -108,16 +108,13 @@ const ViewBookingDetails = ({ bookingId, onNavigate }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-center py-20">
-            <div className="text-center">
-              <Loader className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-4" />
-              <p className="text-slate-600 font-medium">Loading booking details...</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+      <img
+        src="/newmg.svg"
+        alt="Loading..."
+        className="w-40 h-40 animate-logo"
+      />
+    </div>
     );
   }
 
