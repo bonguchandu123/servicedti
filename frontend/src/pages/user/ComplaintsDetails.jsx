@@ -55,16 +55,18 @@ const ComplaintDetails = ({ complaintId, onNavigate }) => {
     return configs[status] || configs.pending;
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-16 w-16 border-4 border-slate-200 border-t-blue-600"></div>
-          <p className="mt-4 text-slate-600 font-medium">Loading complaint details...</p>
-        </div>
-      </div>
-    );
-  }
+if (loading) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+      <img
+        src="/newmg.svg"
+        alt="Loading..."
+        className="w-40 h-40 animate-logo"
+      />
+    </div>
+  );
+}
+
 
   if (!complaint) {
     return (

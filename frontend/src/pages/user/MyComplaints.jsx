@@ -88,11 +88,17 @@ const MyComplaints = ({ onNavigate }) => {
         ))}
       </div>
 
+
+
       {/* Complaints List */}
       {loading ? (
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-        </div>
+        <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+      <img
+        src="/newmg.svg"
+        alt="Loading..."
+        className="w-40 h-40 animate-logo"
+      />
+    </div>
       ) : complaints.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-lg shadow">
           <AlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />

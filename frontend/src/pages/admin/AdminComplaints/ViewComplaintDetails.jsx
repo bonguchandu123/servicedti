@@ -101,9 +101,13 @@ export default function ViewComplaintDetails({ complaintId, onNavigate }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+      <img
+        src="/newmg.svg"
+        alt="Loading..."
+        className="w-40 h-40 animate-logo"
+      />
+    </div>
     );
   }
 

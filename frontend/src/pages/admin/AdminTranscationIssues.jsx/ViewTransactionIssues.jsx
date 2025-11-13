@@ -67,17 +67,13 @@ const ViewTransactionIssues = ({ issueId, onNavigate }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="animate-pulse space-y-6">
-            <div className="h-8 w-64 bg-gray-200 rounded"></div>
-            <div className="bg-white rounded-lg p-6 space-y-4">
-              <div className="h-6 w-48 bg-gray-200 rounded"></div>
-              <div className="h-32 bg-gray-200 rounded"></div>
-            </div>
-          </div>
-        </div>
-      </div>
+     <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+      <img
+        src="/newmg.svg"
+        alt="Loading..."
+        className="w-40 h-40 animate-logo"
+      />
+    </div>
     );
   }
 
