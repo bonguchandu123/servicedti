@@ -542,7 +542,10 @@ const CreateBooking = ({ onNavigate }) => {
                 <div className="text-right flex-shrink-0">
                   <p className="text-sm text-gray-600">Service</p>
                   <p className="font-semibold text-gray-900">{category.name}</p>
-                  <p className="text-lg font-bold text-blue-600">₹{category.base_price}</p>
+        <p className="text-lg font-bold text-blue-600">
+  ₹{category.base_price} <span className="text-sm font-medium text-gray-600">/ hour</span>
+</p>
+
                 </div>
               )}
             </div>

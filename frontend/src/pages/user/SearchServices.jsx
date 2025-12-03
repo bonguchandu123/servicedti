@@ -1069,7 +1069,7 @@ const SearchServices = ({ onNavigate }) => {
                           )}
                         </div>
                       </div>
-                      <span className="text-lg font-bold text-blue-600 ml-4">₹{cat.base_price}</span>
+                      {/* <span className="text-lg font-bold text-blue-600 ml-4">₹{cat.base_price}</span> */}
                     </div>
                   </button>
                 );

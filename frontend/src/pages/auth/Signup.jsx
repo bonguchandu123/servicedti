@@ -786,7 +786,7 @@ const Signup = ({ onNavigate = (path) => console.log('Navigate to:', path) }) =>
                                     <h4 className="font-semibold text-gray-900">{category.name}</h4>
                                     <p className="text-sm text-gray-600 mt-1">{category.description}</p>
                                     <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                                      <span className="font-medium text-indigo-600">₹{category.base_price}</span>
+                                      {/* <span className="font-medium text-indigo-600">₹{category.base_price}</span> */}
                                       {category.servicers_count > 0 && (
                                         <span>• {category.servicers_count} servicers</span>
                                       )}
